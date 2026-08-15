@@ -1,0 +1,11 @@
+{
+  "schema": "naintail.addon-standalone/v1",
+  "addonId": "censortail",
+  "platform": "win-x64",
+  "electron": "runtime/electron/electron.exe",
+  "pythonCuda": "runtime/versions",
+  "models": "Models/censor",
+  "gui": "CensorTail.bat",
+  "mcp": "CensorTail_MCP.bat",
+  "dataRoot": "."
+}

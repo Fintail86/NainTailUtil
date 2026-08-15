@@ -1,0 +1,24 @@
+{
+  "schema": "naintail.generation-profile/v1",
+  "defaults": {
+    "model": "nai-diffusion-4-5-full",
+    "width": 832,
+    "height": 1216,
+    "steps": 28,
+    "guidance": 5,
+    "sampler": "k_euler_ancestral",
+    "scheduler": "karras",
+    "seed": null,
+    "cfgRescale": 0,
+    "decrisper": false,
+    "qualityTags": true,
+    "ucPreset": "Heavy"
+  },
+  "limits": {
+    "width": { "min": 64, "max": 2048, "multiple": 64 },
+    "height": { "min": 64, "max": 2048, "multiple": 64 },
+    "steps": { "min": 1, "max": 50 },
+    "guidance": { "min": 0, "max": 20 },
+    "cfgRescale": { "min": 0, "max": 1 }
+  }
+}

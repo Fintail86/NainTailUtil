@@ -1,0 +1,8 @@
+{
+  "name": "naintailutil",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable NovelAI project asset generation utility",
+  "main": "app/electron/main.cjs"
+}
+

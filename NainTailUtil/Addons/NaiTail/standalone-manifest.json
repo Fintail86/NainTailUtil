@@ -1,0 +1,10 @@
+{
+  "schema": "naintail.addon-standalone/v1",
+  "addonId": "naitail",
+  "platform": "win-x64",
+  "electron": "runtime/electron/electron.exe",
+  "gui": "NaiTail.bat",
+  "cli": "NaiTail_CLI.bat",
+  "mcp": "NaiTail_MCP.bat",
+  "dataRoot": "."
+}

@@ -1,0 +1,7 @@
+{
+  "name": "censortail",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable standalone CensorTail utility and NainTail addon",
+  "main": "standalone/main.cjs"
+}

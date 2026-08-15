@@ -1,0 +1,11 @@
+{
+  "schema": "naintail.addon-standalone/v1",
+  "addonId": "animatail",
+  "platform": "win-x64",
+  "electron": "runtime/electron/electron.exe",
+  "pythonCuda": "runtime/versions",
+  "gui": "AnimaTail.bat",
+  "cli": "AnimaTail_CLI.bat",
+  "mcp": "AnimaTail_MCP.bat",
+  "dataRoot": "."
+}

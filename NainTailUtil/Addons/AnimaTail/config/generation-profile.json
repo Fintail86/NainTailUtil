@@ -1,0 +1,28 @@
+{
+  "sampling": {
+    "samplers": ["er_sde", "res_multistep", "euler_a", "euler", "uni_pc"],
+    "schedulers": ["simple", "beta", "ddim_uniform"],
+    "defaultSampler": "er_sde",
+    "defaultScheduler": "simple",
+    "minimumSteps": {
+      "uni_pc": 2
+    }
+  },
+  "outputNaming": {
+    "defaultPrefix": "au",
+    "segmentMaxLength": 64
+  },
+  "limits": {
+    "dimension": { "min": 512, "max": 1536, "step": 16 },
+    "batch": { "min": 1, "max": 8 },
+    "queue": { "min": 1, "max": 20 },
+    "seed": { "min": 0, "max": 2147483647 },
+    "steps": { "min": 1, "max": 100 },
+    "cfg": { "min": 1, "max": 20 },
+    "loraStrength": { "min": 0, "max": 2 },
+    "subPrompts": { "max": 20 },
+    "lorasPerJob": { "max": 16 },
+    "promptCharacters": { "max": 4000 }
+  },
+  "turboLoraPrefix": "turbo/"
+}

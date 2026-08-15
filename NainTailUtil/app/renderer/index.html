@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+  <title>NainTail</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="host-home" data-host-home>
+    <header class="host-heading">
+      <span class="host-kicker">PORTABLE CREATIVE HOST</span>
+      <h1><span class="host-mark">N</span>NainTail</h1>
+      <p>사용할 애드온을 선택해.</p>
+    </header>
+
+    <ol id="addonGrid" class="addon-grid" aria-label="설치된 애드온"></ol>
+
+    <p id="hostNotice" class="host-notice" role="status" aria-live="polite"></p>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

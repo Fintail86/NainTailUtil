@@ -1,0 +1,77 @@
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+function readManifestRuntime(appRoot, manifestPath, runtimeRoot, source) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    if (typeof manifest.runtimeId !== "string" || manifest.runtimeId.length === 0) {
+      return { state: "manifest-invalid", runtimeId: null, pythonPath: null, source };
+    }
+    const pythonPath = path.join(
+      runtimeRoot,
+      "versions",
+      manifest.runtimeId,
+      manifest.entrypoint || "python.exe",
+    );
+    let ready = fs.existsSync(pythonPath);
+    const expectedMarker = manifest.integrity || manifest.archiveSha256;
+    if (ready && typeof expectedMarker === "string") {
+      const markerPath = path.join(path.dirname(pythonPath), ".runtime-ready");
+      try {
+        const marker = fs.readFileSync(markerPath, "utf8").trim().split(/\r?\n/);
+        ready = marker[0] === manifest.runtimeId && marker[1] === expectedMarker;
+      } catch {
+        ready = false;
+      }
+    }
+    return {
+      state: ready ? "ready" : "not-installed",
+      runtimeId: manifest.runtimeId,
+      pythonPath,
+      source,
+    };
+  } catch {
+    return { state: "manifest-invalid", runtimeId: null, pythonPath: null, source };
+  }
+}
+
+function locateRuntime(appRoot) {
+  const productManifest = path.join(appRoot, "runtime-manifest.json");
+  const localManifest = path.join(appRoot, "runtime-manifest.local.json");
+
+  const product = fs.existsSync(productManifest)
+    ? readManifestRuntime(
+      appRoot,
+      productManifest,
+      path.join(appRoot, "runtime"),
+      "product",
+    )
+    : null;
+  if (product?.state === "ready") return product;
+
+  const local = fs.existsSync(localManifest)
+    ? readManifestRuntime(
+      appRoot,
+      localManifest,
+      path.join(appRoot, "runtime"),
+      "local",
+    )
+    : null;
+  if (local?.state === "ready") return local;
+
+  // The product manifest remains the install target. A local manifest only
+  // pins an already-present portable runtime and must not block an upgrade.
+  if (product) return product;
+  if (local) return local;
+
+  return {
+    state: "manifest-missing",
+    runtimeId: null,
+    pythonPath: null,
+    source: null,
+  };
+}
+
+module.exports = { locateRuntime, readManifestRuntime };

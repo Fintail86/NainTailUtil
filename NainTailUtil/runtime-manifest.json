@@ -1,0 +1,27 @@
+{
+  "schema": "naintail.runtime-manifest/v1",
+  "electron": {
+    "version": "43.1.1",
+    "relativeExecutable": "runtime/electron/electron.exe"
+  },
+  "mcp": {
+    "status": "included",
+    "transport": "stdio",
+    "relativeLauncher": "NainTailUtil_MCP.bat",
+    "mode": "federation",
+    "addonProfile": "naintail.addon-mcp-profile/v1",
+    "federatedAdapters": ["naitail", "animatail", "censortail"],
+    "legacySelectorEnvironment": "NAINTAIL_ADDON_ID"
+  },
+  "addons": {
+    "contract": "naintail.addon/v1",
+    "builtIn": ["NaiTail", "AnimaTail", "GalleryTail", "CensorTail"],
+    "standalone": ["NaiTail", "AnimaTail", "CensorTail"],
+    "default": "naitail"
+  },
+  "pythonCuda": {
+    "status": "included-in-animatail",
+    "relativeRoot": "Addons/AnimaTail/runtime",
+    "purpose": "shared-anima-generation-and-censor-runtime"
+  }
+}
