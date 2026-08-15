@@ -5,15 +5,22 @@ const path = require("node:path");
 const { nativeImage } = require("electron");
 const channels = require("./channels.cjs");
 const {
+  explicitDroppedFile,
+  materializeDroppedFile,
+  usableDroppedPath,
+} = require("./dropped-input.cjs");
+const {
   CENSOR_BATCH_SIZE,
   CensorService,
   IMAGE_EXTENSIONS,
   collectCensorInputFiles,
 } = require("./censor-service.cjs");
 const { RuntimeInstaller } = require("./runtime-installer.cjs");
+const { webpDimensions } = require("./webp.cjs");
 
 let addonContext = null;
 let censorService = null;
+let dropCacheRoot = null;
 let resourceRoot = null;
 let runtimeInstaller = null;
 
@@ -40,43 +47,40 @@ function resizedImageData(image, maximum, quality = "good") {
     : image.resize({ height: maximum, quality });
 }
 
+function readableImageData(absolutePath, maximum) {
+  const image = nativeImage.createFromPath(absolutePath);
+  if (!image.isEmpty()) {
+    const rendered = resizedImageData(image, maximum);
+    const size = rendered.getSize();
+    return { dataUrl: rendered.toDataURL(), width: size.width, height: size.height };
+  }
+  if (path.extname(absolutePath).toLowerCase() !== ".webp") return null;
+  try {
+    const bytes = fs.readFileSync(absolutePath);
+    const size = webpDimensions(bytes);
+    if (!size) return null;
+    return { dataUrl: `data:image/webp;base64,${bytes.toString("base64")}`, ...size };
+  } catch {
+    return null;
+  }
+}
+
 function imagePayload(id, maximum = 1600) {
   const item = censorService.resolveImage(id);
   if (!item) throw new Error("자동검열 입력 이미지를 찾을 수 없습니다.");
-  const image = nativeImage.createFromPath(item.absolutePath);
-  if (image.isEmpty()) throw new Error("자동검열 입력 이미지를 읽을 수 없습니다.");
-  const rendered = resizedImageData(image, maximum);
-  const size = rendered.getSize();
-  return { dataUrl: rendered.toDataURL(), width: size.width, height: size.height };
+  const payload = readableImageData(item.absolutePath, maximum);
+  if (!payload) throw new Error("자동검열 입력 이미지를 읽을 수 없습니다.");
+  return payload;
 }
 
 function publicSaveResult(result) {
   return {
     ...result,
     images: result.images.map(({ path: absolutePath, ...item }) => {
-      const image = nativeImage.createFromPath(absolutePath);
-      const thumbnailDataUrl = image.isEmpty() ? null : resizedImageData(image, 180).toDataURL();
+      const thumbnailDataUrl = readableImageData(absolutePath, 180)?.dataUrl || null;
       return { ...item, thumbnailDataUrl };
     }),
   };
-}
-
-function explicitDroppedFile(input) {
-  if (!input || typeof input !== "object") return null;
-  const absolutePath = path.resolve(String(input.absolutePath || ""));
-  const extension = path.extname(absolutePath).toLowerCase();
-  let outputRelativePath = String(input.outputRelativePath || "").replace(/^[/\\]+/, "");
-  outputRelativePath = path.normalize(outputRelativePath);
-  if (!IMAGE_EXTENSIONS.has(extension)
-    || !outputRelativePath
-    || path.isAbsolute(outputRelativePath)
-    || outputRelativePath.split(path.sep).includes("..")) return null;
-  try {
-    if (!fs.statSync(absolutePath).isFile()) return null;
-  } catch {
-    return null;
-  }
-  return { absolutePath, outputRelativePath };
 }
 
 async function registerInputPaths(inputPaths) {
@@ -85,7 +89,7 @@ async function registerInputPaths(inputPaths) {
   for (const input of inputPaths) {
     if (typeof input === "string") filesystemPaths.push(input);
     else {
-      const explicit = explicitDroppedFile(input);
+      const explicit = explicitDroppedFile(input) || materializeDroppedFile(input, dropCacheRoot);
       if (explicit) explicitFiles.push(explicit);
     }
   }
@@ -94,15 +98,14 @@ async function registerInputPaths(inputPaths) {
   for (let offset = 0; offset < discovered.length; offset += CENSOR_BATCH_SIZE) {
     const batch = discovered.slice(offset, offset + CENSOR_BATCH_SIZE);
     const files = batch.map(({ absolutePath, outputRelativePath }) => {
-      const image = nativeImage.createFromPath(absolutePath);
-      if (image.isEmpty()) return null;
-      const size = image.getSize();
+      const image = readableImageData(absolutePath, 160);
+      if (!image) return null;
       return {
         absolutePath,
         outputRelativePath,
-        width: size.width,
-        height: size.height,
-        thumbnailDataUrl: resizedImageData(image, 160).toDataURL(),
+        width: image.width,
+        height: image.height,
+        thumbnailDataUrl: image.dataUrl,
       };
     }).filter(Boolean);
     imported += censorService.registerImageBatch(files);
@@ -124,9 +127,19 @@ function activate(context) {
   resourceRoot = context.dependencies?.resourceRoot
     || (context.standalone ? context.manifest.directory : resolveAddonDirectory("animatail"));
   if (!resourceRoot) throw new Error("CensorTail에 필요한 Python/CUDA runtime과 검열 모델을 찾을 수 없습니다.");
+  dropCacheRoot = path.join(
+    path.resolve(context.dataRoot || context.manifest.directory),
+    "data",
+    "drop-cache",
+  );
+  fs.rmSync(dropCacheRoot, { recursive: true, force: true });
   censorService = new CensorService(context.manifest.directory, sendEvent, { resourceRoot });
   runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent);
+  const validateDroppedPath = (event, candidate) => {
+    event.returnValue = usableDroppedPath(candidate);
+  };
 
+  ipcMain.on(channels.VALIDATE_DROPPED_PATH, validateDroppedPath);
   ipcMain.handle(channels.GET_STATUS, () => publicStatus());
   ipcMain.handle(channels.INSTALL_RUNTIME, async () => {
     await runtimeInstaller.install();
@@ -191,8 +204,11 @@ function activate(context) {
     close() {
       runtimeInstaller?.cancel();
       censorService?.shutdown();
+      if (dropCacheRoot) fs.rmSync(dropCacheRoot, { recursive: true, force: true });
+      ipcMain.removeListener(channels.VALIDATE_DROPPED_PATH, validateDroppedPath);
       for (const channel of Object.values(channels)) ipcMain.removeHandler(channel);
       censorService = null;
+      dropCacheRoot = null;
       runtimeInstaller = null;
       resourceRoot = null;
       addonContext = null;

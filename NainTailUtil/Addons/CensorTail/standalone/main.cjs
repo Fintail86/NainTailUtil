@@ -106,15 +106,24 @@ async function createWindow() {
     const state = await mainWindow.webContents.executeJavaScript(`(async () => {
       const status = await window.censorTail.getCensorStatus();
       const home = document.querySelector('#hostHomeButton');
+      const pngBytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+Xc9W5QAAAABJRU5ErkJggg=='), (character) => character.charCodeAt(0));
+      const dropped = await window.censorTail.addDroppedCensorPaths([{
+        bytes: pngBytes,
+        fileName: 'drop-smoke.png',
+        outputRelativePath: 'drop-smoke/image.png',
+      }]);
+      const pathlessDropReady = dropped.length === 1 && dropped[0].relativePath === 'drop-smoke/image.png';
+      await window.censorTail.clearCensorImages();
       return {
         ready: Boolean(window.censorTail && document.querySelector('.censor-page')),
         hostHomeVisible: Boolean(home && !home.hidden && home.getClientRects().length),
         runtimeReady: status.runtimeReady === true,
         dependencyReady: status.dependencyReady === true,
         modelReady: status.model?.downloaded === true,
+        pathlessDropReady,
       };
     })()`);
-    if (!state.ready || state.hostHomeVisible || !state.runtimeReady || !state.dependencyReady || !state.modelReady) {
+    if (!state.ready || state.hostHomeVisible || !state.runtimeReady || !state.dependencyReady || !state.modelReady || !state.pathlessDropReady) {
       throw new Error(`standalone CensorTail 계약이 준비되지 않았습니다: ${JSON.stringify(state)}`);
     }
     writeSmokeResult({ ok: true, addon: manifest.id, root: path.basename(addonRoot), ...state });
