@@ -7,6 +7,8 @@ AnimaTail의 자동검열 UI와 Worker lifecycle을 분리한 NainTail 내장 �
 - Hosted에서는 AnimaTail이 제공하는 검증된 Python/CUDA runtime과 `Models/censor/` 자산을
   manifest dependency로 사용한다.
 - 검열 결과는 `CensorTail/outputs/censored/`에 저장한다.
+- 폴더는 `+ 폴더` 버튼이나 Explorer 드래그로 입력할 수 있다. 하위 이미지를 재귀적으로
+  불러오며, 입력한 폴더 이름부터 시작하는 상대 경로를 `outputs/censored/` 아래에 그대로 유지한다.
 
 ## 독립 포터블 실행
 
