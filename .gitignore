@@ -1,0 +1,10 @@
+Artifacts/
+NainTailUtil/runtime/
+NainTailUtil/cache/
+NainTailUtil/logs/
+NainTailUtil/outputs/
+NainTailUtil/Projects/*.json
+NainTailUtil/Presets/sub-slots/*.json
+NainTailUtil/config/credentials.json
+NainTailUtil/config/settings.local.json
+

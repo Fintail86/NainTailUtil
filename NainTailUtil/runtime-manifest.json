@@ -1,0 +1,16 @@
+{
+  "schema": "naintail.runtime-manifest/v1",
+  "electron": {
+    "version": "43.1.1",
+    "relativeExecutable": "runtime/electron/electron.exe"
+  },
+  "mcp": {
+    "status": "included",
+    "transport": "stdio",
+    "relativeLauncher": "NainTailUtil_MCP.bat"
+  },
+  "pythonCuda": {
+    "status": "planned-after-mvp",
+    "purpose": "censor-worker"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "naintail.example-preset/v1",
+  "type": "example",
+  "id": "example_df3e3c59-b98d-4193-9c06-1e1b6cb0933c",
+  "name": "SpicyFox",
+  "createdAt": "2026-08-14T10:03:31.186Z",
+  "updatedAt": "2026-08-14T10:03:31.186Z",
+  "prompt": " 1.15::artist:yoneyama mai::, 0.5::artist:freng::, 0.65::artist:kim hyung tae::, 1.15::artist:anmi::, 1.05::artist:mika pikazo::, 1::artist:tirotata::, 1.35::artist:ogipote::, 0.7::artist:bacheally::, 1.2::artist:konya karasue::, 0.85::artist:hibana (hibana ztlv)::, 1.4::artist:maccha (mochancc)::,\n\nyear 2025,\nyear 2024,\n3d,\n0.5::blender (medium)::,\nclear lines,\nhigh detail,\nmasterpiece,\nbest quality,\nvery aesthetic,\nhighres,\nbest illustration,\nnovel illustration,\n\n1.1::glossy skin::,\nbeautiful eyes,\ndetailed eyes,\ndramatic shadow,\ndramatic light,\n\n-1::monochrome::,\n-3::simple illustration::,\n-2::artist collaboration::,\n-5::unfinished::,\n-2::hair shine, shiny hair, specular highlights, glossy hair::, perfect anatomy",
+  "negativePrompt": ""
+}

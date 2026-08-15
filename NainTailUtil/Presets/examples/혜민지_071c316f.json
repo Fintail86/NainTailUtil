@@ -1,0 +1,10 @@
+{
+  "schema": "naintail.example-preset/v1",
+  "type": "example",
+  "id": "example_1f21627d-2134-404f-b33f-f21d071c316f",
+  "name": "혜민지",
+  "createdAt": "2026-08-14T08:17:47.142Z",
+  "updatedAt": "2026-08-14T08:17:47.142Z",
+  "prompt": "0.2::artist:henriiku (ahemaru)::,\n0.3::artist:qiandaiyiyu::,\n0.5::artist:channel (caststation)::,\n0.8::artist:kim hyung tae::,\n1.1::artist:hwansang::,\n1.25::artist:mx2j::,\n1.3::artist:noco (adamas)::,\n1.35::artist:kat (bu-kunn)::,\n1.55::artist:cha goma::,\n1.6::artist:teshima nari::,\n1.65::artist:bekotarou::,\n\nyear 2025,\nyear 2024,\n3d,\n0.5::blender (medium)::,\nclear lines,\nhigh detail,\nmasterpiece,\nbest quality,\nvery aesthetic,\nhighres,\nbest illustration,\nnovel illustration,\n\n1.1::glossy skin::,\nbeautiful eyes,\ndetailed eyes,\ndramatic shadow,\ndramatic light,\n\n-1::monochrome::,\n-3::simple illustration::,\n-6::artist collaboration::,\n-5::unfinished::,\n-2::hair shine, shiny hair, specular highlights, glossy hair::",
+  "negativePrompt": ""
+}
