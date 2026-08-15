@@ -4,7 +4,7 @@
 
 MCP BAT는 범용 `app/mcp/main.cjs` 호스트를 실행한다. selector를 지정하지 않은 기본 연결은
 NainTail federation server이며, host routing 도구 5개를 통해 MCP Adapter를 선언한 애드온을
-조회·호출한다. 현재 federation 대상은 NaiTail과 AnimaTail이다.
+조회·호출한다. 현재 federation 대상은 NaiTail, AnimaTail과 CensorTail이다.
 
 `NAINTAIL_ADDON_ID=naitail` 또는 `animatail`을 설정하면 해당 애드온의 기존 MCP entry를 직접
 실행하는 호환 모드가 된다. transport 소유권, 축약 list/get/call, 결과 무손실 전달과
@@ -81,14 +81,14 @@ ID를 모를 때만 naintail_addons_list
   → naintail_addon_call(addonId, toolName, arguments)
 ```
 
-현재 NaiTail과 AnimaTail은 `federated`, GalleryTail·CensorTail은 `none`으로 표시된다.
+현재 NaiTail, AnimaTail과 CensorTail은 `federated`, GalleryTail은 `none`으로 표시된다.
 Router는 각 Adapter를 최초 상세 조회 또는 호출 시 lazy activation하며, 종료 시 Adapter의
 `close()`를 호출한다. `addon_call` 결과는 원본 `content`, `structuredContent`, `isError`와 `_meta`를
 보존하고 출처 `addonId`·`toolName`만 metadata에 추가한다.
 
 AnimaTail 완료 결과는 Hosted 호출에서 절대경로 대신 session `artifactRef`를 제공한다. 이 참조는
-호스트 resolver가 dependency와 폴더 경계를 검사해 CensorTail 내부 입력으로 해석한다. 공개
-CensorTail MCP 도구는 아직 없으므로 현재 AI가 검열까지 호출하는 표면은 후속 범위다.
+호스트 resolver가 dependency와 폴더 경계를 검사해 CensorTail `scan` 입력으로 해석한다. 검출
+완료 후 `result_get`으로 한 이미지의 좌표를 읽고 `save`하면 CensorTail 출력 artifactRef를 받는다.
 
 ## 애드온 폴더 단독 등록
 

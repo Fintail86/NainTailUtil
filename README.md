@@ -44,7 +44,7 @@ Hosted 결합 규칙은 [애드온 개발 계약](Docs/ADDON_DEVELOPMENT_CONTRAC
 | **NaiTail** | NovelAI 생성, 작품·프리셋·참조 이미지·큐 관리 | Hosted / Standalone GUI·CLI·MCP |
 | **AnimaTail** | 로컬 Anima 생성, Python/CUDA runtime과 모델 관리 | Hosted / Standalone GUI·CLI·MCP |
 | **GalleryTail** | AnimaTail 결과 탐색, 파일 작업과 설정 handoff | Hosted GUI |
-| **CensorTail** | 로컬 자동검열, 마스크·박스 편집과 결과 저장 | Hosted / Standalone GUI |
+| **CensorTail** | 로컬 자동검열, 마스크·박스 편집과 결과 저장 | Hosted / Standalone GUI·MCP |
 
 각 애드온의 기능과 데이터는 해당 애드온 문서에서 관리한다.
 
@@ -64,7 +64,7 @@ NainTailUtil/NainTailUtil_MCP.bat
 ```
 
 기본 CLI 대상은 NaiTail이고 `--addon <id>`로 다른 애드온을 선택한다. 기본 MCP는 NainTail
-federation router이며, 현재 NaiTail과 AnimaTail 도구를 축약 조회·호출할 수 있다. 기존 단일 애드온 MCP는
+federation router이며, 현재 NaiTail, AnimaTail과 CensorTail 도구를 축약 조회·호출할 수 있다. 기존 단일 애드온 MCP는
 `NAINTAIL_ADDON_ID`를 명시해 직접 선택한다. 제품 폴더에는 전용 Electron runtime이 포함되므로
 GUI·CLI·MCP 사용에 시스템 Node.js가 필요하지 않다.
 
@@ -89,6 +89,7 @@ Standalone 지원을 선언한 NaiTail, AnimaTail과 CensorTail은 각 폴더만
 NainTailUtil/Addons/NaiTail/NaiTail.bat
 NainTailUtil/Addons/AnimaTail/AnimaTail.bat
 NainTailUtil/Addons/CensorTail/CensorTail.bat
+NainTailUtil/Addons/CensorTail/CensorTail_MCP.bat
 ```
 
 Standalone에서는 애드온 내부 runtime과 data root를 사용한다. Hosted에서는 같은 코드를

@@ -10,7 +10,7 @@
     "relativeLauncher": "NainTailUtil_MCP.bat",
     "mode": "federation",
     "addonProfile": "naintail.addon-mcp-profile/v1",
-    "federatedAdapters": ["naitail", "animatail"],
+    "federatedAdapters": ["naitail", "animatail", "censortail"],
     "legacySelectorEnvironment": "NAINTAIL_ADDON_ID"
   },
   "addons": {

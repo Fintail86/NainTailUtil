@@ -27,6 +27,7 @@ CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 
 - 기존 AnimaUtil의 생성 UI, CLI/MCP, Python 생성 Worker, CUDA runtime, 모델·LoRA,
   프리셋·출력의 `Addons/AnimaTail/` 소유권 이동
 - 갤러리 UI·탐색 service의 `GalleryTail`, 자동검열 UI·Worker·출력의 `CensorTail` 분리
+- CensorTail Hosted/Standalone MCP 9개 도구, 순차 검출·저장 job queue와 artifactRef 입출력
 - CensorTail 폴더 단독 GUI 실행용 Electron·Python/CUDA·검열 모델과 standalone host 포함
 - GalleryTail 설정 재사용의 host handoff와 CensorTail의 AnimaTail runtime/model 공유 의존성
 - AnimaTail의 `anima:` protocol 사전 등록, 독립 IPC 생명주기와 애드온 종료 시 Worker 정리

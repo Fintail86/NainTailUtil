@@ -91,6 +91,10 @@ class FederationRouter {
         dataRoot: addon.directory,
         manifest: addon,
         hosted: true,
+        dependencyRoots: Object.fromEntries((Array.isArray(addon.requires) ? addon.requires : [])
+          .map((id) => [id, this.registry.get(id)?.directory || null])
+          .filter(([, directory]) => directory)),
+        resolveArtifact: (reference) => this.resolveArtifact(reference, addon.id),
       }), addon);
       try {
         await inspectMcpAdapter(adapter, addon);

@@ -6,5 +6,6 @@
   "pythonCuda": "runtime/versions",
   "models": "Models/censor",
   "gui": "CensorTail.bat",
+  "mcp": "CensorTail_MCP.bat",
   "dataRoot": "."
 }

@@ -93,7 +93,8 @@ MCP adapter는 포함되어 있으며 축약 discovery, 비동기 job wait/statu
 
 AnimaTail에는 검증된 로컬 Python 3.12/CUDA 런타임, 생성 Worker와 모델 자산이 포함된다.
 CensorTail은 자기 검열 Worker와 출력을 소유하되 같은 런타임과 `Models/censor`를 공유한다.
-GalleryTail과 CensorTail은 현재 GUI 전용 애드온이며 AnimaTail의 기존 CLI·MCP 생성 계약은 유지한다.
+GalleryTail은 현재 GUI 전용이다. CensorTail은 Hosted/Standalone MCP에서 검출·저장·작업 대기와
+모델 언로드를 제공하며 AnimaTail artifactRef를 직접 입력으로 받는다.
 
 ## 애드온 단독 포터블 실행
 
@@ -118,12 +119,13 @@ Addons/AnimaTail/AnimaTail_CLI.bat
 Addons/AnimaTail/AnimaTail_MCP.bat
 
 Addons/CensorTail/CensorTail.bat
+Addons/CensorTail/CensorTail_MCP.bat
 ```
 
 각 폴더의 `runtime/electron/`이 전용 Electron을 제공한다. standalone과 NainTail host 실행 모두
 해당 애드온 폴더를 데이터 루트로 사용한다. Hosted에서는 호스트가 주입한 공용 runtime과 service를
 우선하고, standalone에서는 애드온 로컬 runtime을 사용한다. 시스템 Node나 Python은 필요하지 않다.
-CensorTail은 현재 GUI standalone만 제공한다.
+CensorTail은 GUI와 MCP standalone을 제공한다.
 
 ## MCP 등록
 
@@ -131,7 +133,7 @@ MCP host가 `cmd.exe /d /s /c <제품 절대경로>\NainTailUtil_MCP.bat`를 실
 생성이 필요하면 host의 server 환경변수에 `NAINTAIL_NAI_TOKEN`을 설정한다. stdout은 MCP
 프로토콜 전용이며 로그는 stderr로만 출력한다.
 
-기본 MCP 서버는 NainTail federation router다. 현재 `mcpAdapter`가 연결된 NaiTail과 AnimaTail
+기본 MCP 서버는 NainTail federation router다. 현재 `mcpAdapter`가 연결된 NaiTail, AnimaTail과 CensorTail
 도구를 축약 list/get/call로 조회·실행한다. AnimaTail MCP만 직접 쓰려면 server 환경변수에
 `NAINTAIL_ADDON_ID=animatail`을 설정한다. 기존 직접 연결 도구명은 호환성을 위해 유지한다.
 

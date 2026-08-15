@@ -270,8 +270,8 @@ NainTail router는 애드온 결과를 성공 문자열로 축약하거나 모�
 - 참조가 삭제·이동·만료됐으면 안정된 `ARTIFACT_NOT_FOUND` 또는 `ARTIFACT_EXPIRED`로 실패한다.
 - 입력을 변경하는 작업은 원본을 덮어쓸지 새 artifact를 만들지 schema에 명시해야 한다.
 
-현재 AnimaTail 완료 출력은 Hosted 호출에서 이 참조를 발행한다. NainTail resolver와 CensorTail의
-내부 등록 경로까지 구현됐으며, CensorTail 공개 MCP 도구는 후속 범위다.
+현재 AnimaTail 완료 출력은 Hosted 호출에서 이 참조를 발행한다. NainTail resolver가 이를
+CensorTail scan 입력으로 전달하고, CensorTail 저장 출력도 새 session artifactRef를 발행한다.
 
 ## 9. 승인과 annotations
 
@@ -316,7 +316,7 @@ root를 사용할 수 있다. 공유 broker나 lock 계약이 구현되기 전�
 | NaiTail | Standalone stdio와 `naintail_*` 도구 | Adapter 분리·Hosted routing 완료 |
 | AnimaTail | Standalone stdio와 `anima_*` 도구 | Adapter 분리·Hosted routing 완료 |
 | GalleryTail | MCP entry 없음 | 도메인 요구 확정 후 결정 |
-| CensorTail | MCP entry 없음 | 내부 artifact consumer 등록 완료, 공개 MCP 후속 |
+| CensorTail | Standalone stdio와 `censortail_*` 9개 도구 | Adapter·Hosted routing 완료 |
 
 ## 12. 검증 Gate
 

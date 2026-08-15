@@ -1,4 +1,5 @@
 Artifacts/
+**/__pycache__/
 NainTailUtil/runtime/
 NainTailUtil/Addons/AnimaTail/runtime/
 NainTailUtil/Addons/AnimaTail/Models/

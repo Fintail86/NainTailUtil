@@ -11,10 +11,12 @@
   "entries": {
     "electron": "electron/main.cjs",
     "preload": "electron/preload.cjs",
-    "renderer": "dist/renderer/index.html"
+    "renderer": "dist/renderer/index.html",
+    "mcp": "mcp/main.cjs",
+    "mcpAdapter": "mcp/adapter.cjs"
   },
   "window": {
     "backgroundThrottling": false
   },
-  "capabilities": ["auto-censor", "python", "cuda", "mask-editor", "batch"]
+  "capabilities": ["auto-censor", "python", "cuda", "mask-editor", "batch", "mcp"]
 }

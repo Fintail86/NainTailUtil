@@ -332,6 +332,9 @@ class CensorService {
       const known = knownPaths.get(absolutePath.toLowerCase());
       const outputRelativePath = normalizeOutputRelativePath(file.outputRelativePath);
       if (known) {
+        if (!known.sourceArtifactRef && (file.sourceArtifactRef || file.artifactRef)) {
+          known.sourceArtifactRef = file.sourceArtifactRef || file.artifactRef;
+        }
         if (outputRelativePath && !known.outputRelativePath) {
           known.outputRelativePath = outputRelativePath;
           known.relativePath = outputRelativePath.split(path.sep).join("/");
@@ -354,6 +357,11 @@ class CensorService {
       added += 1;
     }
     return added;
+  }
+
+  imageIdForPath(absolutePath) {
+    const key = path.resolve(String(absolutePath || "")).toLowerCase();
+    return [...this.items.values()].find((item) => item.absolutePath.toLowerCase() === key)?.id || null;
   }
 
   registerImages(files) {

@@ -1,8 +1,8 @@
 # NainTail MCP 애드온 연합 설계
 
-- 상태: 2차 수직 구현 완료 · NaiTail/AnimaTail adapter와 artifact resolver
-- 현재 구현: NainTail 단일 stdio router, 2개 생성 Adapter, AnimaTail → CensorTail 내부 artifact 전달
-- 다음 범위: CensorTail 공개 MCP 도구와 GalleryTail MCP 범위 결정
+- 상태: 3차 수직 구현 완료 · NaiTail/AnimaTail/CensorTail federation
+- 현재 구현: NainTail 단일 stdio router, 3개 Adapter, AnimaTail → CensorTail → 결과 artifact 전달
+- 다음 범위: GalleryTail MCP 도메인과 영속 artifact ID 필요성 결정
 
 ## 1. 목적
 
@@ -39,7 +39,8 @@ Adapter의 도구 정의와 handler를 기존 stdio server로 감싸므로 기�
 
 `NAINTAIL_ADDON_ID=naitail` 또는 `animatail`을 명시하면 기존 단일 애드온 MCP entry를 직접
 실행하는 호환 모드로 동작한다. 기본 federation에서는 NaiTail과 AnimaTail 모두 `federated`로
-표시되고 `addon_call` 대상이 된다. GalleryTail과 CensorTail은 현재 MCP entry가 없다.
+표시되고 `addon_call` 대상이 된다. CensorTail도 9개 검출·저장 도구를 Hosted routing으로
+제공하며 GalleryTail만 현재 MCP entry가 없다.
 
 ## 3. 목표 구조
 
@@ -56,7 +57,7 @@ NainTail MCP Server
          ├─ NaiTail MCP Adapter ─── NaiTail Core       [구현]
          ├─ AnimaTail MCP Adapter ─ AnimaTail Core     [구현]
          ├─ GalleryTail MCP Adapter                    [후속]
-         └─ CensorTail MCP Adapter                     [후속]
+         └─ CensorTail MCP Adapter ─ Censor service    [구현]
 ```
 
 같은 adapter는 Standalone에서 애드온 전용 stdio server로 감싼다.
@@ -191,11 +192,12 @@ naitail:job_456
 AI는 한 애드온의 구조화된 결과를 읽고 다른 애드온 호출의 입력으로 사용할 수 있다.
 
 ```text
-AnimaTail 생성                                      [현재]
+AnimaTail 생성
   → anima_job_wait
   → artifactRef 획득
-  → host resolver가 CensorTail 내부 입력으로 등록 [현재]
-  → CensorTail censor_image 공개 MCP 호출          [후속]
+  → host resolver가 CensorTail scan 입력으로 등록
+  → CensorTail scan/wait/result_get/save
+  → CensorTail 출력 artifactRef 획득
   → GalleryTail에서 후처리 결과 조회               [후속]
 ```
 
@@ -217,8 +219,8 @@ NainTail resolver가 참조를 실제 자원으로 해석하고, 소비 애드�
 
 AnimaTail Hosted Adapter는 완료 출력에 session 수명의 `artifactRef`를 붙이고 절대경로를 공개
 결과에서 제거한다. Resolver는 소비 애드온의 `requires` 선언과 Provider 폴더 경계를 검사한 뒤
-실제 경로를 비공개로 해석한다. 현재 CensorTail 서비스가 이 해석 결과를 이미지 목록에 등록하는
-세로 경로까지 구현됐다. CensorTail 공개 `censor_image` MCP 도구는 아직 추가하지 않았다.
+실제 경로를 비공개로 해석한다. CensorTail은 이를 scan 작업으로 받고, 검출 상세는 이미지별
+`result_get`으로 조회하며, save 완료 출력에는 CensorTail 소유의 새 artifactRef를 붙인다.
 
 ## 9. lifecycle과 동시 연결
 
@@ -249,7 +251,9 @@ AnimaTail Hosted Adapter는 완료 출력에 session 수명의 `artifactRef`를 
 | 공통 Job Router | 현 단계 미도입 결정 |
 | session `artifactRef` resolver | 완료 |
 | AnimaTail → CensorTail 내부 입력 등록 | 완료 |
-| CensorTail·GalleryTail 공개 MCP 도구 | 후속 |
+| CensorTail 공개 MCP 9개 도구와 순차 job queue | 완료 |
+| AnimaTail → CensorTail scan/save/output artifact 수직 흐름 | 완료 |
+| GalleryTail 공개 MCP 도구 | 후속 |
 
 ## 11. 검증 Gate
 

@@ -19,7 +19,7 @@ async function shutdown() {
   closing = true;
   activeRuntime?.server?.close?.();
   await activeRuntime?.router?.close?.();
-  activeRuntime?.entry?.shutdown?.();
+  await activeRuntime?.entry?.shutdown?.();
   activeRuntime = null;
 }
 
@@ -36,11 +36,16 @@ function startSelectedAddon(registry, addonId) {
   if (missing.length) throw new Error(`필수 애드온이 없습니다: ${missing.join(", ")}`);
   const entry = registry.load(addon, "mcp");
   if (!entry || typeof entry.start !== "function") throw new Error(`MCP entry가 없습니다: ${addon.id}`);
+  const dependencyRoots = Object.fromEntries((Array.isArray(addon.requires) ? addon.requires : [])
+    .map((id) => [id, registry.get(id)?.directory || null])
+    .filter(([, directory]) => directory));
   const server = entry.start({
     hostRoot: registry.productRoot,
     productRoot: addon.directory,
     dataRoot: addon.directory,
     manifest: addon,
+    dependencyRoots,
+    resourceRoot: dependencyRoots.animatail || addon.directory,
   });
   activeRuntime = { mode: "selected-addon", addonId: addon.id, entry, server };
   return activeRuntime;
