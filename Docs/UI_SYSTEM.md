@@ -1,12 +1,15 @@
 # NainTailUtil UI 시스템과 피드백 규칙
 
 - 기준일: 2026-08-14
-- 적용 범위: `NainTailUtil/app/renderer/` 전체
+- 적용 범위: `NainTailUtil/app/renderer/` host 홈, `Addons/NaiTail/app/renderer/`,
+  `Addons/AnimaTail/dist/renderer/`, `Addons/GalleryTail/dist/renderer/`,
+  `Addons/CensorTail/dist/renderer/` 전체
 - 계약 대상: GUI typography, layout, feedback, accessibility와 UI-local state
 
 이 문서는 NainTailUtil GUI의 기준 계약이다. UI를 변경할 때는 이 문서와 실제
-`NainTailUtil/app/renderer/styles.css`를 함께 갱신하고, 컴포넌트 안에 임의 값을 추가해
-공통 토큰과 어긋나게 만들지 않는다.
+관련 host/NaiTail stylesheet 또는 AnimaTail renderer 원본과 빌드 결과를 함께 갱신하고,
+컴포넌트 안에 임의 값을 추가해 공통 토큰과 어긋나게 만들지 않는다. AnimaTail은 가져온 빌드
+결과에도 아래 동일한 폰트 family와 22/15/13/12/11px 토큰이 들어 있음을 확인했다.
 
 ## 1. 타이포그래피
 
@@ -23,9 +26,13 @@
 권장 제품 경로는 다음과 같다.
 
 ```text
-NainTailUtil/app/renderer/assets/fonts/
+NainTailUtil/Addons/NaiTail/app/renderer/assets/fonts/
 ├─ PretendardVariable.woff2
 └─ JetBrainsMonoVariable.woff2
+
+NainTailUtil/Addons/AnimaTail/dist/renderer/assets/
+├─ PretendardVariable-*.woff2
+└─ jetbrains-mono-*.woff2
 ```
 
 폰트 파일을 포함할 때는 해당 배포 라이선스 고지문도 제품 `licenses/`에 함께 둔다.
@@ -62,10 +69,12 @@ NainTailUtil/app/renderer/assets/fonts/
 - placeholder와 disabled 텍스트도 최소 크기를 지키며 크기가 아니라 색상과 투명도로
   위계를 표현한다.
 
-## 2. 공통 화면 구조
+## 2. NaiTail 작업 화면 구조
 
-NainTailUtil은 상단 app header, 중앙 작업 공간, 우측 로컬 생성 큐를 기본 골격으로 사용한다.
-AnimaUtil의 전역 헤더 구조를 참고해 브랜드, 주 탭, 연결 상태를 한 줄에 분리한다.
+다음 구조는 NainTail 홈 전체가 아니라 **NaiTail 애드온의 생성 작업면**에 적용한다. 상단 app
+header, 중앙 작업 공간, 우측 로컬 생성 큐를 기본 골격으로 사용하며 AnimaUtil의 전역 헤더
+구조를 참고해 브랜드, 주 탭, 연결 상태를 한 줄에 분리한다. NainTail 홈과 다른 애드온은 공통
+타이포그래피·피드백 규칙은 공유하되 각 도메인에 맞는 화면 구조를 소유한다.
 
 - 상단 app header는 좌측 브랜드, 중앙 `싱글`, `멀티`, `작례 연구기`, `작품`, `프리셋`, `설정` 탭,
   우측 연결 상태를 표시한다.
@@ -166,7 +175,8 @@ action을 동일한 순서와 밀도로 유지한다. 바로 오른쪽 아티스
 - 멀티 이미지 참조는 활성 슬롯 전체에 공통 적용한다. Vibe/Precise 수와 인코딩·생성 추가 비용을
   접힌 요약과 비용 상태에서도 확인할 수 있게 한다.
 - 파일 선택은 PNG·JPEG·WebP만 허용하고 renderer에 절대경로나 unrestricted filesystem API를
-  노출하지 않는다. 자산은 제품 `References/vibes/` 또는 `References/precise/` 상대경로로 복원한다.
+  노출하지 않는다. 자산은 NaiTail data root의 `References/vibes/` 또는 `References/precise/`
+  상대경로로 복원한다.
 - 결과의 `생성값 불러오기`는 참조 카드와 조절값도 복원한다. 자산이 사라졌다면 생성 시 명확한
   `REFERENCE_IMAGE_NOT_FOUND` 오류를 표시하고 외부 경로를 임의로 탐색하지 않는다.
 
@@ -206,7 +216,7 @@ action을 동일한 순서와 밀도로 유지한다. 바로 오른쪽 아티스
   설정을 Single 입력으로 복원한다. 생성 Seed를 넣어 같은 조합을 재현할 수 있게 한다.
 - 작례와 현재 Prompt가 합성된 과거 결과는 분리 전 상태를 복원할 수 없으므로 작례 입력을
   비우고 합성된 최종 Prompt·UC를 현재 입력에 넣는다.
-- `폴더에서 보기`와 `휴지통`은 제품 `outputs/` 내부의 선택 파일에만 허용한다. 휴지통 성공
+- `폴더에서 보기`와 `휴지통`은 NaiTail data root의 `outputs/` 내부 선택 파일에만 허용한다. 휴지통 성공
   뒤 작품 결과라면 작품 JSON의 해당 결과 참조도 함께 제거한다.
 - 결과 파일 삭제는 앱 내부 확인 대화상자를 거치며 Windows 휴지통을 사용한다.
 

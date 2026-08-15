@@ -1,166 +1,289 @@
 "use strict";
 
-const path = require("node:path");
 const fs = require("node:fs");
-const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
-const channels = require("./channels.cjs");
-const { CredentialService } = require("./credential-service.cjs");
-const { NainTailApplication } = require("../core/application.cjs");
-const { NainTailError, asPublicError } = require("../core/errors.cjs");
+const os = require("node:os");
+const path = require("node:path");
+const { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, shell } = require("electron");
+const { AddonRegistry } = require("../host/addon-registry.cjs");
 
+const HOST_ADDON_LIST = "host:addons:list";
+const HOST_ADDON_OPEN = "host:addons:open";
+const HOST_HOME = "host:navigate-home";
+const HOST_ADDON_HANDOFF = "host:addons:handoff";
 const productRoot = path.resolve(__dirname, "..", "..");
+const hostRenderer = path.join(productRoot, "app", "renderer", "index.html");
+const hostPreload = path.join(productRoot, "app", "electron", "preload.cjs");
 const smokeMode = process.argv.includes("--smoke");
-let mainWindow = null;
-let core = null;
+const smokeAddonId = process.argv.find((value) => value.startsWith("--smoke-addon="))?.slice("--smoke-addon=".length) || "";
+const smokeResultPath = process.argv.find((value) => value.startsWith("--smoke-result="))?.slice("--smoke-result=".length) || "";
+const smokeCaptureDirectory = process.argv.find((value) => value.startsWith("--smoke-capture-dir="))?.slice("--smoke-capture-dir=".length) || "";
+if (smokeMode) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "naintail-addon-smoke-")));
+const registry = new AddonRegistry(productRoot);
+registry.discover();
+const addonProtocols = registry.protocols();
+if (addonProtocols.length) protocol.registerSchemesAsPrivileged(addonProtocols);
+
+let homeWindow = null;
+let addonWindow = null;
+let foregroundWindow = null;
+let activeAddon = null;
+let isQuitting = false;
 let smokeTimer = null;
 
+function writeSmokeResult(result) {
+  if (!smokeResultPath) return;
+  try {
+    fs.writeFileSync(smokeResultPath, JSON.stringify(result), "utf8");
+  } catch {
+    // The smoke run still reports through stderr/exit code when its optional marker cannot be written.
+  }
+}
+
+function publicError(error) {
+  return { code: "HOST_ADDON_ERROR", message: error instanceof Error ? error.message : String(error) };
+}
+
 function reply(fn) {
-  return async (_event, payload) => {
+  return async (event, payload) => {
     try {
-      return { ok: true, result: await fn(payload) };
+      return { ok: true, result: await fn(event, payload) };
     } catch (error) {
-      return { ok: false, error: asPublicError(error) };
+      return { ok: false, error: publicError(error) };
     }
   };
 }
 
-function broadcast(channel, payload) {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+function addonBroadcast(channel, payload) {
+  if (addonWindow && !addonWindow.isDestroyed()) addonWindow.webContents.send(channel, payload);
 }
 
-async function pickReferenceImage() {
-  const picked = await dialog.showOpenDialog(mainWindow, {
-    title: "참조 이미지 선택",
-    properties: ["openFile"],
-    filters: [{ name: "Raster image", extensions: ["png", "jpg", "jpeg", "webp"] }],
+function activateAddon(manifest) {
+  if (activeAddon?.manifest.id === manifest.id) return activeAddon;
+  activeAddon?.runtime?.close?.();
+  if (addonWindow && !addonWindow.isDestroyed()) addonWindow.destroy();
+  addonWindow = null;
+
+  const module = registry.load(manifest, "electron");
+  if (!module || typeof module.activate !== "function") throw new Error(`Electron activate entry가 없습니다: ${manifest.id}`);
+  const runtime = module.activate({
+    hostRoot: productRoot,
+    productRoot: manifest.directory,
+    dataRoot: manifest.directory,
+    manifest,
+    getWindow: () => addonWindow || foregroundWindow,
+    broadcast: addonBroadcast,
+    services: {
+      dialog,
+      ipcMain,
+      safeStorage,
+      shell,
+      resolveAddonDirectory: (id) => registry.get(id)?.directory || null,
+    },
   });
-  if (picked.canceled || !picked.filePaths[0]) return null;
-  const filePath = picked.filePaths[0];
-  const data = fs.readFileSync(filePath);
-  if (!data.length || data.length > 20 * 1024 * 1024) throw new NainTailError("INVALID_REFERENCE_IMAGE", "이미지 참조 원본은 20MB 이하여야 합니다.");
-  const png = data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  const jpeg = data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
-  const webp = data.subarray(0, 4).toString("ascii") === "RIFF" && data.subarray(8, 12).toString("ascii") === "WEBP";
-  const mimeType = png ? "image/png" : jpeg ? "image/jpeg" : webp ? "image/webp" : null;
-  if (!mimeType) throw new NainTailError("INVALID_REFERENCE_IMAGE", "PNG, JPEG 또는 WebP 이미지만 사용할 수 있습니다.");
-  return { name: path.basename(filePath), mimeType, imageBase64: data.toString("base64") };
+  activeAddon = { manifest, runtime };
+  return activeAddon;
 }
 
-function registerHandlers(credentials) {
-  ipcMain.handle(channels.APP_INFO, reply(() => core.info()));
-  ipcMain.handle(channels.APP_LIVE_STATUS, reply(() => core.liveStatus()));
-  ipcMain.handle(channels.CREDENTIAL_STATUS, reply(() => credentials.status()));
-  ipcMain.handle(channels.CREDENTIAL_SAVE, reply((payload) => credentials.saveToken(payload?.token)));
-  ipcMain.handle(channels.CREDENTIAL_CLEAR, reply(() => credentials.clear()));
-  ipcMain.handle(channels.SUBSCRIPTION_GET, reply(() => core.subscription()));
-  ipcMain.handle(channels.PROJECT_LIST, reply(() => core.listProjects()));
-  ipcMain.handle(channels.PROJECT_CREATE, reply((payload) => core.createProject(payload)));
-  ipcMain.handle(channels.PROJECT_GET, reply((payload) => core.getProject(payload?.id)));
-  ipcMain.handle(channels.PROJECT_SAVE, reply((payload) => core.saveProject(payload)));
-  ipcMain.handle(channels.PROJECT_APPEND_PRESET, reply((payload) => core.appendPreset(payload?.projectId, payload?.presetId, payload?.target)));
-  ipcMain.handle(channels.PRESET_LIST, reply(() => core.listPresets()));
-  ipcMain.handle(channels.PRESET_GET, reply((payload) => core.getPreset(payload?.id)));
-  ipcMain.handle(channels.PRESET_SAVE, reply((payload) => core.savePreset(payload)));
-  ipcMain.handle(channels.PRESET_DELETE, reply((payload) => core.deletePreset(payload?.id)));
-  ipcMain.handle(channels.GENERATION_ESTIMATE, reply((payload) => core.estimate(payload?.request || {}, payload?.options || {})));
-  ipcMain.handle(channels.GENERATION_SINGLE, reply((payload) => core.enqueueSingle(payload)));
-  ipcMain.handle(channels.GENERATION_MULTI, reply((payload) => core.enqueueMulti(payload)));
-  ipcMain.handle(channels.GENERATION_ARTIST_STUDY, reply((payload) => core.enqueueArtistStudy(payload)));
-  ipcMain.handle(channels.GENERATION_PROJECT, reply((payload) => core.enqueueProject(payload?.projectId, payload?.options || {})));
-  ipcMain.handle(channels.ARTIST_STUDY_GET, reply(() => core.getArtistStudy()));
-  ipcMain.handle(channels.ARTIST_STUDY_SAVE, reply((payload) => core.saveArtistStudy(payload)));
-  ipcMain.handle(channels.ARTIST_STUDY_RANDOMIZE, reply((payload) => core.randomizeArtistStudy(payload)));
-  ipcMain.handle(channels.ARTIST_STUDY_EXAMPLE_SAVE, reply((payload) => core.saveArtistStudyExample(payload?.study, payload?.name)));
-  ipcMain.handle(channels.REFERENCE_IMAGE_PICK, reply(() => pickReferenceImage()));
-  ipcMain.handle(channels.REFERENCE_IMAGE_SAVE, reply((payload) => core.saveReferenceImage(payload)));
-  ipcMain.handle(channels.VIBE_IMAGE_SAVE, reply((payload) => core.saveVibeImage(payload)));
-  ipcMain.handle(channels.VIBE_CACHE_STATUS, reply((payload) => core.vibeCacheStatus(payload)));
-  ipcMain.handle(channels.QUEUE_STATE, reply(() => core.queue.snapshot()));
-  ipcMain.handle(channels.QUEUE_CLEAR, reply(() => core.clearQueue()));
-  ipcMain.handle(channels.QUEUE_STOP, reply(() => core.stopAfterCurrent()));
-  ipcMain.handle(channels.QUEUE_RESUME, reply(() => core.resumeQueue()));
-  ipcMain.handle(channels.OUTPUTS_OPEN, reply(() => shell.openPath(path.join(productRoot, "outputs"))));
-  ipcMain.handle(channels.OUTPUT_REVEAL, reply((payload) => {
-    shell.showItemInFolder(core.resolveOutputPath(payload?.relativePath));
-    return { revealed: true };
-  }));
-  ipcMain.handle(channels.OUTPUT_TRASH, reply(async (payload) => {
-    await shell.trashItem(core.resolveOutputPath(payload?.relativePath));
-    return core.removeResultReference(payload?.projectId, payload?.id);
-  }));
+function currentBounds() {
+  const source = foregroundWindow && !foregroundWindow.isDestroyed() ? foregroundWindow : null;
+  return source ? source.getBounds() : { width: 1480, height: 940 };
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1480,
-    height: 940,
+function windowOptions(preload, manifest = null) {
+  const bounds = currentBounds();
+  return {
+    ...bounds,
     minWidth: 1080,
     minHeight: 720,
-    backgroundColor: "#111318",
+    backgroundColor: "#0c0e12",
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: manifest?.window?.backgroundThrottling !== false,
     },
-  });
-  mainWindow.removeMenu();
-  const revealWindow = () => {
-    if (smokeMode || !mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return;
-    mainWindow.show();
-    mainWindow.focus();
   };
-  if (smokeMode) {
-    const failSmoke = () => {
-      process.exitCode = 1;
+}
+
+function manageWindow(window) {
+  window.removeMenu();
+  window.on("close", () => {
+    if (!isQuitting) {
+      isQuitting = true;
       app.quit();
-    };
-    smokeTimer = setTimeout(failSmoke, 15000);
-    mainWindow.webContents.once("did-fail-load", failSmoke);
-    mainWindow.webContents.once("render-process-gone", failSmoke);
-    mainWindow.webContents.once("preload-error", failSmoke);
-    mainWindow.webContents.once("did-finish-load", async () => {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const ready = await mainWindow.webContents.executeJavaScript(
-          "Boolean(window.nainTail && document.querySelector('#singleForm') && document.querySelector('#multiForm') && document.querySelector('#artistStudyForm') && document.querySelectorAll('[data-tab]').length === 6 && !document.querySelector('#notice.error'))",
-        );
-        if (!ready) throw new Error("renderer contract missing");
-        clearTimeout(smokeTimer);
-        smokeTimer = null;
-        app.quit();
-      } catch {
-        failSmoke();
-      }
-    });
-  } else {
-    // `ready-to-show` is not guaranteed to arrive on every portable Chromium
-    // startup. A successfully loaded renderer is sufficient to reveal the UI.
-    mainWindow.once("ready-to-show", revealWindow);
-    mainWindow.webContents.once("did-finish-load", revealWindow);
-    setTimeout(revealWindow, 3000);
+    }
+  });
+  return window;
+}
+
+function showWindow(window, previous) {
+  if (!window || window.isDestroyed()) return;
+  if (previous && !previous.isDestroyed() && previous !== window) {
+    const bounds = previous.getBounds();
+    const maximized = previous.isMaximized();
+    previous.hide();
+    window.setBounds(bounds);
+    if (maximized) window.maximize();
+    else if (window.isMaximized()) window.unmaximize();
   }
-  mainWindow.loadFile(path.join(productRoot, "app", "renderer", "index.html"));
-  mainWindow.on("closed", () => { mainWindow = null; });
+  foregroundWindow = window;
+  if (!smokeMode) {
+    window.show();
+    window.focus();
+  }
+}
+
+async function ensureHomeWindow() {
+  if (homeWindow && !homeWindow.isDestroyed()) return homeWindow;
+  homeWindow = manageWindow(new BrowserWindow(windowOptions(hostPreload)));
+  homeWindow.on("closed", () => {
+    if (foregroundWindow === homeWindow) foregroundWindow = null;
+    homeWindow = null;
+  });
+  await homeWindow.loadFile(hostRenderer);
+  return homeWindow;
+}
+
+async function ensureAddonWindow(manifest) {
+  if (addonWindow && !addonWindow.isDestroyed() && activeAddon?.manifest.id === manifest.id) return addonWindow;
+  const preload = registry.resolveEntry(manifest, "preload");
+  const renderer = registry.resolveEntry(manifest, "renderer");
+  addonWindow = manageWindow(new BrowserWindow(windowOptions(preload, manifest)));
+  addonWindow.on("closed", () => {
+    if (foregroundWindow === addonWindow) foregroundWindow = null;
+    addonWindow = null;
+  });
+  await addonWindow.loadFile(renderer);
+  return addonWindow;
+}
+
+async function openHome() {
+  const previous = foregroundWindow;
+  const window = await ensureHomeWindow();
+  showWindow(window, previous);
+  return { view: "home" };
+}
+
+async function openAddon(id, handoff = null) {
+  const manifest = registry.get(id);
+  if (!manifest) throw new Error(`애드온을 찾을 수 없습니다: ${id}`);
+  const missing = registry.missingRequirements(manifest);
+  if (missing.length) throw new Error(`필수 애드온이 없습니다: ${missing.join(", ")}`);
+  const previous = foregroundWindow;
+  activateAddon(manifest);
+  const window = await ensureAddonWindow(manifest);
+  showWindow(window, previous);
+  if (handoff && typeof handoff === "object") window.webContents.send(HOST_ADDON_HANDOFF, handoff);
+  return { view: "addon", id: manifest.id, name: manifest.name };
+}
+
+function registerHostIpc() {
+  ipcMain.handle(HOST_ADDON_LIST, reply(() => {
+    registry.discover();
+    return registry.list();
+  }));
+  ipcMain.handle(HOST_ADDON_OPEN, reply((_event, payload) => (
+    openAddon(String(payload?.id || ""), payload?.handoff || null)
+  )));
+  ipcMain.handle(HOST_HOME, reply(() => openHome()));
+}
+
+async function runAddonRoundTrip(manifest) {
+  await homeWindow.webContents.executeJavaScript(`document.querySelector('[data-addon-id="${manifest.id}"]').click()`);
+  for (let attempt = 0; foregroundWindow !== addonWindow && attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  if (foregroundWindow !== addonWindow) throw new Error(`host addon card navigation failed: ${manifest.id}`);
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const ready = activeAddon.runtime?.smokeCheck
+    ? await activeAddon.runtime.smokeCheck(addonWindow.webContents)
+    : false;
+  if (!ready) throw new Error(`addon renderer contract missing: ${manifest.id}`);
+  if (smokeCaptureDirectory) {
+    fs.mkdirSync(smokeCaptureDirectory, { recursive: true });
+    const capture = await addonWindow.webContents.capturePage();
+    fs.writeFileSync(path.join(smokeCaptureDirectory, `gui-addon-${manifest.id}.png`), capture.toPNG());
+  }
+  await addonWindow.webContents.executeJavaScript("window.__nainTailRoundTrip = 'preserved'; document.querySelector('#hostHomeButton').click()");
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  if (foregroundWindow !== homeWindow) throw new Error(`addon home navigation failed: ${manifest.id}`);
+  const cardEnabled = await homeWindow.webContents.executeJavaScript(`document.querySelector('[data-addon-id="${manifest.id}"]')?.disabled === false`);
+  if (!cardEnabled) throw new Error(`host addon card stayed disabled after returning home: ${manifest.id}`);
+  await homeWindow.webContents.executeJavaScript(`document.querySelector('[data-addon-id="${manifest.id}"]').click()`);
+  for (let attempt = 0; foregroundWindow !== addonWindow && attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  if (foregroundWindow !== addonWindow) throw new Error(`host addon card re-entry failed: ${manifest.id}`);
+  const preserved = await addonWindow.webContents.executeJavaScript("window.__nainTailRoundTrip === 'preserved'");
+  if (!preserved) throw new Error(`addon renderer state was not preserved across home navigation: ${manifest.id}`);
+  const homeButtonEnabled = await addonWindow.webContents.executeJavaScript("document.querySelector('#hostHomeButton')?.disabled === false");
+  if (!homeButtonEnabled) throw new Error(`addon home button stayed disabled after re-entry: ${manifest.id}`);
+  await addonWindow.webContents.executeJavaScript("document.querySelector('#hostHomeButton').click()");
+  for (let attempt = 0; foregroundWindow !== homeWindow && attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  if (foregroundWindow !== homeWindow) throw new Error(`addon repeated home navigation failed: ${manifest.id}`);
+}
+
+async function runSmoke() {
+  const manifests = smokeAddonId === "all"
+    ? registry.list().map((item) => registry.get(item.id))
+    : [smokeAddonId ? registry.get(smokeAddonId) : registry.getDefault()].filter(Boolean);
+  if (smokeAddonId && smokeAddonId !== "all" && !manifests.length) {
+    throw new Error(`smoke 애드온을 찾을 수 없습니다: ${smokeAddonId}`);
+  }
+  const host = await ensureHomeWindow();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const expectedSlotCount = Math.max(3, registry.list().length);
+  const hostReady = await host.webContents.executeJavaScript(
+    `Boolean(document.querySelector('[data-host-home]')
+      && document.querySelectorAll('[data-addon-slot]').length === ${expectedSlotCount}
+      && ${manifests.map((manifest) => `document.querySelector('[data-addon-id="${manifest.id}"]')`).join(" && ") || "true"})`,
+  );
+  if (!hostReady) throw new Error("host renderer contract missing");
+  for (const manifest of manifests) await runAddonRoundTrip(manifest);
 }
 
 const hasLock = app.requestSingleInstanceLock();
 if (!hasLock) app.quit();
 else {
   app.on("second-instance", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    if (!foregroundWindow || foregroundWindow.isDestroyed()) return;
+    if (foregroundWindow.isMinimized()) foregroundWindow.restore();
+    foregroundWindow.show();
+    foregroundWindow.focus();
   });
-  app.whenReady().then(() => {
-    const credentials = new CredentialService(productRoot, safeStorage);
-    core = new NainTailApplication({ productRoot, getToken: async () => credentials.getToken() });
-    core.on("queue", (event) => broadcast(channels.QUEUE_EVENT, event));
-    core.on("result", (result) => broadcast(channels.RESULT_EVENT, result));
-    registerHandlers(credentials);
-    createWindow();
+  app.whenReady().then(async () => {
+    try {
+      registry.discover();
+      registerHostIpc();
+      if (smokeMode) {
+        smokeTimer = setTimeout(() => {
+          writeSmokeResult({ ok: false, error: "timeout" });
+          process.exitCode = 1;
+          app.quit();
+        }, 15000);
+        await runSmoke();
+        clearTimeout(smokeTimer);
+        smokeTimer = null;
+        writeSmokeResult({ ok: true, addons: registry.list().map((item) => item.id) });
+        app.quit();
+      } else {
+        await openHome();
+      }
+    } catch (error) {
+      writeSmokeResult({ ok: false, error: error.message });
+      process.stderr.write(`[NainTail host] ${error.stack || error.message}\n`);
+      process.exitCode = 1;
+      app.quit();
+    }
+  });
+  app.on("before-quit", () => {
+    isQuitting = true;
+    if (smokeTimer) clearTimeout(smokeTimer);
+    activeAddon?.runtime?.close?.();
   });
   app.on("window-all-closed", () => app.quit());
-  app.on("before-quit", () => core?.close());
 }

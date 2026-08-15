@@ -3,214 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
-  <title>NainTailUtil</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+  <title>NainTail</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="shell">
-    <header class="app-header">
-      <div class="brand"><span class="brand-mark">N</span><div><strong>NainTail</strong><small>NovelAI studio utility</small></div></div>
-      <nav id="tabs" class="tab-nav" aria-label="주요 화면">
-        <button class="tab active" data-tab="single"><span class="tab-icon" aria-hidden="true">✦</span>싱글</button>
-        <button class="tab" data-tab="multi"><span class="tab-icon" aria-hidden="true">✧</span>멀티</button>
-        <button class="tab" data-tab="artist-study"><span class="tab-icon" aria-hidden="true">◇</span>작례 연구기</button>
-        <button class="tab" data-tab="projects"><span class="tab-icon" aria-hidden="true">▣</span>작품</button>
-        <button class="tab" data-tab="presets"><span class="tab-icon" aria-hidden="true">⌁</span>프리셋</button>
-        <button class="tab" data-tab="settings"><span class="tab-icon" aria-hidden="true">⚙</span>설정</button>
-      </nav>
-      <div class="header-meta">
-        <button id="anlasBalanceBadge" type="button" class="anlas-balance muted" title="토큰을 설정하면 현재 Anlas 잔액을 조회한다." disabled><span class="anlas-balance-icon" aria-hidden="true">◆</span><span class="anlas-balance-label">Anlas</span><strong id="anlasBalanceValue">—</strong></button>
-        <div id="connectionBadge" class="connection muted"><span class="status-dot" aria-hidden="true"></span><span id="connectionLabel">확인 중…</span></div>
-      </div>
+  <main class="host-home" data-host-home>
+    <header class="host-heading">
+      <span class="host-kicker">PORTABLE CREATIVE HOST</span>
+      <h1><span class="host-mark">N</span>NainTail</h1>
+      <p>사용할 애드온을 선택해.</p>
     </header>
 
-    <div class="app-body">
-      <main id="mainWorkspace" class="workspace single-workspace-mode">
-      <header class="topbar">
-        <div><p class="eyebrow" id="pageEyebrow">GENERATION</p><h1 id="pageTitle">Single</h1><span id="dirtyIndicator" class="dirty-indicator" hidden>저장되지 않은 변경</span></div>
-        <div id="notice" class="notice" role="status" aria-live="polite"></div>
-      </header>
+    <ol id="addonGrid" class="addon-grid" aria-label="설치된 애드온"></ol>
 
-      <section id="view-single" class="view active">
-        <div class="single-generation-workspace">
-          <form id="singleForm" class="panel editor-panel single-control-panel">
-            <div class="single-control-scroll">
-              <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">작례 → 현재 입력 순서로 합성</span></div>
-              <details class="prompt-block example-prompt-block">
-                <summary><span>작례</span><small>기본 접힘 · 품질·화풍 공통값</small></summary>
-                <div class="prompt-block-body">
-                  <div class="example-preset-picker"><select id="singleExamplePreset" aria-label="작례 프리셋"><option value="">작례 프리셋 없음</option></select><button type="button" id="applyExamplePreset" class="secondary" disabled>적용</button><div class="inline-preset-save"><button type="button" id="examplePresetSaveMenuButton" class="secondary" aria-haspopup="menu" aria-expanded="false" disabled>저장</button><div id="examplePresetSaveMenu" class="inline-preset-save-menu" role="menu" hidden><button type="button" id="saveExampleAsNew" role="menuitem"><strong>새 프리셋으로 저장</strong><span>이름을 입력해 새 작례 생성</span></button><button type="button" id="overwriteExamplePreset" role="menuitem" disabled><strong>현재 프리셋 덮어쓰기</strong><span id="overwriteExamplePresetName">먼저 프리셋을 선택해.</span></button></div></div></div>
-                  <label>작례 Prompt<textarea name="examplePrompt" rows="5" placeholder="재사용할 스타일·구도·품질 프롬프트"></textarea></label>
-                  <label>작례 Undesired Content<textarea name="exampleNegativePrompt" rows="3" placeholder="작례에 함께 적용할 UC"></textarea></label>
-                </div>
-              </details>
-              <details class="prompt-block current-prompt-block" open>
-                <summary><span>현재 프롬프트</span><small>대상·장면·구도</small></summary>
-                <div class="prompt-block-body">
-                  <label>Prompt<textarea name="prompt" rows="8" placeholder="2girls, portrait, dramatic lighting"></textarea></label>
-                  <label>Undesired Content<textarea name="negativePrompt" rows="4" placeholder="bad anatomy, text"></textarea></label>
-                </div>
-              </details>
-              <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="singleCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addSingleCharacter" class="secondary" title="V4 캐릭터 Prompt·UC와 5×5 위치 추가">＋ 캐릭터</button></div></div>
-              <section class="single-character-section"><div id="singleCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 싱글 생성</small></div></div></section>
-              <details class="prompt-block precise-reference-block">
-                <summary><span><span class="step-number">03</span> 이미지 참조</span><small id="singleReferenceCount">0개 · V4.5 Precise</small></summary>
-                <div class="prompt-block-body reference-tools-body">
-                  <section class="reference-tool-section"><header><h3>Vibe Transfer</h3><span id="singleVibeCount">0 / 16</span></header><label class="checkbox reference-normalize"><input id="singleNormalizeVibes" type="checkbox" checked> 다중 Vibe Strength 정규화</label><p class="precise-reference-hint">첫 인코딩·Information Extracted 변경 시 2 Anlas · 4개 초과 시 장당 추가 비용</p><div id="singleVibeList" class="precise-reference-list"><p class="muted">등록된 Vibe가 없다.</p></div><button type="button" id="addSingleVibe" class="secondary precise-reference-add">＋ Vibe 이미지</button></section>
-                  <section class="reference-tool-section precise-tool-section"><header><h3>Precise Reference</h3><span id="singlePreciseCount">0 / 16</span></header><p class="precise-reference-hint">Character / Style / Character &amp; Style · 참조당 5 Anlas</p><div id="singleReferenceList" class="precise-reference-list"><p class="muted">등록된 이미지 참조가 없다.</p></div><button type="button" id="addSingleReference" class="secondary precise-reference-add">＋ Precise 이미지</button></section>
-                </div>
-              </details>
-              <div class="single-section-heading settings-heading"><div><span class="step-number">04</span><h2>생성 설정</h2></div><span id="singleEligibility" class="pill">계산 중</span></div>
-              <div class="settings-grid single-settings-grid" data-settings-scope="single"></div>
-            </div>
-            <div class="single-generation-actions local-generation-footer">
-              <div class="local-generation-counts" aria-label="싱글 로컬 반복 설정">
-                <label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="singleGenerationTotal">총 1장</strong>
-              </div>
-              <small class="local-generation-note">API Batch가 아닌 로컬 반복 · 요청당 1장</small>
-              <div class="local-generation-buttons"><button type="button" class="secondary" id="singleEstimate">비용 조건 확인</button><button id="singleGenerateButton" class="primary" type="submit">큐에 추가 · 1장</button></div>
-            </div>
-          </form>
-          <section class="single-result-column">
-            <div class="panel result-panel single-preview-panel"><div class="panel-head"><div><h2>미리보기</h2><p>휠로 확대하고 드래그해서 이동할 수 있다.</p></div><span id="singlePreviewSize" class="single-preview-size">—</span></div><div id="singlePreview" class="single-preview-canvas"><div class="single-preview-empty"><span>✦</span><strong>아직 생성된 이미지가 없다.</strong><p>생성 결과를 선택하면 여기에 크게 표시된다.</p></div></div><div class="single-preview-actions"><button type="button" id="reuseSingleResult" disabled>생성값 불러오기</button><button type="button" id="revealSingleResult" disabled>폴더에서 보기</button><button type="button" id="trashSingleResult" class="danger" disabled>휴지통</button></div></div>
-            <div class="panel single-result-strip"><div class="result-strip-heading"><strong>최근 결과</strong><span id="singleResultCount">0장</span></div><div id="resultGallery" class="gallery empty"><p>아직 생성된 이미지가 없다.</p></div></div>
-          </section>
-        </div>
-      </section>
-
-      <section id="view-multi" class="view">
-        <form id="multiForm" class="multi-generation-workspace">
-          <section class="panel multi-common-panel">
-            <div class="multi-panel-scroll">
-              <div class="single-section-heading"><div><span class="step-number">01</span><h2>공통 프롬프트</h2></div><span class="single-hint">모든 활성 슬롯에 적용</span></div>
-              <details class="prompt-block multi-example-prompt" open><summary><span>작례</span><small>품질·화풍 공통값</small></summary><div class="prompt-block-body"><div class="example-preset-picker"><select id="multiExamplePreset" aria-label="멀티 작례 프리셋"><option value="">작례 프리셋 없음</option></select><button type="button" id="applyMultiExamplePreset" class="secondary" disabled>적용</button></div><label>작례 Prompt<textarea name="examplePrompt" rows="4" placeholder="모든 슬롯에 공통 적용할 스타일·품질"></textarea></label><label>작례 UC<textarea name="exampleNegativePrompt" rows="2" placeholder="모든 슬롯에 공통 적용할 작례 UC"></textarea></label></div></details>
-              <details class="prompt-block multi-current-prompt" open><summary><span>현재 공통 프롬프트</span><small>캐릭터·대상·공통 구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="prompt" rows="5" placeholder="1girl, portrait"></textarea></label><label>Undesired Content<textarea name="negativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
-              <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="multiCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addMultiCharacter" class="secondary">＋ 캐릭터</button></div></div>
-              <div id="multiCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>모든 슬롯에 공통 적용</small></div></div>
-              <details class="prompt-block precise-reference-block">
-                <summary><span><span class="step-number">03</span> 이미지 참조</span><small id="multiReferenceCount">0개 · V4.5 Precise</small></summary>
-                <div class="prompt-block-body reference-tools-body">
-                  <section class="reference-tool-section"><header><h3>Vibe Transfer</h3><span id="multiVibeCount">0 / 16</span></header><label class="checkbox reference-normalize"><input id="multiNormalizeVibes" type="checkbox" checked> 다중 Vibe Strength 정규화</label><p class="precise-reference-hint">모든 활성 슬롯에 공통 적용 · 첫 인코딩·IE 변경 시 2 Anlas</p><div id="multiVibeList" class="precise-reference-list"><p class="muted">등록된 Vibe가 없다.</p></div><button type="button" id="addMultiVibe" class="secondary precise-reference-add">＋ Vibe 이미지</button></section>
-                  <section class="reference-tool-section precise-tool-section"><header><h3>Precise Reference</h3><span id="multiPreciseCount">0 / 16</span></header><p class="precise-reference-hint">모든 활성 슬롯에 공통 적용 · 참조당 이미지마다 5 Anlas</p><div id="multiReferenceList" class="precise-reference-list"><p class="muted">등록된 이미지 참조가 없다.</p></div><button type="button" id="addMultiReference" class="secondary precise-reference-add">＋ Precise 이미지</button></section>
-                </div>
-              </details>
-              <div class="single-section-heading settings-heading"><div><span class="step-number">04</span><h2>생성 설정</h2></div><span id="multiEligibility" class="pill">계산 중</span></div>
-              <div class="settings-grid single-settings-grid" data-settings-scope="multi"></div>
-            </div>
-            <div class="multi-generation-actions local-generation-footer">
-              <div class="local-generation-counts" aria-label="멀티 로컬 반복 설정">
-                <label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="multiGenerationTotal">총 1장</strong>
-              </div>
-              <small class="local-generation-note">활성 슬롯 × 배치 × 큐 · 요청당 1장</small>
-              <div class="local-generation-buttons"><button type="button" id="estimateMulti" class="secondary">비용 확인</button><button id="multiGenerateButton" type="submit" class="primary">활성 슬롯 큐에 추가 · 1장</button></div>
-            </div>
-          </section>
-
-          <section class="panel multi-slot-panel">
-            <div class="multi-slot-heading"><div><h2>멀티 슬롯</h2><p>공통값과 각 슬롯 Prompt·UC를 결합해 한 장씩 순차 생성한다.</p></div><button type="button" id="addMultiSlot" class="icon-button" aria-label="멀티 슬롯 추가">＋</button></div>
-            <div class="multi-slot-summary"><span id="multiSlotCount">0 / 20</span><strong id="multiSelectedSlotCount">0개 출력</strong></div>
-            <div class="multi-slot-selection"><button type="button" id="selectAllMultiSlots">전체 선택</button><button type="button" id="clearAllMultiSlots">전체 해제</button><button type="button" id="invertMultiSlots">선택 반전</button></div>
-            <div class="multi-preset-append"><select id="multiSlotPreset" aria-label="서브슬롯 프리셋"><option value="">서브슬롯 프리셋 없음</option></select><button type="button" id="appendMultiSlotPreset" class="secondary" disabled>프리셋 Append</button></div>
-            <div id="multiSlotList" class="multi-slot-list"><div class="multi-slot-empty"><span>＋</span><strong>슬롯이 없다.</strong><p>슬롯이 없으면 공통 프롬프트 한 장을 생성한다.</p></div></div>
-          </section>
-
-          <section class="panel multi-result-panel">
-            <div class="multi-result-heading"><div><h2>세션 누적 결과</h2><p>새 생성 결과를 슬롯별로 계속 누적한다.</p></div><div><span id="multiResultCount" class="pill">0장</span><button type="button" id="clearMultiResults" class="danger">클리어</button></div></div>
-            <div id="multiPreview" class="multi-preview"><div class="single-preview-empty"><span>✧</span><strong>아직 멀티 결과가 없다.</strong><p>슬롯 썸네일을 선택하면 크게 표시된다.</p></div></div>
-            <div class="multi-preview-actions"><button type="button" id="revealMultiResult" disabled>폴더에서 보기</button><button type="button" data-open-outputs class="ghost">전체 출력 폴더</button></div>
-            <div id="multiSlotResults" class="multi-slot-results"><p class="muted">프로그램 종료 또는 클리어 전까지 이 세션의 결과가 누적된다.</p></div>
-          </section>
-        </form>
-      </section>
-
-      <section id="view-artist-study" class="view">
-        <form id="artistStudyForm" class="artist-study-workspace">
-          <section class="panel artist-generation-panel">
-            <div class="artist-panel-scroll">
-              <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">작례 → 현재 입력 순서로 합성</span></div>
-              <details class="prompt-block artist-current-prompt" open><summary><span>현재 프롬프트</span><small>대상·장면·구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="basePrompt" rows="6" required placeholder="1girl, portrait, cinematic lighting"></textarea></label><label>Undesired Content<textarea name="negativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
-              <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="artistStudyCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addArtistStudyCharacter" class="secondary">＋ 캐릭터</button></div></div>
-              <div id="artistStudyCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 작례 연구</small></div></div>
-              <div class="single-section-heading settings-heading"><div><span class="step-number">03</span><h2>생성 설정</h2></div><span id="artistStudyEligibility" class="pill">계산 중</span></div>
-              <div class="settings-grid single-settings-grid artist-generation-settings" data-settings-scope="artist-study"></div>
-            </div>
-            <div class="artist-generation-actions"><button type="button" id="estimateArtistStudy" class="secondary">비용 확인</button><button type="submit" id="generateArtistStudy" class="primary">현재 조합 생성 · 비용 계산 중</button><button type="button" id="randomGenerateArtistStudy" class="primary">랜덤 생성 · 비용 계산 중</button></div>
-          </section>
-          <section class="panel artist-slider-panel">
-            <div class="artist-panel-scroll">
-              <div class="panel-head"><div><h2>아티스트 슬라이더</h2><p>작례 Prompt와 활성 작가 가중치를 함께 조절한다.</p></div></div>
-              <details class="prompt-block artist-example-prompt" open><summary><span>작례 프롬프트</span><small>품질·화풍 공통값</small></summary><div class="prompt-block-body"><label>작례 Prompt<textarea name="examplePrompt" rows="4" placeholder="masterpiece, cinematic lighting"></textarea></label><label>작례 UC<textarea name="exampleNegativePrompt" rows="2" placeholder="watermark, text"></textarea></label></div></details>
-              <section class="artist-study-section">
-                <header><div><h3>등록 작가</h3><p>체크된 작가만 최종 프롬프트와 등록 작례에 들어간다.</p></div><button type="button" id="addStudyArtist">＋ 작가</button></header>
-                <div class="artist-random-range"><label>랜덤 최소<input name="randomMin" type="number" min="0" max="2" step="0.05" value="0.4"></label><label>랜덤 최대<input name="randomMax" type="number" min="0" max="2" step="0.05" value="1.6"></label><button type="button" id="randomizeArtistStudy" class="secondary">활성 작가 랜덤</button><button type="button" id="sortStudyArtists" class="secondary" title="사용 작가 우선, 같은 상태에서는 가중치가 높은 순서로 정렬">작가 소팅</button></div>
-                <div id="artistSliderList" class="artist-slider-list"><p class="muted">등록된 작가가 없다.</p></div>
-              </section>
-            </div>
-            <div class="artist-slider-actions"><button type="button" id="saveArtistStudy" class="ghost">연구 설정 저장</button><button type="button" id="registerArtistExample" class="primary">작례 등록</button></div>
-          </section>
-          <section class="panel result-panel artist-result-panel"><div class="panel-head"><div><h2>연구 결과</h2><p>수동·랜덤 생성 모두 한 번에 한 장만 큐에 추가된다.</p></div><button class="ghost" data-open-outputs>폴더 열기</button></div><div id="artistStudyGallery" class="gallery empty"><p>아직 생성된 연구 이미지가 없다.</p></div></section>
-          </form>
-      </section>
-
-      <section id="view-projects" class="view">
-        <div class="project-layout">
-          <aside class="panel library"><div class="panel-head"><h2>작품</h2><button id="newProject" class="icon-button" title="새 작품" aria-label="새 작품 만들기">＋</button></div><div id="projectList" class="list"></div></aside>
-          <section class="panel project-editor"><div id="projectEmpty" class="empty-state"><h2>작품을 선택하거나 새로 만들어.</h2><p>일반 슬롯만 쓰거나 캐릭터 카드별 슬롯을 함께 관리할 수 있다.</p></div><div id="projectEditor" hidden></div></section>
-        </div>
-      </section>
-
-      <section id="view-presets" class="view">
-        <div class="project-layout">
-          <aside class="panel library"><div class="panel-head"><h2>프리셋</h2><button id="newPreset" class="icon-button" title="새 프리셋" aria-label="새 프리셋 만들기">＋</button></div><div id="presetTypeTabs" class="preset-type-tabs" role="tablist" aria-label="프리셋 타입"><button type="button" class="active" data-preset-type="sub-slot" role="tab" aria-selected="true">서브슬롯</button><button type="button" data-preset-type="example" role="tab" aria-selected="false">작례</button></div><div id="presetList" class="list"></div></aside>
-          <section class="panel project-editor"><div id="presetEmpty" class="empty-state"><h2 id="presetEmptyTitle">재사용할 슬롯 묶음</h2><p id="presetEmptyDescription">작품이나 캐릭터 카드에 Append하면 독립 슬롯으로 복사된다.</p></div><div id="presetEditor" hidden></div></section>
-        </div>
-      </section>
-
-      <section id="view-settings" class="view">
-        <div class="settings-page">
-          <section class="panel"><div class="panel-head"><div><h2>NovelAI 자격증명</h2><p>토큰은 운영체제 암호화 저장소로 보호된다.</p></div><span id="credentialBadge" class="pill">확인 중</span></div><form id="credentialForm"><label>Access token<input name="token" type="password" autocomplete="off" placeholder="토큰을 입력해 저장"></label><div class="actions"><button type="button" id="clearCredential" class="danger">삭제</button><button class="primary" type="submit">암호화 저장</button></div></form></section>
-          <section class="panel"><div class="panel-head"><div><h2>계정 상태</h2><p>실제 생성 없이 구독 정보만 확인한다.</p></div><button id="checkSubscription" class="secondary">조회</button></div><pre id="subscriptionData" class="data-box">조회 전</pre></section>
-          <section class="panel"><div class="panel-head"><div><h2>런타임</h2><p>Core와 Worker는 GUI 밖에서도 동일하게 실행된다.</p></div></div><pre id="runtimeData" class="data-box">불러오는 중…</pre></section>
-        </div>
-      </section>
-      </main>
-
-      <aside class="queue-panel">
-        <div class="queue-head"><div><p class="eyebrow">LOCAL QUEUE</p><h2>생성 큐</h2></div><span id="queueCount" class="counter">0</span></div>
-        <div class="queue-actions"><button id="stopQueue" class="secondary">현재 이미지 후 중단</button><button id="clearQueue" class="danger">대기열 비우기</button><button id="resumeQueue" class="ghost">재개</button></div>
-        <div id="queueState" class="queue-state" role="status" aria-live="polite">Idle</div>
-        <div id="queueList" class="queue-list" aria-live="polite"><p class="muted">대기 중인 작업이 없다.</p></div>
-      </aside>
-    </div>
-  </div>
-  <dialog id="confirmDialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
-    <form method="dialog" class="dialog-card">
-      <h2 id="confirmTitle">확인</h2>
-      <p id="confirmMessage"></p>
-      <div class="dialog-actions">
-        <button id="confirmCancel" value="cancel" class="ghost" autofocus>취소</button>
-        <button id="confirmAlternate" value="alternate" class="secondary" hidden>저장</button>
-        <button id="confirmAccept" value="confirm" class="danger">확인</button>
-      </div>
-    </form>
-  </dialog>
-  <dialog id="examplePresetNameDialog" aria-modal="true" aria-labelledby="examplePresetNameTitle" aria-describedby="examplePresetNameDescription">
-    <form id="examplePresetNameForm" class="dialog-card">
-      <div class="dialog-heading"><span class="dialog-heading-icon" aria-hidden="true">⌁</span><div><h2 id="examplePresetNameTitle">새 프리셋으로 저장</h2><p id="examplePresetNameDescription">현재 작례 Prompt와 UC를 새 항목으로 저장한다.</p></div></div>
-      <label>프리셋 이름<input id="examplePresetNameInput" name="name" maxlength="80" autocomplete="off" placeholder="목록에 표시할 이름" required></label>
-      <div id="examplePresetNameError" class="dialog-error" role="alert" hidden></div>
-      <div class="dialog-actions"><button type="button" id="examplePresetNameCancel" class="ghost">취소</button><button type="submit" class="primary">새로 저장</button></div>
-    </form>
-  </dialog>
-  <dialog id="artistExampleNameDialog" aria-modal="true" aria-labelledby="artistExampleNameTitle" aria-describedby="artistExampleNameDescription">
-    <form id="artistExampleNameForm" class="dialog-card">
-      <div class="dialog-heading"><span class="dialog-heading-icon" aria-hidden="true">◇</span><div><h2 id="artistExampleNameTitle">작례 등록</h2><p id="artistExampleNameDescription">현재 작례 Prompt·UC와 활성 작가 가중치를 작례 프리셋으로 저장한다.</p></div></div>
-      <label>작례 이름<input id="artistExampleNameInput" name="name" maxlength="80" autocomplete="off" placeholder="목록에 표시할 이름" required></label>
-      <div id="artistExampleNameError" class="dialog-error" role="alert" hidden></div>
-      <div class="dialog-actions"><button type="button" id="artistExampleNameCancel" class="ghost">취소</button><button type="submit" class="primary">작례 등록</button></div>
-    </form>
-  </dialog>
+    <p id="hostNotice" class="host-notice" role="status" aria-live="polite"></p>
+  </main>
   <script src="./app.js"></script>
 </body>
 </html>

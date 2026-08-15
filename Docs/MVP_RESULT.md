@@ -4,6 +4,10 @@
 제품 버전: 0.1.0  
 제품 루트: `NainTailUtil/`
 
+NainTailUtil은 NainTail 애드온 호스트와 내장 애드온을 함께 제공하는 포터블 배포본이다.
+NainTail은 홈·registry·실행 lifecycle을 소유하고, 아래 생성·갤러리·검열 기능은 각 애드온이
+소유한다.
+
 ## 1. 구현 상태
 
 MVP 제품 코드는 모두 개발 워크스페이스 안의 중첩 `NainTailUtil/` 폴더에만 들어 있다.
@@ -13,6 +17,23 @@ CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 
 
 구현한 수직 기능은 다음과 같다.
 
+- `naintail.addon/v1` manifest와 `NaiTail`, `AnimaTail`, `GalleryTail`, `CensorTail` 내장 애드온
+- NAI 의미를 알지 않는 얇은 NainTail Electron·CLI·MCP host와 애드온 registry
+- NainTail MCP 단일 stdio와 축약 애드온 list/get/call, NaiTail Adapter lazy routing
+- NaiTail MCP의 Core·도구 Adapter와 Standalone stdio composition root 분리
+- manifest 수에 맞춘 동적 host 홈, 네 애드온 카드와 각 헤더의 홈 복귀
+- 홈과 현재 활성 애드온 창의 숨김 전환에 의한 같은 애드온 재진입 상태 보존
+- 기존 Core·Worker·UI·작품·프리셋·큐 전체의 `Addons/NaiTail/` 소유권 이동
+- 기존 AnimaUtil의 생성 UI, CLI/MCP, Python 생성 Worker, CUDA runtime, 모델·LoRA,
+  프리셋·출력의 `Addons/AnimaTail/` 소유권 이동
+- 갤러리 UI·탐색 service의 `GalleryTail`, 자동검열 UI·Worker·출력의 `CensorTail` 분리
+- CensorTail 폴더 단독 GUI 실행용 Electron·Python/CUDA·검열 모델과 standalone host 포함
+- GalleryTail 설정 재사용의 host handoff와 CensorTail의 AnimaTail runtime/model 공유 의존성
+- AnimaTail의 `anima:` protocol 사전 등록, 독립 IPC 생명주기와 애드온 종료 시 Worker 정리
+- AnimaTail 헤더 브랜딩·홈 버튼과 홈 재진입 시 renderer 상태 보존
+- 애드온 부재 시 정상 기동하는 host fallback과 애드온 entry 경계 이탈 차단
+- 기존 제품 루트 사용자 데이터를 `Addons/NaiTail/`로 SHA-256 검증 이전하고
+  `naintail.*` 저장 스키마는 그대로 유지
 - headless Core, stdio JSONL NAI Worker, Electron/CLI adapter 분리
 - Single V4.5 Full/Curated txt2img
 - Single의 로컬 배치·큐와 `배치 × 큐` 총 장수 계산, 최대 100장 제출 제한
@@ -75,6 +96,8 @@ CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 
 - 비동기 action 중복 제출 방지와 큐의 전송 전/전송됨/저장 완료 상태 문구
 - 포터블 BAT GUI 및 CLI launcher
 - 포터블 stdio MCP launcher와 dependency-free JSON-RPC/MCP protocol adapter
+- NaiTail·AnimaTail 폴더별 standalone GUI·CLI·MCP host와 전용 Electron runtime
+- standalone 모드의 애드온 내부 데이터 루트와 host 모드의 기존 데이터 경계 동시 유지
 - 작품·프리셋의 식별자 전용 list와 명시적 개별 get, 세션 job ID 복구용 축약 jobs list
 - 즉시 jobId를 반환하는 Single·멀티·작례 연구기·작품 생성과 30~60초 `job_wait`
 - timeout wait의 결과·오류 본문 생략, terminal 결과의 경로·Seed·크기·슬롯 정보 축약
@@ -88,7 +111,11 @@ CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 
 - 검증 도구: `Tools/`
 - 시각 QA 캡처: `Artifacts/` (Git 제외)
 - Electron runtime: `NainTailUtil/runtime/electron/`, 43.1.1, 75 files, 347.27 MiB
-- Python/CUDA와 Censor Worker: MVP 이후, runtime manifest에 planned 상태로 기록
+- AnimaTail Python/CUDA runtime: r1 local runtime ready, 지원 자산 ready
+- AnimaTail catalog: 생성 모델 5개, LoRA 5개
+- NaiTail standalone 경계: 130 files, 349.62 MiB
+- AnimaTail standalone 경계: 34,866 files, 26.91 GiB
+- GalleryTail: 16 files, 2.35 MiB · CensorTail: 17 files, 2.43 MiB
 
 프로젝트와 프리셋, 출력, 자격증명은 모두 제품 루트 안에 저장된다. 작품 결과에는
 `relativePath`만 저장하며 개발 PC의 절대경로나 file URL은 저장하지 않는다.
@@ -104,6 +131,12 @@ npm run check
 검증 범위:
 
 - Core 및 저장소 계약 테스트
+- 네 manifest 발견, 명시적 순서·의존성·protocol 선언, entry 경계와 기본 애드온 선택
+- host 홈 4카드 동적 구성, 각 애드온 선택과 공통 홈 버튼 IPC 계약
+- AnimaTail 번들의 Gallery/Censor 표면 부재와 분리 renderer별 전용 API 표면
+- GalleryTail 설정 handoff의 초기 이벤트 버퍼링과 CensorTail 공유 runtime 경로
+- 애드온이 없는 제품 루트의 host fallback과 host source의 NAI 의미 비소유
+- 이동 후 기존 제품 데이터 루트와 Addons 내부 Worker 경로 호환
 - 프리셋 독립 Append와 중복 ID 거부
 - 작례·서브슬롯의 별도 schema/디렉터리 저장과 타입 오용 거부
 - 싱글 작례 Prompt·UC의 선행 합성
@@ -133,18 +166,35 @@ npm run check
 
 별도 runtime 검증:
 
+- 범용 CLI host → NaiTail CLI entry의 `status`와 Worker ping: 성공
+- 범용 CLI host → AnimaTail CLI entry의 `status`: runtime ready, 모델 5개·LoRA 5개
+- NaiTail 폴더 전용 CLI `status`와 로컬 Worker ping: 성공, data root가 NaiTail 폴더임을 확인
+- AnimaTail 폴더 전용 CLI `status`: runtime ready, 모델 5개·LoRA 5개
+- 폴더 전용 MCP round-trip: NaiTail 16 tools, AnimaTail 10 tools와 status 성공
+- 각 폴더의 전용 Electron standalone GUI 초기화와 상위 host 홈 버튼 부재 확인: 성공
+- NainTail federation host의 5개 축약 도구 → NaiTail 16개 도구 조회·상세·status·작품 list
+  무손실 routing round-trip: 성공
+- `NAINTAIL_ADDON_ID=naitail` 호환 selector → NaiTail MCP 16개 도구 round-trip: 성공
+- `NAINTAIL_ADDON_ID=animatail` → AnimaTail MCP initialize/tools/list/status round-trip: 10 tools 성공
+- 실제 Electron의 host 홈에서 네 애드온 각각 홈 복귀·재진입과 renderer 상태 보존 smoke: 성공
+- 같은 Electron 프로세스의 NaiTail → AnimaTail → GalleryTail → CensorTail 교차 활성화: 성공
+- `Addons/`를 제외한 임시 host 복사본의 실제 Electron fallback 초기화 smoke: 종료 코드 0
 - 포터블 Electron을 Node mode로 실행한 CLI `status`: 성공
 - NAI Worker `ping`: protocol 1 ready
 - 실제 Electron main/preload/renderer 숨김 초기화 smoke: 종료 코드 0
 - mock IPC를 사용한 실제 renderer 6화면 PNG 캡처와 시각 검사
+- 1480 × 940 및 1080 × 720 host 홈의 4카드 렌더링과 스크롤 부재 시각 검사
+- AnimaTail·GalleryTail·CensorTail 분리 화면의 실제 Electron 캡처와 레이아웃 검사
 - 시각 검사에서 발견한 hidden empty-state 중복 표시를 수정하고 재검증
 - 번들 Pretendard와 JetBrains Mono의 실제 Electron font load 및 렌더 최소 글자 11px 확인
 - 기본 창, 1080 × 720, 삭제 확인창과 dirty-state 저장·버리기·취소 화면 시각 검사
 - Single 빈 상태와 실제 결과 이미지 상태에서 대형 미리보기·선택 결과 스트립 렌더링 검사
 - 미리보기 1:1 전환·휠 확대·화면 맞춤 복귀와 생성값 복원을 실제 Electron DOM에서 검사
 - 선택 결과 파일 action은 `outputs/` 바깥 경로 거부와 작품 결과 참조 제거를 자동 검사
-- 347.37 MiB 제품 폴더 전체를 새 임시 경로로 복사한 뒤 그 복사본의 BAT `status`와
-  Worker ping 성공, 보고된 `productRoot`가 새 경로임을 확인
+- code/config 경계를 새 임시 경로로 복사한 뒤 BAT `status`와 Worker ping 성공
+- 원본 AnimaUtil 대비 AnimaTail `Models`, `outputs`, `runtime/versions` read-only mirror 비교:
+  세 영역 모두 차이 없음(robocopy `/L` 종료 코드 0)
+- 원본과 다른 `Addons/AnimaTail/` 위치에서 runtime locator·지원 자산·model catalog 상태 확인 성공
 
 ## 4. 아직 수행하지 않은 외부 검증
 
@@ -153,5 +203,7 @@ npm run check
 Worker 통합까지다. 따라서 코드와 포터블 앱 MVP는 완성했지만 실제 NAI click-to-output 및
 실제 생성 중단 타이밍은 유효한 토큰을 GUI에 저장한 뒤 한 장 요청으로 acceptance 해야 한다.
 
-MCP adapter는 구현·stdio round-trip 검증까지 완료했다. 자동검열 UI, Python/CUDA runtime과
-Censor Worker는 계획대로 다음 범위다.
+NaiTail Adapter의 Hosted·Standalone stdio round-trip과 AnimaTail 기존 MCP server는 검증했다.
+CensorTail의 자동검열 UI와
+Worker는 공유 Python/CUDA runtime·모델 readiness 및 화면 로딩까지 확인했다. 다만 이번 분리
+검증에서는 실제 로컬 Anima 이미지 생성과 이미지에 대한 자동검열 GPU 추론은 새로 수행하지 않았다.

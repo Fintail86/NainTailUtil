@@ -1,0 +1,20 @@
+{
+  "schema": "naintail.addon/v1",
+  "id": "censortail",
+  "name": "CensorTail",
+  "version": "0.1.0",
+  "description": "Built-in local automatic censor addon",
+  "builtIn": true,
+  "default": false,
+  "order": 4,
+  "requires": ["animatail"],
+  "entries": {
+    "electron": "electron/main.cjs",
+    "preload": "electron/preload.cjs",
+    "renderer": "dist/renderer/index.html"
+  },
+  "window": {
+    "backgroundThrottling": false
+  },
+  "capabilities": ["auto-censor", "python", "cuda", "mask-editor", "batch"]
+}

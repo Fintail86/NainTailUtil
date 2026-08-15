@@ -7,10 +7,21 @@
   "mcp": {
     "status": "included",
     "transport": "stdio",
-    "relativeLauncher": "NainTailUtil_MCP.bat"
+    "relativeLauncher": "NainTailUtil_MCP.bat",
+    "mode": "federation",
+    "addonProfile": "naintail.addon-mcp-profile/v1",
+    "federatedAdapters": ["naitail", "animatail"],
+    "legacySelectorEnvironment": "NAINTAIL_ADDON_ID"
+  },
+  "addons": {
+    "contract": "naintail.addon/v1",
+    "builtIn": ["NaiTail", "AnimaTail", "GalleryTail", "CensorTail"],
+    "standalone": ["NaiTail", "AnimaTail", "CensorTail"],
+    "default": "naitail"
   },
   "pythonCuda": {
-    "status": "planned-after-mvp",
-    "purpose": "censor-worker"
+    "status": "included-in-animatail",
+    "relativeRoot": "Addons/AnimaTail/runtime",
+    "purpose": "shared-anima-generation-and-censor-runtime"
   }
 }

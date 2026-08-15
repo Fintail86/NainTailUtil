@@ -13,13 +13,12 @@ class McpStdioServer {
   constructor(options) {
     this.input = options.input || process.stdin;
     this.output = options.output || process.stdout;
-    this.log = options.log || ((message) => process.stderr.write(`[NainTailUtil MCP] ${message}\n`));
-    this.name = options.name || "naintailutil";
+    this.log = options.log || ((message) => process.stderr.write(`[NainTail MCP] ${message}\n`));
+    this.name = options.name || "naintail";
     this.version = options.version || "0.1.0";
     this.instructions = options.instructions || "";
     this.tools = options.tools;
     this.callTool = options.callTool;
-    this.initialized = false;
     this.closed = false;
     this.lines = null;
   }
@@ -30,10 +29,7 @@ class McpStdioServer {
 
   async dispatch(message) {
     if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") return rpcError(message?.id, -32600, "Invalid Request");
-    if (message.method.startsWith("notifications/")) {
-      if (message.method === "notifications/initialized") this.initialized = true;
-      return null;
-    }
+    if (message.method.startsWith("notifications/")) return null;
     const id = message.id;
     if (message.method === "initialize") {
       const requested = message.params?.protocolVersion;
@@ -45,8 +41,7 @@ class McpStdioServer {
     if (message.method === "tools/call") {
       const tool = this.tools.get(message.params?.name);
       if (!tool) return rpcError(id, -32602, `Unknown tool: ${message.params?.name || ""}`);
-      const result = await this.callTool(tool, message.params?.arguments || {});
-      return { jsonrpc: "2.0", id, result };
+      return { jsonrpc: "2.0", id, result: await this.callTool(tool, message.params?.arguments || {}) };
     }
     return rpcError(id, -32601, `Method not found: ${message.method}`);
   }
@@ -70,8 +65,6 @@ class McpStdioServer {
 
   start() {
     this.lines = readline.createInterface({ input: this.input, crlfDelay: Infinity });
-    // Long job_wait calls must not block status/cancel or unrelated MCP requests.
-    // JSON-RPC correlates concurrent responses by id, so each line can run independently.
     this.lines.on("line", (line) => { void this.handleLine(line); });
     this.lines.on("close", () => { this.closed = true; });
     this.log(`stdio server ${this.version} ready`);

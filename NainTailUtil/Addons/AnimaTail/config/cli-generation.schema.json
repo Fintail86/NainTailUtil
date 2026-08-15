@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://animautil.local/schemas/cli-generation-v1.json",
+  "title": "AnimaUtil CLI generation request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "mode"],
+  "anyOf": [
+    { "required": ["modelId"] },
+    {
+      "required": ["presets"],
+      "properties": {
+        "presets": { "required": ["environment"] }
+      }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "requestId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "mode": { "enum": ["single", "multi"] },
+    "presets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment": { "$ref": "#/$defs/presetReference" },
+        "base": { "$ref": "#/$defs/presetReference" },
+        "prompt": { "$ref": "#/$defs/presetReference" },
+        "negativePrompt": { "$ref": "#/$defs/presetReference" },
+        "subPrompts": { "$ref": "#/$defs/presetReference" }
+      }
+    },
+    "promptOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "basePrompt": { "type": "string", "maxLength": 4000 },
+        "prompt": { "type": "string", "maxLength": 4000 },
+        "negativePrompt": { "type": "string", "maxLength": 4000 }
+      }
+    },
+    "basePrompt": { "type": "string", "maxLength": 4000 },
+    "prompt": { "type": "string", "maxLength": 4000 },
+    "negativePrompt": { "type": "string", "maxLength": 4000 },
+    "modelId": { "type": "string", "minLength": 1 },
+    "loras": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/lora" }
+    },
+    "loraLoadMode": { "enum": ["fused", "hotload"] },
+    "outputPrefix": { "type": "string", "maxLength": 64 },
+    "outputSubPrefix": { "type": "string", "maxLength": 64 },
+    "width": { "type": "integer", "minimum": 512, "maximum": 1536, "multipleOf": 16 },
+    "height": { "type": "integer", "minimum": 512, "maximum": 1536, "multipleOf": 16 },
+    "steps": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "cfg": { "type": "number", "minimum": 1, "maximum": 20 },
+    "sampler": { "enum": ["er_sde", "res_multistep", "euler_a", "euler", "uni_pc"] },
+    "scheduler": { "enum": ["simple", "beta", "ddim_uniform"] },
+    "batchSize": { "type": "integer", "minimum": 1, "maximum": 8 },
+    "queueCount": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "randomSeed": { "type": "boolean" },
+    "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "subPrompts": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/subPrompt" }
+    },
+    "subPromptOverrides": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/subPromptOverride" }
+    },
+    "selectedSlots": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1, "maximum": 20 }
+    }
+  },
+  "$defs": {
+    "presetReference": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id"],
+          "properties": { "id": { "type": "string", "minLength": 1 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 } }
+        }
+      ]
+    },
+    "lora": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "strength"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "strength": { "type": "number", "minimum": 0, "maximum": 2 }
+      }
+    },
+    "subPrompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "prompt": { "type": "string", "maxLength": 4000 },
+        "negativePrompt": { "type": "string", "maxLength": 4000 },
+        "enabled": { "type": "boolean" },
+        "loras": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/lora" } }
+      }
+    },
+    "subPromptOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot"],
+      "properties": {
+        "slot": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "id": { "type": "string", "maxLength": 80 },
+        "prompt": { "type": "string", "maxLength": 4000 },
+        "negativePrompt": { "type": "string", "maxLength": 4000 },
+        "enabled": { "type": "boolean" },
+        "loras": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/lora" } }
+      }
+    }
+  }
+}

@@ -1,12 +1,28 @@
 # NainTailUtil MCP
 
+## 현재 구조와 목표 구조
+
+MCP BAT는 범용 `app/mcp/main.cjs` 호스트를 실행한다. selector를 지정하지 않은 기본 연결은
+NainTail federation server이며, host routing 도구 5개를 통해 MCP Adapter를 선언한 애드온을
+조회·호출한다. 현재 federation 대상은 NaiTail과 AnimaTail이다.
+
+`NAINTAIL_ADDON_ID=naitail` 또는 `animatail`을 설정하면 해당 애드온의 기존 MCP entry를 직접
+실행하는 호환 모드가 된다. transport 소유권, 축약 list/get/call, 결과 무손실 전달과
+`artifactRef` 계약은
+[`NainTail/MCP_FEDERATION.md`](NainTail/MCP_FEDERATION.md)를 따른다.
+
+모든 애드온 MCP의 공통 명령·상태·list/get·job·결과 형식은 정식
+[`ADDON_MCP_PROFILE.md`](ADDON_MCP_PROFILE.md)를 따른다. 도메인별 입력 schema는 각 애드온이
+계속 소유한다.
+
 - 전송: 로컬 stdio
 - 런처: 제품 루트 `NainTailUtil_MCP.bat`
 - 런타임: 제품에 포함된 Electron을 `ELECTRON_RUN_AS_NODE=1`로 실행
 - 프로토콜: MCP `2025-06-18`, `2025-03-26`, `2024-11-05` 협상 지원
 
-MCP는 GUI나 CLI를 자동 조작하지 않고 같은 `NainTailApplication`, 저장소와 한 장 단위 Core 큐를
-사용하는 얇은 입력 adapter다. stdout은 JSON-RPC 전용이며 시작·오류 로그는 stderr로만 보낸다.
+MCP는 GUI나 CLI를 자동 조작하지 않는다. NainTail은 단일 stdio transport와 routing을 소유하고,
+선택된 애드온 Adapter가 자기 Core·저장소·Worker를 사용한다. stdout은 JSON-RPC 전용이며
+시작·오류 로그는 stderr로만 보낸다.
 
 ## 호스트 등록
 
@@ -32,6 +48,60 @@ GUI의 Windows `safeStorage` 복호화 권한을 전달하지 않는다. 생성 
   }
 }
 ```
+
+AnimaTail만 별도 MCP 서버로 등록할 때는 같은 launcher를 사용하고 selector만 추가한다.
+
+```json
+{
+  "mcpServers": {
+    "animatail": {
+      "command": "C:\\Windows\\System32\\cmd.exe",
+      "args": ["/d", "/s", "/c", "D:\\Portable\\NainTailUtil\\NainTailUtil_MCP.bat"],
+      "env": {
+        "NAINTAIL_ADDON_ID": "animatail"
+      }
+    }
+  }
+}
+```
+
+AnimaTail은 `anima_status`, 축약 `anima_models_list`·`anima_presets_list`, 개별
+`anima_preset_get`, 비동기 generate/status/wait/cancel과 idle model unload를 제공한다. 목록은
+선택용 최소 필드만 반환하고 전체 프리셋 내용은 개별 get으로 읽는 규칙을 그대로 유지한다.
+
+## NainTail federation 호출 순서
+
+기본 NainTail MCP 연결은 다음 순서를 사용한다.
+
+```text
+ID를 모를 때만 naintail_addons_list
+  → naintail_addon_get(addonId)
+  → 도구명을 모를 때만 naintail_addon_tools_list(addonId)
+  → 사용할 하나만 naintail_addon_tool_get(addonId, toolName)
+  → naintail_addon_call(addonId, toolName, arguments)
+```
+
+현재 NaiTail과 AnimaTail은 `federated`, GalleryTail·CensorTail은 `none`으로 표시된다.
+Router는 각 Adapter를 최초 상세 조회 또는 호출 시 lazy activation하며, 종료 시 Adapter의
+`close()`를 호출한다. `addon_call` 결과는 원본 `content`, `structuredContent`, `isError`와 `_meta`를
+보존하고 출처 `addonId`·`toolName`만 metadata에 추가한다.
+
+AnimaTail 완료 결과는 Hosted 호출에서 절대경로 대신 session `artifactRef`를 제공한다. 이 참조는
+호스트 resolver가 dependency와 폴더 경계를 검사해 CensorTail 내부 입력으로 해석한다. 공개
+CensorTail MCP 도구는 아직 없으므로 현재 AI가 검열까지 호출하는 표면은 후속 범위다.
+
+## 애드온 폴더 단독 등록
+
+전체 NainTailUtil host 없이 애드온 폴더 하나만 배치한 경우 각 폴더의 전용 MCP launcher를
+직접 등록한다. selector 환경변수는 필요하지 않다.
+
+```text
+<NaiTail 폴더>\NaiTail_MCP.bat
+<AnimaTail 폴더>\AnimaTail_MCP.bat
+```
+
+두 launcher 모두 같은 애드온 폴더의 `runtime/electron/electron.exe`를 Node mode로 실행하며,
+저장소·런타임·모델 경로도 상위 NainTailUtil이 아니라 해당 폴더를 기준으로 계산한다.
 
 토큰을 설정하지 않아도 discovery와 저장 데이터 조회는 가능하지만 생성은
 `NAI_TOKEN_MISSING`으로 거부된다. 토큰은 프로젝트·프리셋·작업 기록이나 도구 응답에 포함하지 않는다.

@@ -1,0 +1,28 @@
+{
+  "schema": "naintail.addon/v1",
+  "id": "gallerytail",
+  "name": "GalleryTail",
+  "version": "0.1.0",
+  "description": "Built-in gallery addon for AnimaTail outputs",
+  "builtIn": true,
+  "default": false,
+  "order": 3,
+  "requires": ["animatail"],
+  "entries": {
+    "electron": "electron/main.cjs",
+    "preload": "electron/preload.cjs",
+    "renderer": "dist/renderer/index.html"
+  },
+  "protocols": [
+    {
+      "scheme": "gallerytail",
+      "privileges": {
+        "standard": true,
+        "secure": true,
+        "supportFetchAPI": true,
+        "stream": true
+      }
+    }
+  ],
+  "capabilities": ["gallery", "browse", "metadata", "reuse-settings"]
+}

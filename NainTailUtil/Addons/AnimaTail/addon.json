@@ -1,0 +1,43 @@
+{
+  "schema": "naintail.addon/v1",
+  "id": "animatail",
+  "name": "AnimaTail",
+  "version": "0.1.0",
+  "description": "Built-in local Anima generation addon",
+  "builtIn": true,
+  "default": false,
+  "order": 2,
+  "entries": {
+    "electron": "electron/main.cjs",
+    "preload": "electron/preload.cjs",
+    "renderer": "dist/renderer/index.html",
+    "cli": "cli/main.cjs",
+    "mcp": "mcp/entry.cjs",
+    "mcpAdapter": "mcp/adapter.cjs"
+  },
+  "protocols": [
+    {
+      "scheme": "anima",
+      "privileges": {
+        "standard": true,
+        "secure": true,
+        "supportFetchAPI": true,
+        "stream": true
+      }
+    }
+  ],
+  "window": {
+    "backgroundThrottling": false
+  },
+  "capabilities": [
+    "single",
+    "multi",
+    "refine",
+    "presets",
+    "settings",
+    "python",
+    "cuda",
+    "cli",
+    "mcp"
+  ]
+}
