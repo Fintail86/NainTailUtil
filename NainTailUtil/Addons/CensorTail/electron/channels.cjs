@@ -8,6 +8,7 @@ module.exports = Object.freeze({
   WARMUP_MODEL: "censortail:warmup-model",
   INSTALL_MODEL: "censortail:install-model",
   SELECT_IMAGES: "censortail:select-images",
+  SELECT_FOLDER: "censortail:select-folder",
   ADD_DROPPED_PATHS: "censortail:add-dropped-paths",
   REMOVE_IMAGE: "censortail:remove-image",
   CLEAR_IMAGES: "censortail:clear-images",

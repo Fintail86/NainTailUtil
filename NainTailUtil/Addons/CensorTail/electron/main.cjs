@@ -61,8 +61,35 @@ function publicSaveResult(result) {
   };
 }
 
+function explicitDroppedFile(input) {
+  if (!input || typeof input !== "object") return null;
+  const absolutePath = path.resolve(String(input.absolutePath || ""));
+  const extension = path.extname(absolutePath).toLowerCase();
+  let outputRelativePath = String(input.outputRelativePath || "").replace(/^[/\\]+/, "");
+  outputRelativePath = path.normalize(outputRelativePath);
+  if (!IMAGE_EXTENSIONS.has(extension)
+    || !outputRelativePath
+    || path.isAbsolute(outputRelativePath)
+    || outputRelativePath.split(path.sep).includes("..")) return null;
+  try {
+    if (!fs.statSync(absolutePath).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return { absolutePath, outputRelativePath };
+}
+
 async function registerInputPaths(inputPaths) {
-  const discovered = collectCensorInputFiles(inputPaths);
+  const filesystemPaths = [];
+  const explicitFiles = [];
+  for (const input of inputPaths) {
+    if (typeof input === "string") filesystemPaths.push(input);
+    else {
+      const explicit = explicitDroppedFile(input);
+      if (explicit) explicitFiles.push(explicit);
+    }
+  }
+  const discovered = [...collectCensorInputFiles(filesystemPaths), ...explicitFiles];
   let imported = 0;
   for (let offset = 0; offset < discovered.length; offset += CENSOR_BATCH_SIZE) {
     const batch = discovered.slice(offset, offset + CENSOR_BATCH_SIZE);
@@ -111,10 +138,10 @@ function activate(context) {
     await censorService.installModel();
     return publicStatus();
   });
-  ipcMain.handle(channels.SELECT_IMAGES, async () => {
+  ipcMain.handle(channels.SELECT_IMAGES, () => {
     const sourceOutputRoot = path.join(resourceRoot, "outputs");
     fs.mkdirSync(sourceOutputRoot, { recursive: true });
-    const result = await dialog.showOpenDialog(context.getWindow(), {
+    const filePaths = dialog.showOpenDialogSync(context.getWindow(), {
       title: "자동검열할 이미지 선택",
       defaultPath: sourceOutputRoot,
       properties: ["openFile", "multiSelections"],
@@ -123,7 +150,17 @@ function activate(context) {
         extensions: [...IMAGE_EXTENSIONS].map((extension) => extension.slice(1)),
       }],
     });
-    return result.canceled ? censorService.listImages() : registerInputPaths(result.filePaths);
+    return filePaths?.length ? registerInputPaths(filePaths) : censorService.listImages();
+  });
+  ipcMain.handle(channels.SELECT_FOLDER, () => {
+    const sourceOutputRoot = path.join(resourceRoot, "outputs");
+    fs.mkdirSync(sourceOutputRoot, { recursive: true });
+    const folderPaths = dialog.showOpenDialogSync(context.getWindow(), {
+      title: "자동검열할 이미지 폴더 선택",
+      defaultPath: sourceOutputRoot,
+      properties: ["openDirectory"],
+    });
+    return folderPaths?.length ? registerInputPaths(folderPaths) : censorService.listImages();
   });
   ipcMain.handle(channels.ADD_DROPPED_PATHS, (_event, paths) => registerInputPaths(Array.isArray(paths) ? paths : []));
   ipcMain.handle(channels.REMOVE_IMAGE, (_event, id) => censorService.removeImage(id));
