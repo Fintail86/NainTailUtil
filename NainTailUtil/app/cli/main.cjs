@@ -2,6 +2,8 @@
 
 const path = require("node:path");
 const { AddonRegistry } = require("../host/addon-registry.cjs");
+const { HostOutputSettings } = require("../host/output-settings.cjs");
+const { hostedRuntimeDependencies } = require("../host/runtime-dependencies.cjs");
 
 function selectAddon(registry, argv) {
   const forwarded = [...argv];
@@ -29,10 +31,15 @@ async function main() {
   if (!addon) throw new Error("실행할 내장 애드온이 없습니다.");
   const entry = registry.load(addon, "cli");
   if (!entry || typeof entry.run !== "function") throw new Error(`CLI entry가 없습니다: ${addon.id}`);
+  const dependencies = hostedRuntimeDependencies(productRoot, addon);
+  const outputSettings = new HostOutputSettings(productRoot);
   return entry.run({
     hostRoot: productRoot,
     productRoot: addon.directory,
     dataRoot: addon.directory,
+    dependencies,
+    runtimeRoot: dependencies.runtimeRoot,
+    outputRoot: outputSettings.resolveAddonOutputRoot(addon.id),
     argv: selection.argv,
   });
 }

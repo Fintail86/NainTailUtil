@@ -15,14 +15,16 @@ const { ArtistStudyStore } = require("./artist-study-store.cjs");
 const { artistStudyExampleValues, materializeArtistStudy, randomizeArtistWeights } = require("./artist-study-model.cjs");
 const { materializeMulti } = require("./multi-model.cjs");
 const { ReferenceImageStore } = require("./reference-image-store.cjs");
+const packageInfo = require("../../package.json");
 
 class NainTailApplication extends EventEmitter {
   constructor(options = {}) {
     super();
+    this.version = String(options.version || packageInfo.version);
     this.productRoot = ensureProductDirectories(options.productRoot);
     this.projectStore = options.projectStore || new ProjectStore(this.productRoot);
     this.presetStore = options.presetStore || new PresetStore(this.productRoot);
-    this.outputStore = options.outputStore || new OutputStore(this.productRoot);
+    this.outputStore = options.outputStore || new OutputStore(this.productRoot, { outputRoot: options.outputRoot });
     this.artistStudyStore = options.artistStudyStore || new ArtistStudyStore(this.productRoot);
     this.referenceImageStore = options.referenceImageStore || new ReferenceImageStore(this.productRoot);
     this.worker = options.worker || new NaiWorkerClient({ productRoot: this.productRoot });
@@ -40,8 +42,9 @@ class NainTailApplication extends EventEmitter {
   info() {
     return {
       name: "NainTailUtil",
-      version: "0.1.0",
+      version: this.version,
       productRoot: this.productRoot,
+      outputRoot: this.outputStore.directory,
       activeAddon: { id: "naitail", name: "NaiTail", builtIn: true },
       architecture: { host: "NainTail", addon: "NaiTail", core: "headless", worker: "stdio-jsonl", naiConcurrency: 1 },
     };

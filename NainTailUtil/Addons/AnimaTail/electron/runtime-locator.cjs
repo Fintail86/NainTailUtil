@@ -38,26 +38,24 @@ function readManifestRuntime(appRoot, manifestPath, runtimeRoot, source) {
   }
 }
 
-function locateRuntime(appRoot) {
-  const localManifest = path.join(appRoot, "runtime-manifest.local.json");
-  if (fs.existsSync(localManifest)) {
-    return readManifestRuntime(
-      appRoot,
-      localManifest,
-      path.join(appRoot, "runtime"),
-      "local",
-    );
-  }
-
+function locateRuntime(appRoot, options = {}) {
   const productManifest = path.join(appRoot, "runtime-manifest.json");
-  if (fs.existsSync(productManifest)) {
-    return readManifestRuntime(
-      appRoot,
-      productManifest,
-      path.join(appRoot, "runtime"),
-      "product",
-    );
-  }
+  const localManifest = path.join(appRoot, "runtime-manifest.local.json");
+  const runtimeRoot = path.resolve(options.runtimeRoot || path.join(appRoot, "runtime"));
+  const injectedSource = runtimeRoot === path.resolve(appRoot, "runtime") ? null : "host";
+
+  const product = fs.existsSync(productManifest)
+    ? readManifestRuntime(appRoot, productManifest, runtimeRoot, injectedSource || "product")
+    : null;
+  if (product?.state === "ready") return product;
+
+  const local = fs.existsSync(localManifest)
+    ? readManifestRuntime(appRoot, localManifest, runtimeRoot, injectedSource || "local")
+    : null;
+  if (local?.state === "ready") return local;
+
+  if (product) return product;
+  if (local) return local;
 
   return {
     state: "manifest-missing",

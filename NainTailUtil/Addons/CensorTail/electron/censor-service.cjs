@@ -276,6 +276,7 @@ class CensorService {
     this.resourceRoot = path.resolve(options.resourceRoot || appRoot);
     this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.resourceRoot, "runtime"));
     this.modelRoot = path.resolve(options.modelRoot || path.join(this.resourceRoot, "Models", "censor"));
+    this.baseOutputRoot = path.resolve(options.outputRoot || path.join(this.appRoot, "outputs"));
     this.sendEvent = sendEvent;
     this.items = new Map();
     this.child = null;
@@ -292,7 +293,7 @@ class CensorService {
   }
 
   outputRoot() {
-    return path.join(this.appRoot, "outputs", "censored");
+    return path.join(this.baseOutputRoot, "censored");
   }
 
   resolveOutput(relativePath) {

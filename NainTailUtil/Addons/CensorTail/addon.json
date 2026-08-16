@@ -7,7 +7,7 @@
   "builtIn": true,
   "default": false,
   "order": 4,
-  "requires": ["animatail"],
+  "artifactProviders": ["animatail"],
   "entries": {
     "electron": "electron/main.cjs",
     "preload": "electron/preload.cjs",

@@ -2,6 +2,8 @@
 
 const path = require("node:path");
 const { AddonRegistry } = require("../host/addon-registry.cjs");
+const { HostOutputSettings } = require("../host/output-settings.cjs");
+const { hostedRuntimeDependencies } = require("../host/runtime-dependencies.cjs");
 const { callFederationTool, createFederationTools } = require("./federation-tools.cjs");
 const { FederationRouter } = require("./federation-router.cjs");
 const { McpStdioServer } = require("./protocol.cjs");
@@ -39,20 +41,29 @@ function startSelectedAddon(registry, addonId) {
   const dependencyRoots = Object.fromEntries((Array.isArray(addon.requires) ? addon.requires : [])
     .map((id) => [id, registry.get(id)?.directory || null])
     .filter(([, directory]) => directory));
+  const dependencies = hostedRuntimeDependencies(registry.productRoot, addon);
+  const outputSettings = new HostOutputSettings(registry.productRoot);
   const server = entry.start({
     hostRoot: registry.productRoot,
     productRoot: addon.directory,
     dataRoot: addon.directory,
     manifest: addon,
+    hosted: true,
+    dependencies,
     dependencyRoots,
-    resourceRoot: dependencyRoots.animatail || addon.directory,
+    runtimeRoot: dependencies.runtimeRoot,
+    resourceRoot: addon.directory,
+    outputRoot: outputSettings.resolveAddonOutputRoot(addon.id),
   });
   activeRuntime = { mode: "selected-addon", addonId: addon.id, entry, server };
   return activeRuntime;
 }
 
 function startFederation(registry, options = {}) {
-  const router = new FederationRouter(registry, { hostRoot: registry.productRoot });
+  const router = new FederationRouter(registry, {
+    hostRoot: registry.productRoot,
+    outputSettings: new HostOutputSettings(registry.productRoot),
+  });
   const tools = createFederationTools(router);
   const server = new McpStdioServer({
     input: options.input,

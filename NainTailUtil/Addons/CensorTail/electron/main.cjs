@@ -25,6 +25,7 @@ let modelRoot = null;
 let resourceRoot = null;
 let runtimeRoot = null;
 let runtimeInstaller = null;
+let inputDefaultRoot = null;
 
 function sendEvent(event) {
   addonContext?.broadcast(channels.EVENT, event);
@@ -125,9 +126,12 @@ async function registerInputPaths(inputPaths) {
 
 function activate(context) {
   addonContext = context;
-  const { dialog, ipcMain, resolveAddonDirectory, shell } = context.services;
+  const { dialog, ipcMain, shell } = context.services;
+  if (!context.standalone && !context.dependencies?.runtimeRoot) {
+    throw new Error("Hosted CensorTail에 NainTail runtimeRoot가 주입되지 않았습니다.");
+  }
   resourceRoot = context.dependencies?.resourceRoot
-    || (context.standalone ? context.manifest.directory : resolveAddonDirectory("animatail"));
+    || context.manifest.directory;
   if (!resourceRoot) throw new Error("CensorTail에 필요한 Python/CUDA runtime과 검열 모델을 찾을 수 없습니다.");
   runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(resourceRoot, "runtime"));
   modelRoot = path.resolve(context.dependencies?.modelRoot || path.join(resourceRoot, "Models", "censor"));
@@ -136,11 +140,16 @@ function activate(context) {
     "data",
     "drop-cache",
   );
+  const outputRoot = path.resolve(context.outputRoot || path.join(context.manifest.directory, "outputs"));
+  inputDefaultRoot = !context.standalone && typeof context.services.resolveAddonOutputRoot === "function"
+    ? context.services.resolveAddonOutputRoot("animatail")
+    : outputRoot;
   fs.rmSync(dropCacheRoot, { recursive: true, force: true });
   censorService = new CensorService(context.manifest.directory, sendEvent, {
     resourceRoot,
     runtimeRoot,
     modelRoot,
+    outputRoot,
   });
   runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent, { runtimeRoot });
   const validateDroppedPath = (event, candidate) => {
@@ -160,7 +169,7 @@ function activate(context) {
     return publicStatus();
   });
   ipcMain.handle(channels.SELECT_IMAGES, () => {
-    const sourceOutputRoot = path.join(resourceRoot, "outputs");
+    const sourceOutputRoot = inputDefaultRoot;
     fs.mkdirSync(sourceOutputRoot, { recursive: true });
     const filePaths = dialog.showOpenDialogSync(context.getWindow(), {
       title: "자동검열할 이미지 선택",
@@ -174,7 +183,7 @@ function activate(context) {
     return filePaths?.length ? registerInputPaths(filePaths) : censorService.listImages();
   });
   ipcMain.handle(channels.SELECT_FOLDER, () => {
-    const sourceOutputRoot = path.join(resourceRoot, "outputs");
+    const sourceOutputRoot = inputDefaultRoot;
     fs.mkdirSync(sourceOutputRoot, { recursive: true });
     const folderPaths = dialog.showOpenDialogSync(context.getWindow(), {
       title: "자동검열할 이미지 폴더 선택",
@@ -221,6 +230,7 @@ function activate(context) {
       modelRoot = null;
       resourceRoot = null;
       runtimeRoot = null;
+      inputDefaultRoot = null;
       addonContext = null;
     },
   };

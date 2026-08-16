@@ -4,7 +4,10 @@ const path = require("node:path");
 const { shutdown, start } = require("../app/mcp/main.cjs");
 
 try {
-  start({ productRoot: path.resolve(__dirname, "..") });
+  start({
+    productRoot: path.resolve(__dirname, ".."),
+    outputRoot: path.resolve(__dirname, "..", "outputs"),
+  });
 } catch (error) {
   process.stderr.write(`[NaiTail standalone MCP] ${error.stack || error.message}\n`);
   process.exitCode = 1;

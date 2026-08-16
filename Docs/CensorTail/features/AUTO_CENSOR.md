@@ -114,9 +114,9 @@
 - `onnxruntime-gpu==1.26.0`
 - CUDA 12.x / cuDNN 9 계열
 - `CUDAExecutionProvider` 우선, 사용할 수 없으면 CPU provider로 fallback
-- 시스템 Python, 시스템 CUDA Toolkit과 사용자 `PATH`를 사용하지 않는다. Hosted에서는
-  AnimaTail 공유 런타임을, Standalone에서는 `CensorTail/runtime/`의 포터블 런타임과
-  그 안의 PyTorch CUDA/cuDNN DLL을 사용한다.
+- 시스템 Python, 시스템 CUDA Toolkit과 사용자 `PATH`를 사용하지 않는다. Standalone은
+  `CensorTail/runtime/`, Hosted는 NainTail이 주입한 `<NainTailRoot>/runtime/`의 Python/CUDA와
+  PyTorch CUDA/cuDNN DLL을 사용한다. Hosted에서 애드온 로컬 runtime으로 암묵 fallback하지 않는다.
 
 ONNX Runtime 1.27.0의 현재 Windows wheel은 CUDA 13 계열이라 이 프로젝트의 PyTorch
 2.11.0+cu128 런타임과 맞지 않았다. 실제 DLL 로딩을 확인한 1.26.0을 고정한다.

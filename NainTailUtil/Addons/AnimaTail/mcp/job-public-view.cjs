@@ -2,22 +2,22 @@
 
 const path = require("node:path");
 
-function safeOutputPath(appRoot, relativePath) {
+function safeOutputPath(outputRoot, relativePath) {
   if (typeof relativePath !== "string" || relativePath.length === 0) return null;
-  const outputRoot = path.resolve(appRoot, "outputs");
+  outputRoot = path.resolve(outputRoot);
   const candidate = path.resolve(outputRoot, relativePath);
   const prefix = `${outputRoot}${path.sep}`.toLowerCase();
   return candidate.toLowerCase().startsWith(prefix) ? candidate : null;
 }
 
-function publicResult(appRoot, result) {
+function publicResult(outputRoot, result) {
   if (!result || typeof result !== "object") return null;
   return {
     status: result.status,
     groupId: result.groupId || null,
     counts: result.counts || null,
     outputs: Array.isArray(result.results) ? result.results.map((item) => ({
-      absolutePath: safeOutputPath(appRoot, item.relativePath),
+      absolutePath: safeOutputPath(outputRoot, item.relativePath),
       seed: item.seed,
       width: item.width,
       height: item.height,

@@ -178,7 +178,7 @@ function validateCategory(category) {
   return category;
 }
 
-async function runReadCommand(positionals, flags, appRoot = APP_ROOT) {
+async function runReadCommand(positionals, flags, appRoot = APP_ROOT, options = {}) {
   const [command, action] = positionals;
   if (command === "capabilities") {
     assertCommandShape(positionals, flags, 1, new Set());
@@ -186,7 +186,7 @@ async function runReadCommand(positionals, flags, appRoot = APP_ROOT) {
   }
   if (command === "status") {
     assertCommandShape(positionals, flags, 1, new Set());
-    const runtime = readRuntimeStatus(appRoot);
+    const runtime = readRuntimeStatus(appRoot, { runtimeRoot: options.runtimeRoot });
     const catalog = listModels(appRoot);
     const presets = listPresets(appRoot);
     return {
@@ -268,7 +268,7 @@ async function runReadCommand(positionals, flags, appRoot = APP_ROOT) {
   return null;
 }
 
-async function runGeneration(mode, positionals, flags, reporter, requestId, appRoot = APP_ROOT) {
+async function runGeneration(mode, positionals, flags, reporter, requestId, appRoot = APP_ROOT, options = {}) {
   assertCommandShape(positionals, flags, 2, new Set(["config"]));
   if (!flags.config) throw new CliConfigError("CONFIG_REQUIRED", "--config JSON 파일을 지정해 주세요.");
   const rawConfig = readJsonFile(path.resolve(flags.config || ""));
@@ -278,6 +278,8 @@ async function runGeneration(mode, positionals, flags, reporter, requestId, appR
   reporter.event("ready", { mode, appVersion: packageInfo.version });
   activeApplication = new GenerationApplication({
     appRoot,
+    runtimeRoot: options.runtimeRoot,
+    outputRoot: options.outputRoot,
     appVersion: packageInfo.version,
     electronVersion: process.versions.electron || null,
     onEvent: ({ event, data }) => reporter.event(event, data),
@@ -304,7 +306,7 @@ async function runGeneration(mode, positionals, flags, reporter, requestId, appR
   }
 }
 
-async function main(argv = process.argv.slice(2), appRoot = APP_ROOT) {
+async function main(argv = process.argv.slice(2), appRoot = APP_ROOT, options = {}) {
   let parsed;
   try {
     parsed = parseArguments(argv);
@@ -322,9 +324,9 @@ async function main(argv = process.argv.slice(2), appRoot = APP_ROOT) {
   const reporter = createReporter(flags, requestId);
   try {
     if (positionals[0] === "generate" && ["single", "multi"].includes(positionals[1])) {
-      return await runGeneration(positionals[1], positionals, flags, reporter, requestId, appRoot);
+      return await runGeneration(positionals[1], positionals, flags, reporter, requestId, appRoot, options);
     }
-    const result = await runReadCommand(positionals, flags, appRoot);
+    const result = await runReadCommand(positionals, flags, appRoot, options);
     if (result === null) throw new CliConfigError("COMMAND_UNKNOWN", `지원하지 않는 명령입니다: ${positionals.join(" ")}`);
     reporter.final("completed", result);
     return 0;
@@ -358,7 +360,11 @@ if (require.main === module) {
 }
 
 async function run(options = {}) {
-  const exitCode = await main(options.argv || [], APP_ROOT);
+  const appRoot = path.resolve(options.productRoot || options.dataRoot || APP_ROOT);
+  const exitCode = await main(options.argv || [], appRoot, {
+    runtimeRoot: options.runtimeRoot || options.dependencies?.runtimeRoot,
+    outputRoot: options.outputRoot,
+  });
   if (exitCode) process.exitCode = exitCode;
   return exitCode;
 }

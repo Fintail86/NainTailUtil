@@ -27,11 +27,70 @@ body {
 .host-home {
   display: grid;
   min-height: 100vh;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto;
   align-content: center;
-  gap: 42px;
+  gap: 26px;
   padding: 64px clamp(48px, 8vw, 132px);
 }
+
+.output-settings {
+  display: grid;
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 11px 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid #2b313c;
+  border-radius: 12px;
+  background: rgba(16, 19, 25, 0.72);
+}
+
+.output-copy {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.output-copy strong {
+  color: #c9ced7;
+  font-size: 12px;
+}
+
+.output-copy span {
+  color: #ff9a82;
+  font-size: 11px;
+}
+
+.output-copy code {
+  overflow: hidden;
+  color: #aab1bd;
+  font-family: "Cascadia Mono", "JetBrains Mono", monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.output-actions button {
+  padding: 8px 11px;
+  border: 1px solid #3a424f;
+  border-radius: 9px;
+  background: #242a34;
+  color: #f4f5f7;
+  cursor: pointer;
+}
+
+.output-actions button:hover:not(:disabled) { border-color: #ff806b; }
+.output-actions button.subtle { color: #aab1bd; background: transparent; }
+.output-actions button:disabled { cursor: default; opacity: 0.45; }
 
 .host-heading {
   text-align: center;

@@ -41,13 +41,14 @@ function locateRuntime(appRoot, options = {}) {
   const productManifest = path.join(appRoot, "runtime-manifest.json");
   const localManifest = path.join(appRoot, "runtime-manifest.local.json");
   const runtimeRoot = path.resolve(options.runtimeRoot || path.join(appRoot, "runtime"));
+  const injectedSource = runtimeRoot === path.resolve(appRoot, "runtime") ? null : "host";
 
   const product = fs.existsSync(productManifest)
     ? readManifestRuntime(
       appRoot,
       productManifest,
       runtimeRoot,
-      "product",
+      injectedSource || "product",
     )
     : null;
   if (product?.state === "ready") return product;
@@ -57,7 +58,7 @@ function locateRuntime(appRoot, options = {}) {
       appRoot,
       localManifest,
       runtimeRoot,
-      "local",
+      injectedSource || "local",
     )
     : null;
   if (local?.state === "ready") return local;

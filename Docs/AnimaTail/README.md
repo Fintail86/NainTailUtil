@@ -29,11 +29,13 @@ AnimaTail은 다음 범위를 직접 소유한다.
 - 모델·LoRA 카탈로그, 호환성 진단과 생성용 보조 자산
 - 프롬프트·서브 프롬프트·생성 환경 프리셋
 - 생성 큐, Python/CUDA Worker, GUI·CLI·MCP adapter
-- `Models/`, `Presets/`, `outputs/`, `runtime/` 아래의 로컬 자산과 사용자 데이터
+- `Models/`, `Presets/`, `runtime/` 아래의 로컬 자산과 사용자 데이터
+- Standalone `outputs/`와 Hosted NainTail `outputs/animatail/` 아래의 생성 결과
 
-생성 결과 탐색은 `GalleryTail`, 자동검열은 `CensorTail`이 소유한다. 두 애드온은 AnimaTail의
-공개된 출력·dependency 경계를 사용하며, AnimaTail 내부 구현이나 부모 폴더 구조를 추측해
-접근하지 않는다.
+생성 결과 탐색은 `GalleryTail`, 자동검열은 `CensorTail`이 소유한다. GalleryTail만 AnimaTail의
+공개된 출력 경계를 필수로 사용한다. CensorTail은 자체 검열 모델을 소유하며 AnimaTail 결과
+전달은 호스트의 선택적 artifact 연동을 통해서만 수행한다. Python/CUDA runtime은 Standalone에서
+각 애드온 로컬 사본을, Hosted에서 NainTail이 관리하는 공용 runtime을 사용한다.
 
 ## 문서 사용 순서
 

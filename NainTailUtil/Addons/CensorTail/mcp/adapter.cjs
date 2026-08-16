@@ -18,9 +18,9 @@ function inside(root, candidate) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-function artifactPublisher(appRoot, hosted, privateRoots = []) {
-  const outputRoot = path.resolve(appRoot, "outputs");
-  const redactions = [...new Set([appRoot, ...privateRoots].filter(Boolean).map((root) => path.resolve(root)))]
+function artifactPublisher(outputDirectory, hosted, privateRoots = []) {
+  const outputRoot = path.resolve(outputDirectory);
+  const redactions = [...new Set([outputRoot, ...privateRoots].filter(Boolean).map((root) => path.resolve(root)))]
     .map((root) => new RegExp(root.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "giu"));
   const byId = new Map();
   const byPath = new Map();
@@ -90,24 +90,29 @@ function artifactPublisher(appRoot, hosted, privateRoots = []) {
 function createAdapter(options = {}) {
   const appRoot = path.resolve(options.dataRoot || options.productRoot || path.resolve(__dirname, ".."));
   const hosted = options.hosted === true;
+  if (hosted && !options.runtimeRoot && !options.dependencies?.runtimeRoot) {
+    throw new CensorMcpError("HOST_RUNTIME_REQUIRED", "Hosted CensorTail MCP에 NainTail runtimeRoot가 주입되지 않았습니다.");
+  }
   const resourceRoot = path.resolve(options.resourceRoot
-    || options.dependencyRoots?.animatail
     || appRoot);
   const standaloneAssets = hosted ? null : resolveAssetPaths(appRoot);
   const runtimeRoot = path.resolve(options.runtimeRoot
+    || options.dependencies?.runtimeRoot
     || standaloneAssets?.runtimeRoot
     || path.join(resourceRoot, "runtime"));
   const modelRoot = path.resolve(options.modelRoot
     || standaloneAssets?.modelRoot
     || path.join(resourceRoot, "Models", "censor"));
+  const outputRoot = path.resolve(options.outputRoot || path.join(appRoot, "outputs"));
   let manager = options.manager || null;
   const service = options.service || new CensorService(appRoot, (event) => manager?.handleEvent(event), {
     resourceRoot,
     runtimeRoot,
     modelRoot,
+    outputRoot,
   });
   manager ||= new CensorMcpJobManager(service, options);
-  const artifacts = artifactPublisher(appRoot, hosted, [resourceRoot]);
+  const artifacts = artifactPublisher(outputRoot, hosted, [appRoot, resourceRoot]);
   const resolveHostArtifact = options.resolveArtifact;
   const manifest = options.manifest || {};
   let closed = false;

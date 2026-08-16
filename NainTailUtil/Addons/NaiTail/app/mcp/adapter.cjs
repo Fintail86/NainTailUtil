@@ -11,6 +11,8 @@ const ADAPTER_SCHEMA = "naintail.addon-mcp-profile/v1";
 function createAdapter(options = {}) {
   const core = options.core || new NainTailApplication({
     productRoot: options.dataRoot || options.productRoot || defaultProductRoot(),
+    outputRoot: options.outputRoot,
+    version: options.manifest?.version,
   });
   const manager = options.manager || new McpJobManager(core);
   const tools = createTools(core, manager);

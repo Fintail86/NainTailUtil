@@ -27,6 +27,8 @@ NainTailUtil은 **NainTail 애드온 호스트**와 내장 애드온을 함께 �
   유지한다. 다른 애드온으로 전환하면 이전 애드온 runtime을 종료하고 새 애드온을 활성화한다.
 - Electron dialog, safeStorage, 제한된 IPC, 애드온 경로 resolver와 handoff 같은 공용
   service를 애드온 entry에 주입한다.
+- Python/CUDA capability가 있는 Hosted 애드온에 NainTail의 공용 `runtimeRoot`를 주입한다.
+- Hosted 최종 출력에 `outputs/<addonId>/` namespace를 할당하고 output root resolver를 제공한다.
 - CLI는 선택한 애드온 entry로 전달하고, MCP는 기본 federation routing 또는 명시적인 호환
   selector로 애드온 entry를 실행한다.
 
@@ -35,14 +37,15 @@ NainTailUtil은 **NainTail 애드온 호스트**와 내장 애드온을 함께 �
 따라서 홈에 카드가 보인다는 사실만으로 모든 runtime·모델의 호환성까지 보장하지는 않는다.
 
 호스트의 상세 계약은 [NainTail 호스트 문서](Docs/NainTail/README.md), 애드온의 독립 실행과
-Hosted 결합 규칙은 [애드온 개발 계약](Docs/ADDON_DEVELOPMENT_CONTRACT.md)을 따른다.
+Hosted 결합 규칙은 [애드온 개발 계약](Docs/ADDON_DEVELOPMENT_CONTRACT.md), 출력 위치는
+[애드온 출력 위치 계약](Docs/ADDON_OUTPUT_CONTRACT.md)을 따른다.
 
 ## 내장 애드온
 
 | 애드온 | 소유 기능 | 실행 형태 |
 |---|---|---|
 | **NaiTail** | NovelAI 생성, 작품·프리셋·참조 이미지·큐 관리 | Hosted / Standalone GUI·CLI·MCP |
-| **AnimaTail** | 로컬 Anima 생성, Python/CUDA runtime과 모델 관리 | Hosted / Standalone GUI·CLI·MCP |
+| **AnimaTail** | 로컬 Anima 생성, 모델·LoRA와 Standalone runtime 관리 | Hosted / Standalone GUI·CLI·MCP |
 | **GalleryTail** | AnimaTail 결과 탐색, 파일 작업과 설정 handoff | Hosted GUI |
 | **CensorTail** | 로컬 자동검열, 마스크·박스 편집과 결과 저장 | Hosted / Standalone GUI·MCP |
 
@@ -68,8 +71,9 @@ federation router이며, 현재 NaiTail, AnimaTail과 CensorTail 도구를 축�
 `NAINTAIL_ADDON_ID`를 명시해 직접 선택한다. 제품 폴더에는 전용 Electron runtime이 포함되므로
 GUI·CLI·MCP 사용에 시스템 Node.js가 필요하지 않다.
 
-AnimaTail과 CensorTail은 Python/CUDA runtime이 없으면 최초 실행 시 설치 안내를 표시하고,
-사용자가 승인한 뒤 포터블 경계 안에서 준비한다.
+AnimaTail과 CensorTail은 Python/CUDA runtime이 없으면 최초 실행 시 설치 안내를 표시한다.
+Standalone은 각 애드온 `runtime/`, Hosted는 NainTail의 공용 `runtime/`에 사용자가 승인한
+런타임을 준비한다.
 
 ## 애드온 장착과 단독 실행
 
@@ -93,7 +97,10 @@ NainTailUtil/Addons/CensorTail/CensorTail_MCP.bat
 ```
 
 Standalone에서는 애드온 내부 runtime과 data root를 사용한다. Hosted에서는 같은 코드를
-NainTail composition root에서 실행하고 호스트가 제공한 service와 dependency를 우선한다.
+NainTail composition root에서 실행하고 Python/CUDA는 호스트가 주입한 공용 runtime만 사용한다.
+최종 출력은 Standalone에서 `<AddonRoot>/outputs/`, Hosted에서
+`<HostOutputRoot>/<addonId>/`에 저장한다. Host output root의 기본값은
+`<NainTailRoot>/outputs/`이며 홈 화면에서 변경할 수 있다.
 
 ## 포터블 제품 경계
 
@@ -109,6 +116,7 @@ NainTailUtil/                 개발 워크스페이스
 └─ NainTailUtil/             독립 실행 가능한 포터블 제품
    ├─ app/                   NainTail 호스트
    ├─ Addons/               내장 애드온
+   ├─ outputs/              Hosted 최종 출력, addonId별 namespace
    ├─ runtime/              공용 Electron runtime
    └─ licenses/             포함 구성 요소 고지문
 ```
@@ -135,6 +143,7 @@ runtime 설치 성공 여부는 별도의 acceptance 범위다.
 - [문서 인덱스와 소유권 규칙](Docs/README.md)
 - [NainTail 호스트와 홈 관리](Docs/NainTail/README.md)
 - [애드온 개발 계약](Docs/ADDON_DEVELOPMENT_CONTRACT.md)
+- [애드온 출력 위치 계약](Docs/ADDON_OUTPUT_CONTRACT.md)
 - [애드온 MCP Profile](Docs/ADDON_MCP_PROFILE.md)
 - [전체 개발 계획](Docs/DEVELOPMENT_PLAN.md)
 - [MVP 구현 결과](Docs/MVP_RESULT.md)

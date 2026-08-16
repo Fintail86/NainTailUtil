@@ -2,6 +2,8 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { hostedRuntimeDependencies } = require("../host/runtime-dependencies.cjs");
+const { HostOutputSettings } = require("../host/output-settings.cjs");
 const { inside } = require("../host/addon-registry.cjs");
 const { artifactError, validateArtifactRef } = require("../host/artifact-ref.cjs");
 const { inspectMcpAdapter, validateMcpAdapter } = require("../host/mcp-adapter.cjs");
@@ -23,6 +25,7 @@ class FederationRouter {
   constructor(registry, context = {}) {
     this.registry = registry;
     this.hostRoot = context.hostRoot || registry.productRoot;
+    this.outputSettings = context.outputSettings || new HostOutputSettings(this.hostRoot);
     this.adapters = new Map();
     this.activating = new Map();
     this.closed = false;
@@ -64,6 +67,7 @@ class FederationRouter {
       builtIn: addon.builtIn === true,
       default: addon.default === true,
       requires: Array.isArray(addon.requires) ? [...addon.requires] : [],
+      artifactProviders: Array.isArray(addon.artifactProviders) ? [...addon.artifactProviders] : [],
       missingRequirements,
       capabilities: Array.isArray(addon.capabilities) ? [...addon.capabilities] : [],
       mcp: mcpMode(addon),
@@ -85,12 +89,17 @@ class FederationRouter {
       if (!addon.entries?.mcpAdapter) throw routerError("MCP_ADAPTER_NOT_AVAILABLE", `연합 MCP adapter가 없습니다: ${addon.id}`, { addonId: addon.id, mcp: mcpMode(addon) });
       const module = this.registry.load(addon, "mcpAdapter");
       if (!module || typeof module.createAdapter !== "function") throw routerError("MCP_ADAPTER_INVALID", `MCP adapter entry에 createAdapter가 없습니다: ${addon.id}`);
+      const dependencies = hostedRuntimeDependencies(this.hostRoot, addon);
+      const outputRoot = this.outputSettings.resolveAddonOutputRoot(addon.id);
       const adapter = validateMcpAdapter(await module.createAdapter({
         hostRoot: this.hostRoot,
         productRoot: addon.directory,
         dataRoot: addon.directory,
         manifest: addon,
         hosted: true,
+        dependencies,
+        runtimeRoot: dependencies.runtimeRoot,
+        outputRoot,
         dependencyRoots: Object.fromEntries((Array.isArray(addon.requires) ? addon.requires : [])
           .map((id) => [id, this.registry.get(id)?.directory || null])
           .filter(([, directory]) => directory)),
@@ -156,7 +165,7 @@ class FederationRouter {
     const provider = this.requireAddon(artifactRef.addonId);
     const consumer = this.requireAddon(consumerAddonId);
     const permitted = provider.id === consumer.id
-      || (Array.isArray(consumer.requires) && consumer.requires.includes(provider.id));
+      || (Array.isArray(consumer.artifactProviders) && consumer.artifactProviders.includes(provider.id));
     if (!permitted) {
       throw artifactError(
         "ARTIFACT_ACCESS_DENIED",
@@ -170,7 +179,8 @@ class FederationRouter {
     }
     const resolved = await adapter.artifactResolve(artifactRef);
     const absolutePath = path.resolve(String(resolved?.absolutePath || ""));
-    if (!inside(provider.directory, absolutePath) || !fs.existsSync(absolutePath)) {
+    const providerOutputRoot = this.outputSettings.resolveAddonOutputRoot(provider.id);
+    if (!inside(providerOutputRoot, absolutePath) || !fs.existsSync(absolutePath)) {
       throw artifactError(
         "ARTIFACT_PATH_INVALID",
         `artifact 경로가 provider 경계를 벗어났거나 존재하지 않습니다: ${provider.id}`,

@@ -21,6 +21,9 @@ function main() {
   if (addon.version !== version || packageInfo.version !== version) {
     throw new Error(`Version mismatch: VERSION=${version}, addon=${addon.version}, package=${packageInfo.version}`);
   }
+  if (Array.isArray(addon.requires) && addon.requires.length) {
+    throw new Error(`${addon.id} must not require another addon.`);
+  }
   for (const relativePath of [
     "electron/shared-assets.cjs",
     "electron/runtime-locator.cjs",

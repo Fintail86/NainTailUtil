@@ -52,11 +52,12 @@ function isTurboLora(entry) {
 class McpDiscoveryService {
   constructor(options) {
     this.appRoot = options.appRoot;
+    this.runtimeRoot = options.runtimeRoot;
     this.appVersion = options.appVersion || "0.0.0";
   }
 
   status() {
-    const runtime = readRuntimeStatus(this.appRoot);
+    const runtime = readRuntimeStatus(this.appRoot, { runtimeRoot: this.runtimeRoot });
     const catalog = listModels(this.appRoot);
     const presets = listPresets(this.appRoot);
     return {

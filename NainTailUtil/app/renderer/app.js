@@ -4,6 +4,41 @@ const host = window.nainTailHost;
 const grid = document.querySelector("#addonGrid");
 let slots = [];
 const notice = document.querySelector("#hostNotice");
+const outputMode = document.querySelector("#outputMode");
+const outputPath = document.querySelector("#outputPath");
+const openOutputFolder = document.querySelector("#openOutputFolder");
+const selectOutputFolder = document.querySelector("#selectOutputFolder");
+const resetOutputFolder = document.querySelector("#resetOutputFolder");
+
+function renderOutputSettings(settings) {
+  outputMode.textContent = settings.mode === "custom" ? "사용자 지정" : "기본 위치";
+  outputPath.textContent = settings.outputRoot;
+  outputPath.title = settings.outputRoot;
+  resetOutputFolder.disabled = settings.mode !== "custom";
+}
+
+async function runOutputAction(action) {
+  for (const button of [openOutputFolder, selectOutputFolder, resetOutputFolder]) button.disabled = true;
+  try {
+    const response = await action();
+    if (!response?.ok) throw new Error(response?.error?.message || "출력 폴더를 처리하지 못했다.");
+    renderOutputSettings(response.result);
+    showNotice("공용 출력 폴더 설정을 갱신했다.");
+  } catch (error) {
+    showNotice(error.message, true);
+  } finally {
+    openOutputFolder.disabled = false;
+    selectOutputFolder.disabled = false;
+    resetOutputFolder.disabled = outputMode.textContent !== "사용자 지정";
+  }
+}
+
+async function refreshOutputSettings() {
+  if (!host?.getOutputSettings) return;
+  const response = await host.getOutputSettings();
+  if (!response?.ok) throw new Error(response?.error?.message || "출력 폴더 설정을 읽지 못했다.");
+  renderOutputSettings(response.result);
+}
 
 function renderSlots(count) {
   const slotCount = Math.max(3, count);
@@ -107,6 +142,10 @@ async function refreshAddons() {
 renderSlots(3);
 slots.forEach(placeholder);
 refreshAddons();
+refreshOutputSettings().catch((error) => showNotice(error.message, true));
+openOutputFolder.addEventListener("click", () => runOutputAction(() => host.openOutputFolder()));
+selectOutputFolder.addEventListener("click", () => runOutputAction(() => host.selectOutputFolder()));
+resetOutputFolder.addEventListener("click", () => runOutputAction(() => host.resetOutputFolder()));
 window.addEventListener("focus", refreshAddons);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refreshAddons();

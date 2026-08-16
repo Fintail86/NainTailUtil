@@ -44,7 +44,10 @@ async function run(options = {}) {
   const { positional, flags } = parseArgs(options.argv || process.argv.slice(2));
   const [group = "help", action] = positional;
   const jsonl = Boolean(flags.jsonl);
-  const app = new NainTailApplication({ productRoot: options.dataRoot || options.productRoot || defaultProductRoot() });
+  const app = new NainTailApplication({
+    productRoot: options.dataRoot || options.productRoot || defaultProductRoot(),
+    outputRoot: options.outputRoot,
+  });
   if (jsonl) {
     app.on("queue", (event) => print({ event: "queue", data: event }, true));
     app.on("result", (result) => print({ event: "result", data: result }, true));

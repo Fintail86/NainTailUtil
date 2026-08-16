@@ -29,7 +29,7 @@ CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 
 - 갤러리 UI·탐색 service의 `GalleryTail`, 자동검열 UI·Worker·출력의 `CensorTail` 분리
 - CensorTail Hosted/Standalone MCP 9개 도구, 순차 검출·저장 job queue와 artifactRef 입출력
 - CensorTail 폴더 단독 GUI 실행용 Electron·Python/CUDA·검열 모델과 standalone host 포함
-- GalleryTail 설정 재사용의 host handoff와 CensorTail의 AnimaTail runtime/model 공유 의존성
+- GalleryTail 설정 재사용의 host handoff와 CensorTail의 독립 모델·Standalone runtime 경계
 - AnimaTail의 `anima:` protocol 사전 등록, 독립 IPC 생명주기와 애드온 종료 시 Worker 정리
 - AnimaTail 헤더 브랜딩·홈 버튼과 홈 재진입 시 renderer 상태 보존
 - 애드온 부재 시 정상 기동하는 host fallback과 애드온 entry 경계 이탈 차단
@@ -135,7 +135,7 @@ npm run check
 - 네 manifest 발견, 명시적 순서·의존성·protocol 선언, entry 경계와 기본 애드온 선택
 - host 홈 4카드 동적 구성, 각 애드온 선택과 공통 홈 버튼 IPC 계약
 - AnimaTail 번들의 Gallery/Censor 표면 부재와 분리 renderer별 전용 API 표면
-- GalleryTail 설정 handoff의 초기 이벤트 버퍼링과 CensorTail 공유 runtime 경로
+- GalleryTail 설정 handoff의 초기 이벤트 버퍼링과 Hosted/Standalone runtime root 분리
 - 애드온이 없는 제품 루트의 host fallback과 host source의 NAI 의미 비소유
 - 이동 후 기존 제품 데이터 루트와 Addons 내부 Worker 경로 호환
 - 프리셋 독립 Append와 중복 ID 거부

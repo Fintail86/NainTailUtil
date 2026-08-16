@@ -60,6 +60,7 @@ class AddonRegistry {
       default: addon.default === true,
       order: Number.isFinite(Number(addon.order)) ? Number(addon.order) : null,
       requires: Array.isArray(addon.requires) ? [...addon.requires] : [],
+      artifactProviders: Array.isArray(addon.artifactProviders) ? [...addon.artifactProviders] : [],
       capabilities: Array.isArray(addon.capabilities) ? [...addon.capabilities] : [],
     }));
   }

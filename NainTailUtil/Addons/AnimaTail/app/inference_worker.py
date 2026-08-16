@@ -76,9 +76,10 @@ class SamplingProgress:
 
 
 class InferenceWorker:
-    def __init__(self, app_root: Path, support_root: Path):
+    def __init__(self, app_root: Path, support_root: Path, output_root: Path):
         self.app_root = app_root.resolve()
         self.support_root = support_root.resolve()
+        self.output_root = output_root.resolve()
         self.pipeline: AnimaImagePipeline | None = None
         self.pipeline_signature: tuple[object, ...] | None = None
         self.hotload_lora_signature: tuple[tuple[str, float], ...] | None = None
@@ -273,7 +274,7 @@ class InferenceWorker:
                 0.05,
                 min(1.0, float(payload.get("denoisingStrength", 0.3))),
             )
-        output_root = self.app_root / "outputs"
+        output_root = self.output_root
         output_root.mkdir(parents=True, exist_ok=True)
         try:
             output_paths = allocate_output_paths(
@@ -467,12 +468,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--app-root", type=Path, required=True)
     parser.add_argument("--support-root", type=Path, required=True)
+    parser.add_argument("--output-root", type=Path, required=True)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    worker = InferenceWorker(args.app_root, args.support_root)
+    worker = InferenceWorker(args.app_root, args.support_root, args.output_root)
     emit(
         "ready",
         python=sys.version.split()[0],

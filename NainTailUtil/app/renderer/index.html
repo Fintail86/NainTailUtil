@@ -17,6 +17,19 @@
 
     <ol id="addonGrid" class="addon-grid" aria-label="설치된 애드온"></ol>
 
+    <section class="output-settings" aria-labelledby="outputSettingsTitle">
+      <div class="output-copy">
+        <strong id="outputSettingsTitle">공용 출력 폴더</strong>
+        <span id="outputMode">기본 위치</span>
+        <code id="outputPath">불러오는 중…</code>
+      </div>
+      <div class="output-actions">
+        <button id="openOutputFolder" type="button">폴더 열기</button>
+        <button id="selectOutputFolder" type="button">위치 변경</button>
+        <button id="resetOutputFolder" type="button" class="subtle">기본값</button>
+      </div>
+    </section>
+
     <p id="hostNotice" class="host-notice" role="status" aria-live="polite"></p>
   </main>
   <script src="./app.js"></script>

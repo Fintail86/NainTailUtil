@@ -228,6 +228,7 @@ function processIsAlive(pid) {
 class RuntimeInstaller {
   constructor(appRoot, sendEvent = () => {}, options = {}) {
     this.appRoot = path.resolve(appRoot);
+    this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.appRoot, "runtime"));
     this.sendEvent = sendEvent;
     this.fetch = options.fetch || globalThis.fetch;
     this.extract = options.extract || null;
@@ -250,7 +251,7 @@ class RuntimeInstaller {
       manifestError = error.message;
     }
     return {
-      ...readRuntimeStatus(this.appRoot),
+      ...readRuntimeStatus(this.appRoot, { runtimeRoot: this.runtimeRoot }),
       installing: Boolean(this.installing),
       installMode: manifest?.installMode || null,
       archiveBytes: manifest?.downloadBytes || null,
@@ -299,7 +300,7 @@ class RuntimeInstaller {
       if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
     }
     if (processIsAlive(Number(existing?.pid))) {
-      throw new Error("다른 AnimaTail 프로세스가 런타임을 설치하고 있습니다.");
+      throw new Error("다른 NainTail 런타임 설치 프로세스가 실행 중입니다.");
     }
     await fs.promises.rm(lockPath, { force: true });
     const handle = await fs.promises.open(lockPath, "wx");
@@ -314,7 +315,7 @@ class RuntimeInstaller {
     let releaseLock = null;
     try {
       const manifest = loadRuntimeManifest(this.appRoot, { allowFileUrls: this.allowFileUrls });
-      const runtimeRoot = path.join(this.appRoot, "runtime");
+      const runtimeRoot = this.runtimeRoot;
       const versionsRoot = path.join(runtimeRoot, "versions");
       const finalRoot = path.join(versionsRoot, manifest.runtimeId);
       await fs.promises.mkdir(versionsRoot, { recursive: true });

@@ -103,6 +103,12 @@ function productFileUrl(relativePath) {
   const combined = `${state.info.productRoot.replace(/\\/gu, "/").replace(/\/$/u, "")}/${String(relativePath).replace(/\\/gu, "/")}`;
   return encodeURI(`file:///${combined}`);
 }
+function outputFileUrl(relativePath) {
+  if (!state.info?.outputRoot || !relativePath) return "";
+  const root = state.info.outputRoot.replace(/\\/gu, "/").replace(/\/$/u, "");
+  const portablePath = String(relativePath).replace(/\\/gu, "/").replace(/^outputs\//u, "");
+  return encodeURI(`file:///${root}/${portablePath}`);
+}
 function notify(message, error = false) { const el = $("#notice"); el.textContent = message; el.className = `notice show${error ? " error" : ""}`; clearTimeout(notify.timer); notify.timer = setTimeout(() => { el.className = "notice"; el.textContent = ""; }, 4200); }
 async function call(promise) { const response = await promise; if (!response?.ok) { const error = new Error(response?.error?.message || "요청에 실패했습니다."); error.code = response?.error?.code; throw error; } return response.result; }
 async function action(work, success, trigger = null) {
@@ -746,7 +752,7 @@ function renderProject() {
 
 function projectResultsHtml(results = []) {
   if (!results.length) return `<p class="muted">이 작품의 저장 결과가 없다.</p>`;
-  return [...results].reverse().slice(0, 24).map((r) => `<article class="result-card"><img src="${esc(productFileUrl(r.relativePath))}" alt="${esc(r.source?.slotName || "작품 결과")}"><div><strong>${esc(r.source?.characterName || r.source?.slotName || "일반 슬롯")}</strong><small>${esc(r.source?.slotName || r.createdAt || "")}</small></div></article>`).join("");
+  return [...results].reverse().slice(0, 24).map((r) => `<article class="result-card"><img src="${esc(outputFileUrl(r.relativePath))}" alt="${esc(r.source?.slotName || "작품 결과")}"><div><strong>${esc(r.source?.characterName || r.source?.slotName || "일반 슬롯")}</strong><small>${esc(r.source?.slotName || r.createdAt || "")}</small></div></article>`).join("");
 }
 
 function characterHtml(character, index) { return `<article class="character-card" data-character-index="${index}"><header><div class="character-card-title"><label class="checkbox"><input data-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><h3>${esc(character.name)}</h3><span class="pill">${character.position ? character.position.toUpperCase() : "AI 위치"}</span></div><div><button type="button" data-character-move="up" aria-label="${esc(character.name)} 카드 위로 이동">↑</button><button type="button" data-character-move="down" aria-label="${esc(character.name)} 카드 아래로 이동">↓</button><button type="button" data-character-delete class="danger">카드 삭제</button></div></header><label>캐릭터 이름<input data-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<textarea data-character-field="prompt" rows="3" title="${esc(character.prompt)}" placeholder="girl, black hair, source#hug">${esc(character.prompt)}</textarea></label><label>Character UC<textarea data-character-field="negativePrompt" rows="3" title="${esc(character.negativePrompt)}">${esc(character.negativePrompt)}</textarea></label></div>${positionGridHtml(character.position)}<p class="character-action-tip">상호작용은 Character Prompt에 <code>source#</code>, <code>target#</code>, <code>mutual#</code> 태그를 직접 사용할 수 있다.</p><div class="panel-head"><div><strong>카드 소유 슬롯</strong><p class="muted">이 카드의 슬롯 Prompt·UC만 해당 캐릭터 캡션에 합성된다.</p></div><div class="preset-append">${appendControls(`character:${character.id}`)}<button type="button" data-add-slot="character:${character.id}">＋ 슬롯</button></div></div><div class="slot-list">${slotRows(character.slots, `character:${character.id}`)}</div></article>`; }

@@ -15,6 +15,7 @@ const { diagnoseModels, readModelDiagnostics } = require("./model-diagnostics.cj
 const { SupportAssetService } = require("./support-asset-service.cjs");
 const { resolveOutputItem } = require("./output-result-service.cjs");
 const { REFINE_IMAGE_EXTENSIONS, RefineInputService } = require("./refine-input-service.cjs");
+const packageInfo = require("../package.json");
 const {
   ensurePresetFolders,
   listPresets,
@@ -29,10 +30,20 @@ let jobQueue;
 let refineInputService;
 let supportAssetService;
 let runtimeInstaller;
+let runtimeRoot;
+let outputRoot;
 let addonContext;
 
 function getAppRoot() {
   return addonContext?.manifest?.directory || path.resolve(__dirname, "..");
+}
+
+function getOutputRoot() {
+  return outputRoot || path.resolve(getAppRoot(), "outputs");
+}
+
+function getAddonVersion() {
+  return String(addonContext?.manifest?.version || packageInfo.version);
 }
 
 function publicCatalog(catalog) {
@@ -52,7 +63,7 @@ async function publicSupportAssetStatus() {
 function normalizeGenerationRequestForApp(request) {
   return normalizeSharedGenerationRequest(request, {
     appRoot: getAppRoot(),
-    appVersion: app.getVersion(),
+    appVersion: getAddonVersion(),
     electronVersion: process.versions.electron,
     refineInputService,
   });
@@ -71,9 +82,9 @@ function registerOutputImageProtocol() {
     const url = new URL(request.url);
     if (url.host !== "outputs") return new Response(null, { status: 404 });
     const fileName = decodeURIComponent(url.pathname.replace(/^\//, ""));
-    const outputRoot = path.resolve(getAppRoot(), "outputs");
-    const filePath = path.resolve(outputRoot, fileName);
-    const relativePath = path.relative(outputRoot, filePath);
+    const root = getOutputRoot();
+    const filePath = path.resolve(root, fileName);
+    const relativePath = path.relative(root, filePath);
     const extension = path.extname(filePath).toLowerCase();
     if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)
       || ![".png", ".jpg", ".jpeg", ".webp"].includes(extension)) {
@@ -115,11 +126,11 @@ function queueResultGalleryItem(request) {
     throw new Error("작업 결과 요청 형식이 잘못됐습니다.");
   }
   const result = jobQueue.getResult(jobId, resultIndex);
-  const outputRoot = path.resolve(getAppRoot(), "outputs");
+  const root = getOutputRoot();
   const relativePath = result?.relativePath || (result?.path
-    ? path.relative(outputRoot, result.path).split(path.sep).join("/")
+    ? path.relative(root, result.path).split(path.sep).join("/")
     : "");
-  const item = relativePath ? resolveOutputItem(getAppRoot(), relativePath) : null;
+  const item = relativePath ? resolveOutputItem(root, relativePath) : null;
   if (!item) throw new Error("작업 결과 파일을 찾을 수 없습니다.");
   return { jobId, resultIndex, item };
 }
@@ -127,7 +138,7 @@ function queueResultGalleryItem(request) {
 function registerIpcHandlers() {
   const { dialog, ipcMain, shell } = addonContext.services;
   ipcMain.handle(channels.APP_GET_INFO, () => ({
-    appVersion: app.getVersion(),
+    appVersion: getAddonVersion(),
     electronVersion: process.versions.electron,
     platform: process.platform,
   }));
@@ -144,7 +155,7 @@ function registerIpcHandlers() {
   ipcMain.handle(channels.SUPPORT_ASSETS_INSTALL, async (_event, request) => {
     const kind = request?.kind === "optional" ? "optional" : "required";
     const assetId = String(request?.assetId || "");
-    if (kind === "optional") throw new Error("선택 보조 자산은 CensorTail에서 관리합니다.");
+    if (kind === "optional") throw new Error("이 애드온에서는 선택 보조 자산을 관리하지 않습니다.");
     await supportAssetService.install(assetId);
     return publicSupportAssetStatus();
   });
@@ -218,13 +229,19 @@ function registerIpcHandlers() {
 function activate(context) {
   addonContext = context;
   const { ipcMain } = context.services;
+  if (!context.standalone && !context.dependencies?.runtimeRoot) {
+    throw new Error("Hosted AnimaTail에 NainTail runtimeRoot가 주입되지 않았습니다.");
+  }
+  runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(getAppRoot(), "runtime"));
+  outputRoot = path.resolve(context.outputRoot || path.join(getAppRoot(), "outputs"));
+  fs.mkdirSync(outputRoot, { recursive: true });
   runtimeInstaller = new RuntimeInstaller(getAppRoot(), (event) => (
     sendToAll(channels.RUNTIME_EVENT, event)
-  ), { allowFileUrls: !app.isPackaged });
+  ), { allowFileUrls: !app.isPackaged, runtimeRoot });
   inferenceService = new InferenceService(getAppRoot(), (event) => {
     jobQueue?.handleWorkerEvent(event);
     sendToAll(channels.GENERATION_EVENT, event);
-  });
+  }, { runtimeRoot, outputRoot });
   supportAssetService = new SupportAssetService(getAppRoot(), (event) => (
     sendToAll(channels.SUPPORT_ASSETS_EVENT, event)
   ));
@@ -250,6 +267,8 @@ function activate(context) {
       refineInputService = null;
       supportAssetService = null;
       runtimeInstaller = null;
+      runtimeRoot = null;
+      outputRoot = null;
       addonContext = null;
     },
   };

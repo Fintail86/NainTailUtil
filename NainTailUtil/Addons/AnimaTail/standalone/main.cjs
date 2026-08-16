@@ -72,6 +72,7 @@ function activateAddon() {
   }
   addonRuntime = electronEntry.activate({
     productRoot: addonRoot,
+    outputRoot: path.join(addonRoot, "outputs"),
     manifest,
     standalone: true,
     getWindow: () => mainWindow,

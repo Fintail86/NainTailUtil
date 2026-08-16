@@ -5,8 +5,8 @@ const path = require("node:path");
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
-function resolveOutputItem(appRoot, id) {
-  const outputRoot = path.resolve(appRoot, "outputs");
+function resolveOutputItem(outputDirectory, id) {
+  const outputRoot = path.resolve(outputDirectory);
   const normalized = String(id || "").replaceAll("\\", "/").replace(/^\/+|\/+$/gu, "");
   const absolutePath = path.resolve(outputRoot, ...normalized.split("/").filter(Boolean));
   const relativePath = path.relative(outputRoot, absolutePath);

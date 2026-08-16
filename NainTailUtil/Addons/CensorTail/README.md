@@ -1,6 +1,6 @@
 # CensorTail
 
-AnimaTail의 자동검열 UI와 Worker lifecycle을 분리한 NainTail 내장 애드온이다.
+로컬 자동검열 UI, Worker lifecycle과 검열 모델을 독립적으로 소유하는 NainTail 내장 애드온이다.
 
 독립 버전은 `VERSION`, `addon.json`, `package.json`의 `0.1.0`을 기준으로 시작한다.
 `npm run check`로 세 파일의 버전 일치와 소스 로딩 계약을 검사한다.
@@ -8,8 +8,8 @@ AnimaTail의 자동검열 UI와 Worker lifecycle을 분리한 NainTail 내장 �
 
 - UI, 입력 목록, 검출·미리보기·효과 적용과 출력은 CensorTail이 소유한다.
 - Python Worker는 `CensorTail/app/censor_worker.py`에서 실행한다.
-- Hosted에서는 AnimaTail이 제공하는 검증된 Python/CUDA runtime과 `Models/censor/` 자산을
-  manifest dependency로 사용한다.
+- Standalone은 CensorTail 로컬 Python/CUDA runtime을, Hosted는 NainTail이 관리·주입하는
+  공용 runtime을 사용한다. `Models/censor/`는 두 실행 형태 모두 CensorTail이 소유한다.
 - 검열 결과는 `CensorTail/outputs/censored/`에 저장한다.
 - 폴더는 `+ 폴더` 버튼이나 Explorer 드래그로 입력할 수 있다. 하위 이미지를 재귀적으로
   불러오며, 입력한 폴더 이름부터 시작하는 상대 경로를 `outputs/censored/` 아래에 그대로 유지한다.
@@ -28,8 +28,9 @@ AnimaTail의 자동검열 UI와 Worker lifecycle을 분리한 NainTail 내장 �
 - standalone host: `standalone/`
 
 `CensorTail/` 폴더 하나만 다른 Windows 경로로 복사하면 NainTail host, AnimaTail이나 시스템
-Node/Python 없이 실행할 수 있다. Standalone에서는 CensorTail 로컬 runtime과 모델을 사용하고,
-Hosted에서는 호스트가 해석한 AnimaTail dependency를 사용한다. CLI와 MCP는 현재 공개하지 않는다.
+Node/Python 없이 실행할 수 있다. Hosted에서도 AnimaTail을 요구하지 않으며, AnimaTail 결과 입력은
+두 애드온이 함께 설치된 경우 호스트가 연결하는 선택적 artifact 기능이다. Hosted Python/CUDA는
+NainTail `runtime/`만 사용하고 애드온 로컬 runtime으로 암묵 fallback하지 않는다. GUI와 MCP를 공개한다.
 
 ## worktree 개발 환경
 

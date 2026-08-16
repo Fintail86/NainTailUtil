@@ -7,11 +7,13 @@ NainTail 애드온 호스트와 내장 애드온을 함께 담은 포터블 Wind
 NovelAI 기능 전체는 기본 내장 애드온 `NaiTail`, 로컬 Anima 생성은 `AnimaTail`로
 제공된다. 생성 결과 탐색과 설정 재사용은 `GalleryTail`, 로컬 자동검열은 `CensorTail`이 각각
 소유한다. NainTail 호스트는 각 manifest를 발견하고 지원하는 Electron·CLI·MCP 진입점을
-실행한다. 검열의 대형 Python/CUDA 런타임과 모델은 중복 복사하지 않고 `AnimaTail` 자산을
-의존성으로 공유한다.
+실행한다. Hosted AnimaTail과 CensorTail의 Python/CUDA는 NainTail의 `runtime/`에서 통합
+관리하며, 생성 모델·LoRA·검열 모델은 각 애드온 폴더가 소유한다.
 
 이 폴더가 실제 제품 루트다. 실행 중 필요한 프로젝트, 프리셋, 출력, 캐시와 로그는 모두
-이 폴더 아래에 저장되며 부모 개발 워크스페이스에 의존하지 않는다.
+이 폴더 아래에 저장되며 부모 개발 워크스페이스에 의존하지 않는다. Hosted 최종 출력은
+기본 `outputs/<addonId>/`, 애드온 단독 실행 출력은 각 애드온의 `outputs/`에 저장한다.
+홈의 공용 출력 폴더 설정을 바꾸면 Hosted GUI·CLI·MCP는 선택한 폴더의 `<addonId>/`를 함께 사용한다.
 
 V4.5 Precise Reference로 가져온 이미지는 NAI 권장 캔버스 PNG로 처리해 NaiTail data root의
 `References/precise/`에 해시 이름으로 보관한다. 이 폴더도 애드온과 함께 복사해야 결과의
@@ -45,7 +47,8 @@ Tags를 저장·복원하고 같은 값으로 API payload를 만든다. 구형 �
 - AnimaTail manifest: `Addons/AnimaTail/addon.json`
 - AnimaTail Electron adapter/GUI: `Addons/AnimaTail/electron/`, `Addons/AnimaTail/dist/renderer/`
 - AnimaTail Python/CUDA Worker: `Addons/AnimaTail/app/`
-- AnimaTail runtime/model/data: `Addons/AnimaTail/runtime/`, `Models/`, `Presets/`, `outputs/`
+- Hosted Python/CUDA runtime: `runtime/`
+- AnimaTail Standalone runtime/model/data: `Addons/AnimaTail/runtime/`, `Models/`, `Presets/`, `outputs/`
 - GalleryTail manifest/UI/service: `Addons/GalleryTail/`
 - CensorTail manifest/UI/Worker/output: `Addons/CensorTail/`
 
@@ -54,9 +57,11 @@ GUI 홈은 발견된 애드온 수에 맞춰 카드를 동적으로 만든다. �
 활성 애드온 창은 숨김 전환하므로 홈 복귀 뒤 같은 카드에 재진입하면 renderer 상태를 유지한다.
 다른 애드온을 열면 이전 runtime과 창을 종료하고 새 애드온을 활성화한다. 애드온이 없어도
 호스트 홈은 빈 상태를 표시하며 정상 기동한다.
-NaiTail과 AnimaTail의 사용자 데이터는 Hosted와 Standalone 모두 각 애드온 경계 안에 저장한다.
-GalleryTail은 AnimaTail의 `outputs/`를 읽고, `설정 재사용`은 host handoff로
-AnimaTail을 열어 값을 전달한다. CensorTail 결과는 `Addons/CensorTail/outputs/censored/`에 저장한다.
+NaiTail과 AnimaTail의 설정·프리셋·프로젝트·참조·캐시 데이터는 Hosted와 Standalone 모두 각
+애드온 경계 안에 저장한다. 최종 출력은 Standalone에서 애드온의 `outputs/`, Hosted에서
+`outputs/<addonId>/`를 사용한다. GalleryTail은 호스트가 공개한 AnimaTail output root를 읽고,
+`설정 재사용`은 host handoff로 AnimaTail을 열어 값을 전달한다. Hosted CensorTail 결과는
+`outputs/censortail/censored/`에 저장한다.
 
 전용 Electron runtime이 없으면 BAT는 실행하지 않고 명확한 오류를 표시한다. 개발 중
 순수 Core와 CLI는 Node.js로 직접 검증할 수 있지만 최종 포터블 실행은 시스템 Node에
@@ -91,8 +96,9 @@ NainTailUtil_CLI.bat --addon animatail models list --json
 MCP adapter는 포함되어 있으며 축약 discovery, 비동기 job wait/status/cancel과 유료 Anlas 승인
 상한을 제공한다.
 
-AnimaTail에는 검증된 로컬 Python 3.12/CUDA 런타임, 생성 Worker와 모델 자산이 포함된다.
-CensorTail은 자기 검열 Worker와 출력을 소유하되 같은 런타임과 `Models/censor`를 공유한다.
+AnimaTail과 CensorTail의 Standalone 폴더에는 각각 포터블 Python 3.12/CUDA 런타임이 포함된다.
+Hosted에서는 두 애드온 모두 NainTail `runtime/`을 사용한다. AnimaTail은 생성 모델·LoRA를,
+CensorTail은 검열 Worker·`Models/censor`와 출력을 독립적으로 소유한다.
 GalleryTail은 현재 GUI 전용이다. CensorTail은 Hosted/Standalone MCP에서 검출·저장·작업 대기와
 모델 언로드를 제공하며 AnimaTail artifactRef를 직접 입력으로 받는다.
 
@@ -101,9 +107,12 @@ GalleryTail은 현재 GUI 전용이다. CensorTail은 Hosted/Standalone MCP에�
 애드온은 하나의 코드베이스를 두 composition root로 실행한다. Standalone에서는 애드온 폴더의
 runtime·resource·data root를 사용하고, NainTail host에 장착되면 호스트가 주입한 공용
 service와 dependency를 우선 사용한다. 시스템 전역 설치나 개발 PC 경로로 조용히 우회하지 않는다.
-세부 우선순위, 데이터 소유권과 검증 Gate는 워크스페이스의 개발 문서를 따른다.
+output root는 Standalone의 `<AddonRoot>/outputs/`와 Hosted의
+`<NainTailRoot>/outputs/<addonId>/`로 분리한다. 세부 우선순위, 데이터 소유권과 검증 Gate는
+워크스페이스의 개발 문서를 따른다.
 문서는 `../Docs/README.md`의 애드온별 소유권 규칙으로 관리하며,
-`../Docs/ADDON_DEVELOPMENT_CONTRACT.md`를 정식 개발 계약으로 따른다.
+`../Docs/ADDON_DEVELOPMENT_CONTRACT.md`와 `../Docs/ADDON_OUTPUT_CONTRACT.md`를 정식 개발
+계약으로 따른다.
 
 `Addons/NaiTail/`, `Addons/AnimaTail/`, `Addons/CensorTail/`은 NainTail host에 장착되는
 내장 애드온인 동시에,
@@ -123,8 +132,9 @@ Addons/CensorTail/CensorTail_MCP.bat
 ```
 
 각 폴더의 `runtime/electron/`이 전용 Electron을 제공한다. standalone과 NainTail host 실행 모두
-해당 애드온 폴더를 데이터 루트로 사용한다. Hosted에서는 호스트가 주입한 공용 runtime과 service를
-우선하고, standalone에서는 애드온 로컬 runtime을 사용한다. 시스템 Node나 Python은 필요하지 않다.
+해당 애드온 폴더를 application/data root로 사용하되 output root는 분리한다. Hosted에서는 호스트가
+주입한 공용 runtime, service와 `outputs/<addonId>/`를 우선하고, standalone에서는 애드온 로컬
+runtime과 `outputs/`를 사용한다. 시스템 Node나 Python은 필요하지 않다.
 CensorTail은 GUI와 MCP standalone을 제공한다.
 
 ## MCP 등록

@@ -2,6 +2,9 @@
 
 NainTail의 기본 NovelAI 내장 애드온이다. 기존 NAI 기능 전체를 하나의 두꺼운 모듈로 소유한다.
 
+독립 기준 버전은 `VERSION`, `addon.json`, `package.json`의 `0.1.0`이다. `npm run check`로 버전과
+포터블 entry를 검사하고 `npm run version:set -- <semver>`로 세 파일을 함께 변경한다.
+
 - `app/core/`: 작품·프리셋·큐·비용·참조 자산을 포함한 현재 NaiTail Core
 - `app/workers/`: NovelAI 전송 Worker
 - `app/renderer/`: Single, Multi, 작례 연구기, 작품, 프리셋, 설정 UI

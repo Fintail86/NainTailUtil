@@ -14,6 +14,8 @@ NainTail이 소유하는 기능은 다음과 같다.
 - Electron·CLI·MCP entry 선택과 경계 내부 경로 해석
 - GUI 창 lifecycle, 홈 이동과 같은 애드온 재진입
 - 제한된 host service, dependency resolver와 handoff 전달
+- Hosted Python/CUDA runtime의 저장·설치 경계와 `runtimeRoot` 주입
+- Hosted `outputs/<addonId>/` namespace 계산과 output root 주입
 - 호스트 전체의 runtime manifest와 내장 애드온 목록
 
 NainTail이 소유하지 않는 기능은 다음과 같다.
@@ -21,7 +23,7 @@ NainTail이 소유하지 않는 기능은 다음과 같다.
 - 생성 요청, 프롬프트, 모델과 큐의 도메인 규칙
 - 프리셋·작품·결과·검열 데이터의 schema와 migration
 - 애드온 Worker와 외부 API의 구현
-- 애드온별 runtime·모델 호환성 판정
+- 애드온별 모델 호환성 판정과 Worker 구현
 
 이 경계가 필요한 이유는 애드온이 NainTail 없이도 독립 실행할 수 있고, 호스트에 장착했을
 때도 같은 Core와 Worker를 재사용하게 하기 위해서다.
@@ -40,6 +42,7 @@ NainTail이 소유하지 않는 기능은 다음과 같다.
 | `default`, `order` | 기본 대상과 홈 정렬 순서 |
 | `entries` | 호스트에 공개하는 Electron·CLI·MCP 등의 진입점 |
 | `requires` | 실행 전에 존재해야 하는 다른 애드온 ID |
+| `artifactProviders` | 선택적으로 입력받을 수 있는 artifact provider ID |
 | `capabilities` | 목록과 진단에 노출하는 기능 식별자 |
 
 정렬은 기본 애드온, `order`, 표시 이름 순으로 결정한다. 중복 ID, 허용되지 않은 entry 종류,
@@ -59,8 +62,16 @@ NainTail이 소유하지 않는 기능은 다음과 같다.
 의미가 아니다.
 
 호스트는 애드온에 Electron dialog, IPC, safeStorage, shell, 창 조회, broadcast와 등록된
-애드온 디렉터리 resolver를 좁은 context로 전달한다. 도메인 Core와 Worker가 Electron 또는
-호스트 객체에 직접 의존해서는 안 된다.
+애드온 디렉터리 resolver를 좁은 context로 전달한다. Hosted 출력은 호스트 제품 루트의
+`outputs/<addonId>/`로 분리하고, 애드온 entry와 출력 소비자에게 추측 불가능한 명시적
+`outputRoot`/resolver로 전달한다. 도메인 Core와 Worker가 Electron 또는 호스트 객체에 직접
+의존해서는 안 된다.
+
+Python/CUDA capability를 선언한 Hosted 애드온에는 `<NainTailRoot>/runtime/`을 `runtimeRoot`로
+주입한다. 이 경로의 설치 잠금, 버전 디렉터리와 무결성 상태는 NainTail이 관리한다. 애드온은
+필요한 runtime manifest와 패키지 요구사항을 선언하고 Worker·모델을 소유하지만, Hosted 실행에서
+자기 폴더의 runtime으로 fallback하지 않는다. Standalone composition root만 애드온 로컬
+`runtime/`을 사용한다.
 
 ## CLI와 MCP
 
@@ -104,13 +115,15 @@ NainTail이 composition root가 되어 공용 service와 dependency를 우선 �
 시스템 전역 runtime이나 개발 PC 절대경로로 조용히 우회하지 않는다.
 
 세부 우선순위, data root 소유권과 검증 Gate는
-[`ADDON_DEVELOPMENT_CONTRACT.md`](../ADDON_DEVELOPMENT_CONTRACT.md)를 정식 계약으로 따른다.
+[`ADDON_DEVELOPMENT_CONTRACT.md`](../ADDON_DEVELOPMENT_CONTRACT.md)를, 실행 형태별 최종 결과
+위치는 [`ADDON_OUTPUT_CONTRACT.md`](../ADDON_OUTPUT_CONTRACT.md)를 정식 계약으로 따른다.
 
 ## 관련 문서
 
 - [NainTail MCP 애드온 연합 설계](MCP_FEDERATION.md)
 - [전체 문서 인덱스](../README.md)
 - [애드온 개발 계약](../ADDON_DEVELOPMENT_CONTRACT.md)
+- [애드온 출력 위치 계약](../ADDON_OUTPUT_CONTRACT.md)
 - [공통 UI 시스템](../UI_SYSTEM.md)
 - [CLI·MCP 운영](../MCP.md)
 - [전체 개발 계획](../DEVELOPMENT_PLAN.md)

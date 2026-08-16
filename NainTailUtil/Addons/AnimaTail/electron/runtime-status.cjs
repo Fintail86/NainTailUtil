@@ -2,8 +2,8 @@
 
 const { locateRuntime, locateSupportAssets } = require("./runtime-locator.cjs");
 
-function readRuntimeStatus(appRoot) {
-  const { state, runtimeId, source } = locateRuntime(appRoot);
+function readRuntimeStatus(appRoot, options = {}) {
+  const { state, runtimeId, source } = locateRuntime(appRoot, options);
   return {
     state,
     runtimeId,

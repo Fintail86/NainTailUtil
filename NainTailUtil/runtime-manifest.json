@@ -20,8 +20,9 @@
     "default": "naitail"
   },
   "pythonCuda": {
-    "status": "included-in-animatail",
-    "relativeRoot": "Addons/AnimaTail/runtime",
-    "purpose": "shared-anima-generation-and-censor-runtime"
+    "status": "host-managed",
+    "relativeRoot": "runtime",
+    "purpose": "hosted-anima-generation-and-censor-runtime",
+    "standalonePolicy": "each addon uses its own runtime directory"
   }
 }

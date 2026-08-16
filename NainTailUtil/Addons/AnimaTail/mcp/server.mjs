@@ -78,8 +78,8 @@ function collectTools(manager, discovery, gpuReader = queryGpuMemory) {
   return tools;
 }
 
-function artifactPublisher(appRoot, hosted) {
-  const outputRoot = path.resolve(appRoot, "outputs");
+function artifactPublisher(outputDirectory, hosted) {
+  const outputRoot = path.resolve(outputDirectory);
   const byId = new Map();
   const byPath = new Map();
 
@@ -322,15 +322,26 @@ function registerTools(server, manager, discovery, gpuReader = queryGpuMemory) {
 
 export function createAdapter(options = {}) {
   const appRoot = options.appRoot || options.dataRoot || options.productRoot || APP_ROOT;
+  if (options.hosted === true && !options.runtimeRoot && !options.dependencies?.runtimeRoot) {
+    throw new Error("Hosted AnimaTail MCP에 NainTail runtimeRoot가 주입되지 않았습니다.");
+  }
+  const runtimeRoot = options.runtimeRoot || options.dependencies?.runtimeRoot;
+  const outputRoot = path.resolve(options.outputRoot || path.join(appRoot, "outputs"));
   const manager = options.manager || new McpGenerationJobManager({
     appRoot,
+    runtimeRoot,
+    outputRoot,
     appVersion: packageInfo.version,
     electronVersion: process.versions.electron || null,
   });
-  const discovery = options.discovery || new McpDiscoveryService({ appRoot, appVersion: packageInfo.version });
+  const discovery = options.discovery || new McpDiscoveryService({
+    appRoot,
+    runtimeRoot,
+    appVersion: packageInfo.version,
+  });
   const gpuReader = options.gpuReader || queryGpuMemory;
   const tools = collectTools(manager, discovery, gpuReader);
-  const artifacts = artifactPublisher(appRoot, options.hosted === true);
+  const artifacts = artifactPublisher(outputRoot, options.hosted === true);
   const manifest = options.manifest || {};
   let closed = false;
 
@@ -394,7 +405,7 @@ export function createAdapter(options = {}) {
 }
 
 export function createMcpServer(options = {}) {
-  const adapter = createAdapter({ ...options, hosted: false });
+  const adapter = createAdapter({ ...options, hosted: options.hosted === true });
   const server = new McpServer({
     name: "animatail",
     version: packageInfo.version,
@@ -431,7 +442,14 @@ export async function start(options = {}) {
   let activeAdapter = null;
   let closing = false;
   const handle = serveStdio(() => {
-    const bundle = createMcpServer({ appRoot: options.appRoot || APP_ROOT });
+    const bundle = createMcpServer({
+      appRoot: options.appRoot || APP_ROOT,
+      runtimeRoot: options.runtimeRoot,
+      outputRoot: options.outputRoot,
+      dependencies: options.dependencies,
+      hosted: options.hosted === true,
+      manifest: options.manifest,
+    });
     activeAdapter = bundle.adapter;
     return bundle.server;
   }, {

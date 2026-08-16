@@ -26,7 +26,8 @@ NaiTail은 NainTail의 기본 내장 NovelAI 생성 애드온이다. NovelAI 요
 
 생성 요청은 Anlas 비용을 먼저 계산한 뒤 로컬 순차 큐에서 한 장씩 실행한다. Precise Reference와
 Vibe Transfer를 지원하지만 하나의 요청에서 두 참조 방식을 동시에 사용하지 않는다. 생성 결과와
-PNG metadata는 NaiTail의 `outputs/` 아래에 저장한다.
+PNG metadata는 Standalone에서 NaiTail의 `outputs/`, Hosted에서 NainTail의
+`outputs/naitail/` 아래에 저장한다.
 
 ## 실행 형태
 
@@ -39,10 +40,10 @@ NaiTail은 같은 Core, Worker와 UI를 두 composition root에서 사용한다.
 | Standalone CLI | `NaiTail_CLI.bat` | 포터블 Electron을 Node 런타임으로 사용 |
 | Standalone MCP | `NaiTail_MCP.bat` | stdio MCP 서버로 실행 |
 
-Standalone에서는 NaiTail 폴더가 application root이자 data root다. 따라서 `NaiTail/` 폴더 하나를
+Standalone에서는 NaiTail 폴더가 application root, data root이자 output root의 부모다. 따라서 `NaiTail/` 폴더 하나를
 다른 Windows 경로로 복사해 실행할 수 있어야 하며, 시스템 Node나 전역 Electron을 fallback으로
 사용하지 않는다. Hosted에서는 코드와 데이터 소유권은 NaiTail에 남고, 호스트가 주입한 공용
-service를 우선 사용한다.
+service를 우선 사용하며 최종 출력만 NainTail output root에 기록한다.
 
 ## 공개 경계
 
@@ -77,7 +78,7 @@ Core와 Worker는 NainTail host나 Electron UI의 세부 구현을 직접 참조
 
 ## 데이터 소유권
 
-Hosted와 Standalone 모두 다음 데이터는 NaiTail 애드온 폴더 안에서 관리한다.
+Hosted와 Standalone 모두 다음 비출력 데이터는 NaiTail 애드온 폴더 안에서 관리한다.
 
 | 위치 | 내용 |
 |---|---|
@@ -86,13 +87,13 @@ Hosted와 Standalone 모두 다음 데이터는 NaiTail 애드온 폴더 안에�
 | `Presets/examples/` | 작례 프리셋 |
 | `References/precise/` | Precise Reference 원본 |
 | `References/vibes/` | Vibe Transfer 원본 |
-| `outputs/` | 싱글·멀티·작례·작품 생성 결과 |
 | `cache/vibes/` | 모델별 인코딩된 Vibe cache |
 | `config/` | 생성 profile, 작례 연구 설정과 암호화된 자격증명 |
 | `logs/` | NaiTail 실행 로그 |
 
-경로는 명시적으로 전달된 data root에서만 계산한다. 부모 폴더, 현재 작업 디렉터리 또는 개발 PC의
-절대경로를 추측해서 사용하지 않는다.
+최종 출력은 Standalone `NaiTail/outputs/`, Hosted `NainTailUtil/outputs/naitail/`을 사용한다.
+경로는 명시적으로 전달된 data root와 output root에서만 계산한다. 부모 폴더, 현재 작업 디렉터리
+또는 개발 PC의 절대경로를 추측해서 사용하지 않는다.
 
 ## NovelAI 자격증명
 
@@ -114,8 +115,8 @@ Hosted와 Standalone 모두 다음 데이터는 NaiTail 애드온 폴더 안에�
 ## 관련 문서
 
 - [`../ADDON_DEVELOPMENT_CONTRACT.md`](../ADDON_DEVELOPMENT_CONTRACT.md): Hosted·Standalone 공통 계약
+- [`../ADDON_OUTPUT_CONTRACT.md`](../ADDON_OUTPUT_CONTRACT.md): 실행 형태별 출력 위치 계약
 - [`../MCP.md`](../MCP.md): 범용 MCP host와 NaiTail 등록 방식
 - [`../DEVELOPMENT_PLAN.md`](../DEVELOPMENT_PLAN.md): 전체 제품 구조와 개발 계획
 - [`../MVP_RESULT.md`](../MVP_RESULT.md): 현재 전체 MVP 구현·검증 기록
 - [`../UI_SYSTEM.md`](../UI_SYSTEM.md): 호스트와 애드온 공통 UI 계약
-

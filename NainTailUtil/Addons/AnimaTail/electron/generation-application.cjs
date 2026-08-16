@@ -68,17 +68,22 @@ function summarizeGroup(state, groupId) {
 class GenerationApplication {
   constructor(options) {
     this.appRoot = options.appRoot;
+    this.runtimeRoot = options.runtimeRoot;
+    this.outputRoot = options.outputRoot;
     this.appVersion = options.appVersion || "0.0.0";
     this.electronVersion = options.electronVersion || process.versions.electron || null;
     this.onEvent = options.onEvent || (() => {});
     this.preflight = options.preflight !== false;
-    this.runtimeStatusReader = options.runtimeStatusReader || readRuntimeStatus;
+    this.runtimeStatusReader = options.runtimeStatusReader || ((appRoot) => readRuntimeStatus(
+      appRoot,
+      { runtimeRoot: this.runtimeRoot },
+    ));
     this.normalizer = options.normalizer || normalizeGenerationRequest;
     this.waiters = new Map();
     this.activeRequestId = null;
     this.executor = options.executor || new InferenceService(this.appRoot, (event) => (
       this.handleWorkerEvent(event)
-    ));
+    ), { runtimeRoot: this.runtimeRoot, outputRoot: this.outputRoot });
     this.queue = new JobQueue(this.executor, (state) => this.handleQueueState(state));
   }
 

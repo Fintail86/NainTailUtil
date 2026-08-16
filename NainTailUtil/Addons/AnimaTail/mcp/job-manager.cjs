@@ -1,6 +1,7 @@
 "use strict";
 
 const { randomUUID } = require("node:crypto");
+const path = require("node:path");
 const { GenerationApplication } = require("../electron/generation-application.cjs");
 const { expectedGenerationImageCount } = require("../electron/generation-count.cjs");
 const { resolveGenerationConfig } = require("../cli/generation-config.cjs");
@@ -37,6 +38,8 @@ function recommendedWaitMs(request) {
 class McpGenerationJobManager {
   constructor(options) {
     this.appRoot = options.appRoot;
+    this.runtimeRoot = options.runtimeRoot;
+    this.outputRoot = options.outputRoot || path.join(this.appRoot, "outputs");
     this.appVersion = options.appVersion || "0.0.0";
     this.electronVersion = options.electronVersion || process.versions.electron || null;
     this.now = options.now || (() => new Date());
@@ -53,6 +56,8 @@ class McpGenerationJobManager {
     ));
     this.application = applicationFactory({
       appRoot: this.appRoot,
+      runtimeRoot: this.runtimeRoot,
+      outputRoot: this.outputRoot,
       appVersion: this.appVersion,
       electronVersion: this.electronVersion,
       onEvent: (event) => this.handleApplicationEvent(event),
@@ -271,7 +276,7 @@ class McpGenerationJobManager {
           const result = await this.application.run(job.request, job.id);
           this.finishJob(job, {
             status: result.status,
-            result: publicResult(this.appRoot, result),
+            result: publicResult(this.outputRoot, result),
           });
         } catch (error) {
           this.finishJob(job, {

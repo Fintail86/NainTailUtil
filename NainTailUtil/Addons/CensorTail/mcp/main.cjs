@@ -21,7 +21,7 @@ async function shutdown() {
 }
 
 function start(options = {}) {
-  adapter = createAdapter({ ...options, hosted: false });
+  adapter = createAdapter({ ...options, hosted: options.hosted === true });
   const info = adapter.info();
   const tools = new Map(adapter.toolsList().map((definition) => [definition.name, { definition }]));
   server = new McpStdioServer({

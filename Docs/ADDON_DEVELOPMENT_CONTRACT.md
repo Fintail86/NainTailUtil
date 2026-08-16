@@ -29,7 +29,8 @@ Standalone을 지원한다고 선언한 애드온은 반드시 다음 조건을 
 - 시스템 Node, 시스템 Python, 전역 패키지, 사용자 `PATH`, 개발 워크스페이스와 부모
   NainTailUtil 폴더를 실행 전제로 삼아서는 안 된다.
 - Standalone 실행 시 애드온 폴더가 기본 application root이자 data root다.
-- 설정, 프리셋, 출력, 캐시와 로그는 애드온 폴더 안의 상대경로로 저장해야 한다.
+- 설정, 프리셋, 캐시와 로그는 애드온 폴더 안의 상대경로로 저장해야 하며, 출력은
+  `<AddonRoot>/outputs/`에 저장해야 한다.
 
 Standalone 전용 코드는 Core나 Worker를 복제하지 않고 진입점 조립, 경로 주입, 창 생명주기만
 담아야 한다.
@@ -84,28 +85,39 @@ Standalone의 실행 우선순위는 다음과 같다.
 
 ## 3. 루트와 데이터 소유권
 
-`application root`, `data root`, `dependency root`는 서로 다른 개념이며 하나의 전역변수로
+`application root`, `data root`, `dependency root`, `output root`는 서로 다른 개념이며 하나의 전역변수로
 뭉개서는 안 된다.
 
 - **application root**: 애드온 코드와 정적 자산의 기준 경로
-- **data root**: 설정, 프리셋, 출력, 캐시와 로그의 기준 경로
+- **data root**: 설정, 프리셋, 프로젝트, 참조 이미지, 캐시와 로그의 기준 경로
 - **dependency root**: 선택된 Electron/Python/CUDA/모델 등 실행 의존성의 기준 경로
+- **output root**: 최종 결과 파일 쓰기와 탐색의 기준 경로
 
-Standalone에서는 기본적으로 세 루트가 모두 애드온 폴더 안을 가리킨다. Hosted에서도
-application root와 data root는 애드온 폴더를 유지하며, 호스트는 dependency root와 공용 service를
+Standalone에서는 기본적으로 네 루트가 모두 애드온 폴더 안을 가리키며 output root는
+`<AddonRoot>/outputs/`다. Hosted에서도 application root와 data root는 애드온 폴더를 유지하고,
+호스트는 dependency root, 공용 service와 `<NainTailRoot>/outputs/<addonId>/` output root를
 명시적으로 주입한다. 애드온은 `cwd`, 부모 디렉터리 추측, 실행 파일 위치의 우연한 관계로 루트를
-계산해서는 안 된다.
+계산해서는 안 된다. 상세 경로와 검증은
+[`ADDON_OUTPUT_CONTRACT.md`](ADDON_OUTPUT_CONTRACT.md)를 따른다.
 
 데이터의 schema, migration과 쓰기 규칙은 해당 도메인 애드온이 소유한다. 호스트가 data root나
 파일 service를 제공해도 도메인 데이터를 직접 해석하거나 임의로 수정하지 않는다.
 
-현재 데이터 소유권은 다음과 같이 고정한다.
+현재 데이터와 출력 소유권은 다음과 같이 고정한다.
 
-- NaiTail 데이터는 Hosted와 Standalone 모두 NaiTail 애드온 폴더 안에 저장한다.
-- AnimaTail 데이터는 Hosted와 Standalone 모두 AnimaTail 경계 안에 둔다.
-- GalleryTail은 AnimaTail의 공개된 출력 경계를 읽고, CensorTail은 AnimaTail이 제공하는
-  Python/CUDA 및 검열 모델 경계를 사용한다. 두 애드온 모두 `requires: ["animatail"]`를
-  선언해야 한다.
+- NaiTail과 AnimaTail의 설정·프리셋·참조·캐시 데이터는 Hosted와 Standalone 모두 각 애드온
+  폴더 안에 저장한다.
+- Standalone 출력은 각 애드온의 `outputs/`, Hosted 출력은 NainTail의
+  `outputs/<addonId>/`에 저장한다.
+- NaiTail, AnimaTail과 CensorTail은 각각 자신의 모델, 설정과 데이터 경계를 소유하며 다른
+  애드온이 없어도 독립 실행되어야 한다. AnimaTail과 CensorTail의 Standalone 패키지는 각자
+  포터블 Python/CUDA runtime을 포함한다.
+- GalleryTail은 AnimaTail의 공개된 출력 경계를 읽으므로 `requires: ["animatail"]`를 선언한다.
+- Hosted AnimaTail과 CensorTail은 NainTail이 `runtimeRoot`로 주입한 공용 Python/CUDA runtime을
+  사용하며 애드온 로컬 runtime으로 fallback하지 않는다. 생성 모델·LoRA·검열 모델은 각 애드온이
+  계속 소유한다.
+- CensorTail이 AnimaTail 결과를 받는 기능은 선택적 artifact 연동이며
+  `artifactProviders: ["animatail"]`로 선언한다.
 
 데이터 소유권을 바꾸려면 migration과 하위 호환 계획을 먼저 문서화해야 한다.
 
@@ -115,19 +127,27 @@ application root와 data root는 애드온 폴더를 유지하며, 호스트는 
 
 - `entries`는 호스트가 호출할 진입점만 공개한다.
 - `requires`는 로드 전에 존재해야 하는 애드온 ID를 선언한다.
+- `artifactProviders`는 해당 애드온이 선택적으로 받을 수 있는 artifact provider ID를 선언한다.
+  provider가 없더라도 소비 애드온의 발견·기동·고유 기능을 막지 않는다.
 - 애드온 간 파일 공유는 호스트의 `resolveAddonDirectory`처럼 명시적으로 주입된 resolver를 통해
   제공자 루트를 얻은 뒤, 제공자가 문서화한 공개 하위 경로만 사용한다.
 - 소비자는 `../AnimaTail` 같은 상대경로, 폴더 이름 추측이나 개발 PC 절대경로로 제공자를 찾아서는
   안 된다.
 - `requires`는 제공 애드온의 존재만 보장한다. 특정 runtime/model/API의 버전 호환은 소비 애드온이
   별도로 검사하고 오류를 설명해야 한다.
+- `artifactProviders`는 artifact 접근 권한만 부여하며 runtime, 모델 또는 파일 경로 공유 권한으로
+  사용해서는 안 된다.
 
 Standalone 지원 애드온은 추가로 `naintail.addon-standalone/v1` manifest를 가져야 한다.
 이 manifest는 standalone Electron과 GUI·CLI·MCP launcher, data root를 애드온 상대경로로
 기록한다. 선언한 파일이 빠진 패키지는 포터블 애드온으로 간주하지 않는다.
 
-향후 dependency export/import schema가 추가되기 전까지 `requires`와 host resolver가 정식
-애드온 간 공유 경계다. 새 공유 경로를 암묵적으로 추가하지 않는다.
+향후 dependency export/import schema가 추가되기 전까지 `requires`, `artifactProviders`와 host
+resolver가 정식 애드온 간 연동 경계다. 새 공유 경로를 암묵적으로 추가하지 않는다.
+
+Standalone 지원 애드온은 애드온 루트의 `VERSION`, `addon.json`, `package.json`에 같은 SemVer를
+기록하고 독립적으로 변경한다. NaiTail, AnimaTail과 CensorTail의 초기 공개 기준 버전은 모두
+`0.1.0`이다. 한 애드온의 버전 변경이 다른 애드온의 버전 변경을 강제해서는 안 된다.
 
 MCP entry를 선언하는 애드온은 추가로
 [`ADDON_MCP_PROFILE.md`](ADDON_MCP_PROFILE.md)를 따라야 한다. 상태·discovery·비동기 job·결과
@@ -177,10 +197,11 @@ Hosted 변경은 다음 검증을 모두 통과해야 완료로 본다.
 4. 호스트 dependency와 애드온 로컬 dependency가 함께 있을 때 호스트 쪽이 선택되는지 확인한다.
 5. 선택된 dependency 출처가 status/diagnostic에서 확인되는지 검증한다.
 6. 호스트 dependency가 손상됐을 때 금지된 시스템/로컬 암묵 fallback 없이 실패하는지 확인한다.
+7. 최종 출력이 NainTail `outputs/<addonId>/`에만 기록되고 다른 namespace를 벗어나지 않는지 확인한다.
 
-현재 Standalone 지원 선언은 NaiTail, AnimaTail과 CensorTail에 적용된다. CensorTail은 GUI만,
+현재 Standalone 지원 선언은 NaiTail, AnimaTail과 CensorTail에 적용된다. CensorTail은 GUI·MCP,
 NaiTail과 AnimaTail은 GUI·CLI·MCP를 지원한다. GalleryTail을 독립 포터블로 배포하려면 이 계약의
-standalone manifest, launcher, 로컬 dependency와 위 Gate를 먼저 충족해야 한다.
+standalone manifest, launcher, 로컬 dependency, output root와 위 Gate를 먼저 충족해야 한다.
 
 ## 8. 변경 관리
 

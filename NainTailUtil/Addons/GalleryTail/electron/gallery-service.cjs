@@ -16,16 +16,16 @@ function legacySidecarPath(imagePath) {
   return fs.existsSync(candidate) ? candidate : null;
 }
 
-function outputRootPath(appRoot) {
-  return path.resolve(appRoot, "outputs");
+function outputRootPath(appRoot, options = {}) {
+  return path.resolve(options.outputRoot || path.join(appRoot, "outputs"));
 }
 
 function normalizeGalleryId(value) {
   return String(value || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
 }
 
-function resolveGalleryPath(appRoot, id = "", allowDirectory = false) {
-  const outputRoot = outputRootPath(appRoot);
+function resolveGalleryPath(appRoot, id = "", allowDirectory = false, options = {}) {
+  const outputRoot = outputRootPath(appRoot, options);
   const normalizedId = normalizeGalleryId(id);
   const target = path.resolve(outputRoot, ...normalizedId.split("/").filter(Boolean));
   const relativePath = path.relative(outputRoot, target);
@@ -39,8 +39,8 @@ function resolveGalleryPath(appRoot, id = "", allowDirectory = false) {
   return target;
 }
 
-function galleryItem(appRoot, absolutePath) {
-  const outputRoot = outputRootPath(appRoot);
+function galleryItem(appRoot, absolutePath, options = {}) {
+  const outputRoot = outputRootPath(appRoot, options);
   const stat = fs.statSync(absolutePath);
   const id = path.relative(outputRoot, absolutePath).split(path.sep).join("/");
   const metadata = readMetadata(absolutePath);
@@ -57,20 +57,20 @@ function galleryItem(appRoot, absolutePath) {
   };
 }
 
-function listGallery(appRoot, limit = 100) {
-  const outputRoot = outputRootPath(appRoot);
+function listGallery(appRoot, limit = 100, options = {}) {
+  const outputRoot = outputRootPath(appRoot, options);
   if (!fs.existsSync(outputRoot)) return [];
   return fs.readdirSync(outputRoot, { withFileTypes: true })
     .filter((entry) => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
-    .map((entry) => galleryItem(appRoot, path.join(outputRoot, entry.name)))
+    .map((entry) => galleryItem(appRoot, path.join(outputRoot, entry.name), options))
     .sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt))
     .slice(0, limit);
 }
 
-function listGalleryDirectory(appRoot, directoryId = "") {
-  const outputRoot = outputRootPath(appRoot);
+function listGalleryDirectory(appRoot, directoryId = "", options = {}) {
+  const outputRoot = outputRootPath(appRoot, options);
   const normalizedDirectory = normalizeGalleryId(directoryId);
-  const directoryPath = resolveGalleryPath(appRoot, normalizedDirectory, true);
+  const directoryPath = resolveGalleryPath(appRoot, normalizedDirectory, true, options);
   if (!directoryPath) throw new Error("갤러리 폴더 경로가 올바르지 않습니다.");
   if (!fs.existsSync(outputRoot)) fs.mkdirSync(outputRoot, { recursive: true });
   if (!fs.existsSync(directoryPath) || !fs.statSync(directoryPath).isDirectory()) {
@@ -87,7 +87,7 @@ function listGalleryDirectory(appRoot, directoryId = "") {
     .sort((left, right) => left.name.localeCompare(right.name, "ko"));
   const items = entries
     .filter((entry) => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
-    .map((entry) => galleryItem(appRoot, path.join(directoryPath, entry.name)))
+    .map((entry) => galleryItem(appRoot, path.join(directoryPath, entry.name), options))
     .sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt));
 
   return {
@@ -101,11 +101,11 @@ function listGalleryDirectory(appRoot, directoryId = "") {
   };
 }
 
-function resolveGalleryItem(appRoot, id) {
-  const absolutePath = resolveGalleryPath(appRoot, id);
+function resolveGalleryItem(appRoot, id, options = {}) {
+  const absolutePath = resolveGalleryPath(appRoot, id, false, options);
   if (!absolutePath || !fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) return null;
   if (!IMAGE_EXTENSIONS.has(path.extname(absolutePath).toLowerCase())) return null;
-  return galleryItem(appRoot, absolutePath);
+  return galleryItem(appRoot, absolutePath, options);
 }
 
 module.exports = {

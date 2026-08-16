@@ -5,11 +5,17 @@ const os = require("node:os");
 const path = require("node:path");
 const { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, shell } = require("electron");
 const { AddonRegistry } = require("../host/addon-registry.cjs");
+const { HostOutputSettings } = require("../host/output-settings.cjs");
+const { hostedRuntimeDependencies } = require("../host/runtime-dependencies.cjs");
 
 const HOST_ADDON_LIST = "host:addons:list";
 const HOST_ADDON_OPEN = "host:addons:open";
 const HOST_HOME = "host:navigate-home";
 const HOST_ADDON_HANDOFF = "host:addons:handoff";
+const HOST_OUTPUT_GET = "host:outputs:get";
+const HOST_OUTPUT_SELECT = "host:outputs:select";
+const HOST_OUTPUT_RESET = "host:outputs:reset";
+const HOST_OUTPUT_OPEN = "host:outputs:open";
 const productRoot = path.resolve(__dirname, "..", "..");
 const hostRenderer = path.join(productRoot, "app", "renderer", "index.html");
 const hostPreload = path.join(productRoot, "app", "electron", "preload.cjs");
@@ -19,6 +25,7 @@ const smokeResultPath = process.argv.find((value) => value.startsWith("--smoke-r
 const smokeCaptureDirectory = process.argv.find((value) => value.startsWith("--smoke-capture-dir="))?.slice("--smoke-capture-dir=".length) || "";
 if (smokeMode) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "naintail-addon-smoke-")));
 const registry = new AddonRegistry(productRoot);
+const outputSettings = new HostOutputSettings(productRoot);
 registry.discover();
 const addonProtocols = registry.protocols();
 if (addonProtocols.length) protocol.registerSchemesAsPrivileged(addonProtocols);
@@ -57,19 +64,27 @@ function addonBroadcast(channel, payload) {
   if (addonWindow && !addonWindow.isDestroyed()) addonWindow.webContents.send(channel, payload);
 }
 
-function activateAddon(manifest) {
-  if (activeAddon?.manifest.id === manifest.id) return activeAddon;
+function closeActiveAddon() {
   activeAddon?.runtime?.close?.();
+  activeAddon = null;
   if (addonWindow && !addonWindow.isDestroyed()) addonWindow.destroy();
   addonWindow = null;
+}
+
+function activateAddon(manifest) {
+  if (activeAddon?.manifest.id === manifest.id) return activeAddon;
+  closeActiveAddon();
 
   const module = registry.load(manifest, "electron");
   if (!module || typeof module.activate !== "function") throw new Error(`Electron activate entry가 없습니다: ${manifest.id}`);
+  const outputRoot = outputSettings.resolveAddonOutputRoot(manifest.id);
   const runtime = module.activate({
     hostRoot: productRoot,
     productRoot: manifest.directory,
     dataRoot: manifest.directory,
+    outputRoot,
     manifest,
+    dependencies: hostedRuntimeDependencies(productRoot, manifest),
     getWindow: () => addonWindow || foregroundWindow,
     broadcast: addonBroadcast,
     services: {
@@ -78,6 +93,7 @@ function activateAddon(manifest) {
       safeStorage,
       shell,
       resolveAddonDirectory: (id) => registry.get(id)?.directory || null,
+      resolveAddonOutputRoot: (id) => outputSettings.resolveAddonOutputRoot(id),
     },
   });
   activeAddon = { manifest, runtime };
@@ -188,6 +204,29 @@ function registerHostIpc() {
     openAddon(String(payload?.id || ""), payload?.handoff || null)
   )));
   ipcMain.handle(HOST_HOME, reply(() => openHome()));
+  ipcMain.handle(HOST_OUTPUT_GET, reply(() => outputSettings.status()));
+  ipcMain.handle(HOST_OUTPUT_SELECT, reply(() => {
+    const selected = dialog.showOpenDialogSync(homeWindow || foregroundWindow, {
+      title: "NainTail 출력 폴더 선택",
+      defaultPath: outputSettings.outputRoot(),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (!selected?.[0]) return outputSettings.status();
+    const status = outputSettings.setOutputRoot(selected[0]);
+    closeActiveAddon();
+    return status;
+  }));
+  ipcMain.handle(HOST_OUTPUT_RESET, reply(() => {
+    const status = outputSettings.reset();
+    closeActiveAddon();
+    return status;
+  }));
+  ipcMain.handle(HOST_OUTPUT_OPEN, reply(async () => {
+    const outputRoot = outputSettings.outputRoot();
+    const error = await shell.openPath(outputRoot);
+    if (error) throw new Error(error);
+    return outputSettings.status();
+  }));
 }
 
 async function runAddonRoundTrip(manifest) {
@@ -283,7 +322,7 @@ else {
   app.on("before-quit", () => {
     isQuitting = true;
     if (smokeTimer) clearTimeout(smokeTimer);
-    activeAddon?.runtime?.close?.();
+    closeActiveAddon();
   });
   app.on("window-all-closed", () => app.quit());
 }

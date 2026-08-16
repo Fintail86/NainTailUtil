@@ -14,9 +14,9 @@ function compactTimestamp(date = new Date()) {
 }
 
 class OutputStore {
-  constructor(productRoot) {
+  constructor(productRoot, options = {}) {
     this.productRoot = ensureProductDirectories(productRoot);
-    this.directory = resolveInside(this.productRoot, "outputs");
+    this.directory = path.resolve(options.outputRoot || resolveInside(this.productRoot, "outputs"));
   }
 
   directoryForTask(task) {
@@ -57,7 +57,7 @@ class OutputStore {
     };
     const encoded = withJsonMetadata(raw, "NainTailUtil", metadata);
     fs.writeFileSync(absolutePath, encoded, { flag: "wx" });
-    const relativePath = path.relative(this.productRoot, absolutePath);
+    const relativePath = path.join("outputs", path.relative(this.directory, absolutePath));
     return {
       id: createId("result"),
       runId: task.runId,
@@ -77,7 +77,12 @@ class OutputStore {
   }
 
   resolveOutputPath(relativePath) {
-    const absolutePath = resolveInside(this.productRoot, String(relativePath || ""));
+    const portablePath = String(relativePath || "").replaceAll("\\", "/");
+    if (!portablePath.startsWith("outputs/")) {
+      throw new NainTailError("INVALID_OUTPUT_PATH", "outputs 폴더 안의 이미지 경로만 사용할 수 있습니다.");
+    }
+    const normalized = portablePath.replace(/^outputs\//u, "");
+    const absolutePath = resolveInside(this.directory, normalized);
     const relativeToOutputs = path.relative(this.directory, absolutePath);
     if (!relativeToOutputs || relativeToOutputs.startsWith("..") || path.isAbsolute(relativeToOutputs)) {
       throw new NainTailError("INVALID_OUTPUT_PATH", "outputs 폴더 안의 이미지 경로만 사용할 수 있습니다.");

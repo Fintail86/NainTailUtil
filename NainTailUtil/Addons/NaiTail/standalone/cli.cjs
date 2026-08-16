@@ -5,6 +5,7 @@ const { run } = require("../app/cli/main.cjs");
 
 run({
   productRoot: path.resolve(__dirname, ".."),
+  outputRoot: path.resolve(__dirname, "..", "outputs"),
   argv: process.argv.slice(2),
 }).catch((error) => {
   process.stdout.write(`${JSON.stringify({ ok: false, error: { code: "STANDALONE_CLI_FAILED", message: error.message } }, null, 2)}\n`);

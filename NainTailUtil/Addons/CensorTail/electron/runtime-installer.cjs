@@ -305,7 +305,7 @@ class RuntimeInstaller {
       if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
     }
     if (processIsAlive(Number(existing?.pid))) {
-      throw new Error("다른 AnimaTail 프로세스가 런타임을 설치하고 있습니다.");
+      throw new Error("다른 NainTail 런타임 설치 프로세스가 실행 중입니다.");
     }
     await fs.promises.rm(lockPath, { force: true });
     const handle = await fs.promises.open(lockPath, "wx");

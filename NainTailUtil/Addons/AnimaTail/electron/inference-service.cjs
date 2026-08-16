@@ -6,6 +6,8 @@ const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const { locateRuntime, locateSupportAssets } = require("./runtime-locator.cjs");
 
+const DEFAULT_WORKER_START_TIMEOUT_MS = 120000;
+
 function waitForExit(child, timeoutMs = 3000) {
   if (!child || child.exitCode !== null) return Promise.resolve();
   return new Promise((resolve) => {
@@ -45,9 +47,18 @@ function workerEnvironment(pythonPath) {
 }
 
 class InferenceService {
-  constructor(appRoot, sendEvent = () => {}) {
-    this.appRoot = appRoot;
+  constructor(appRoot, sendEvent = () => {}, options = {}) {
+    this.appRoot = path.resolve(appRoot);
+    this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.appRoot, "runtime"));
+    this.outputRoot = path.resolve(options.outputRoot || path.join(this.appRoot, "outputs"));
     this.sendEvent = sendEvent;
+    this.workerStartTimeoutMs = Number.isFinite(options.workerStartTimeoutMs)
+      && options.workerStartTimeoutMs > 0
+      ? options.workerStartTimeoutMs
+      : DEFAULT_WORKER_START_TIMEOUT_MS;
+    this.spawnProcess = options.spawnProcess || spawn;
+    this.runtimeLocator = options.runtimeLocator || locateRuntime;
+    this.supportLocator = options.supportLocator || locateSupportAssets;
     this.child = null;
     this.readyPromise = null;
     this.pending = null;
@@ -56,66 +67,99 @@ class InferenceService {
 
   ensureWorker() {
     if (this.child && this.readyPromise) return this.readyPromise;
-    const runtime = locateRuntime(this.appRoot);
+    const runtime = this.runtimeLocator(this.appRoot, { runtimeRoot: this.runtimeRoot });
     if (runtime.state !== "ready" || !runtime.pythonPath) {
       return Promise.reject(new Error("사설 Python/CUDA 런타임이 준비되지 않았습니다."));
     }
-    const supportRoot = locateSupportAssets(this.appRoot);
+    const supportRoot = this.supportLocator(this.appRoot);
     if (!supportRoot) {
       return Promise.reject(new Error("Anima 보조 자산(VAE·텍스트 인코더·토크나이저)이 없습니다."));
     }
 
     const workerPath = path.join(this.appRoot, "app", "inference_worker.py");
-    this.child = spawn(runtime.pythonPath, [
+    const child = this.spawnProcess(runtime.pythonPath, [
+      "-B",
       "-u",
       workerPath,
       "--app-root",
       this.appRoot,
       "--support-root",
       supportRoot,
+      "--output-root",
+      this.outputRoot,
     ], {
       cwd: this.appRoot,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
       env: workerEnvironment(runtime.pythonPath),
     });
+    this.child = child;
+    this.sendEvent({ event: "loading", phase: "worker-start" });
 
-    this.readyPromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("추론 워커 시작 시간이 초과됐습니다.")), 30000);
-      const lines = readline.createInterface({ input: this.child.stdout });
-      lines.on("line", (line) => {
-        let event;
-        try {
-          event = JSON.parse(line);
-        } catch {
-          this.sendEvent({ type: "log", message: line });
-          return;
-        }
-        if (event.event === "ready") {
-          clearTimeout(timeout);
-          resolve(event);
-          return;
-        }
-        this.handleWorkerEvent(event);
-      });
-      this.child.stderr.on("data", (chunk) => {
-        this.sendEvent({ type: "log", message: chunk.toString("utf8").trim() });
-      });
-      this.child.once("error", (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-      this.child.once("exit", (code) => {
-        clearTimeout(timeout);
-        const pending = this.pending;
-        this.child = null;
-        this.readyPromise = null;
-        this.pending = null;
-        this.modelLoaded = false;
-        if (pending) pending.reject(new Error(`추론 워커가 종료됐습니다. (code ${code})`));
-      });
+    let resolveStartup;
+    let rejectStartup;
+    let startupSettled = false;
+    const readyPromise = new Promise((resolve, reject) => {
+      resolveStartup = resolve;
+      rejectStartup = reject;
     });
-    return this.readyPromise;
+    this.readyPromise = readyPromise;
+
+    const lines = readline.createInterface({ input: child.stdout });
+    const resetWorker = () => {
+      if (this.child !== child) return;
+      this.child = null;
+      this.readyPromise = null;
+      this.modelLoaded = false;
+    };
+    const failStartup = (error, terminate = false) => {
+      if (startupSettled) return;
+      startupSettled = true;
+      clearTimeout(timeout);
+      resetWorker();
+      rejectStartup(error);
+      if (terminate && child.exitCode === null) child.kill();
+    };
+    const timeout = setTimeout(() => {
+      lines.close();
+      failStartup(
+        new Error(`추론 워커 시작 시간이 ${Math.ceil(this.workerStartTimeoutMs / 1000)}초를 초과했습니다.`),
+        true,
+      );
+    }, this.workerStartTimeoutMs);
+
+    lines.on("line", (line) => {
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        this.sendEvent({ type: "log", message: line });
+        return;
+      }
+      if (event.event === "ready") {
+        if (startupSettled) return;
+        startupSettled = true;
+        clearTimeout(timeout);
+        resolveStartup(event);
+        return;
+      }
+      this.handleWorkerEvent(event);
+    });
+    child.stderr.on("data", (chunk) => {
+      this.sendEvent({ type: "log", message: chunk.toString("utf8").trim() });
+    });
+    child.once("error", (error) => {
+      failStartup(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timeout);
+      failStartup(new Error(`추론 워커가 준비 전에 종료됐습니다. (code ${code})`));
+      const pending = this.pending;
+      resetWorker();
+      this.pending = null;
+      if (pending) pending.reject(new Error(`추론 워커가 종료됐습니다. (code ${code})`));
+    });
+    return readyPromise;
   }
 
   handleWorkerEvent(event) {
@@ -182,4 +226,9 @@ class InferenceService {
   }
 }
 
-module.exports = { InferenceService, waitForExit, workerEnvironment };
+module.exports = {
+  DEFAULT_WORKER_START_TIMEOUT_MS,
+  InferenceService,
+  waitForExit,
+  workerEnvironment,
+};

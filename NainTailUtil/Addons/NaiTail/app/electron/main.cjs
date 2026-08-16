@@ -20,8 +20,14 @@ function reply(fn) {
 function activate(context) {
   const { dialog, ipcMain, safeStorage, shell } = context.services;
   const dataRoot = path.resolve(context.dataRoot || context.manifest.directory);
+  const outputRoot = path.resolve(context.outputRoot || path.join(dataRoot, "outputs"));
   const credentials = new CredentialService(dataRoot, safeStorage);
-  const core = new NainTailApplication({ productRoot: dataRoot, getToken: async () => credentials.getToken() });
+  const core = new NainTailApplication({
+    productRoot: dataRoot,
+    version: context.manifest.version,
+    outputRoot,
+    getToken: async () => credentials.getToken(),
+  });
 
   async function pickReferenceImage() {
     const picked = await dialog.showOpenDialog(context.getWindow(), {
@@ -73,7 +79,7 @@ function activate(context) {
   ipcMain.handle(channels.QUEUE_CLEAR, reply(() => core.clearQueue()));
   ipcMain.handle(channels.QUEUE_STOP, reply(() => core.stopAfterCurrent()));
   ipcMain.handle(channels.QUEUE_RESUME, reply(() => core.resumeQueue()));
-  ipcMain.handle(channels.OUTPUTS_OPEN, reply(() => shell.openPath(path.join(dataRoot, "outputs"))));
+  ipcMain.handle(channels.OUTPUTS_OPEN, reply(() => shell.openPath(outputRoot)));
   ipcMain.handle(channels.OUTPUT_REVEAL, reply((payload) => {
     shell.showItemInFolder(core.resolveOutputPath(payload?.relativePath));
     return { revealed: true };

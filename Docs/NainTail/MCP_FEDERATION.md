@@ -1,8 +1,8 @@
 # NainTail MCP 애드온 연합 설계
 
-- 상태: 3차 수직 구현 완료 · NaiTail/AnimaTail/CensorTail federation
+- 상태: 3차 수직 구현 완료 · NaiTail/AnimaTail/CensorTail federation · Hosted 생성 출력 수집 Gate 완료
 - 현재 구현: NainTail 단일 stdio router, 3개 Adapter, AnimaTail → CensorTail → 결과 artifact 전달
-- 다음 범위: GalleryTail MCP 도메인과 영속 artifact ID 필요성 결정
+- 다음 범위: 영속 artifact ID 필요성 결정. GalleryTail MCP 도메인은 제품 기획 확정 전까지 보류
 
 ## 1. 목적
 
@@ -253,6 +253,7 @@ AnimaTail Hosted Adapter는 완료 출력에 session 수명의 `artifactRef`를 
 | AnimaTail → CensorTail 내부 입력 등록 | 완료 |
 | CensorTail 공개 MCP 9개 도구와 순차 job queue | 완료 |
 | AnimaTail → CensorTail scan/save/output artifact 수직 흐름 | 완료 |
+| NainTail MCP → NaiTail·AnimaTail 생성 → Host output namespace 저장 | 완료 |
 | GalleryTail 공개 MCP 도구 | 후속 |
 
 ## 11. 검증 Gate
@@ -279,3 +280,9 @@ AnimaTail Hosted Adapter는 완료 출력에 session 수명의 `artifactRef`를 
 
 > NainTail MCP는 하나의 transport로 여러 애드온 adapter를 호출하고, 애드온의 구조화된 결과를
 > 손실 없이 AI에 되돌려 다음 애드온 작업에 재사용할 수 있게 한다.
+
+Hosted 생성 출력 Gate는 실제 외부 NAI 호출이나 GPU 추론 비용 없이 동일한 Adapter·Router·job
+경로에 결정적 Worker를 주입해 검증한다. `naintail_addon_call`로 두 생성 작업을 제출하고 각각의
+`job_wait` 완료 뒤 파일이 현재 Host output 설정의 `naitail/`, `animatail/` namespace에 존재해야
+한다. 같은 작업이 애드온 로컬 `outputs/`에 이중 기록되면 실패다. 이 Gate는
+`Tests/mcp-generation-output.test.cjs`가 소유한다.

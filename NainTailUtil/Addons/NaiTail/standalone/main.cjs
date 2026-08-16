@@ -74,6 +74,7 @@ function activateAddon() {
     hostRoot: null,
     productRoot: addonRoot,
     dataRoot: addonRoot,
+    outputRoot: path.join(addonRoot, "outputs"),
     manifest,
     standalone: true,
     getWindow: () => mainWindow,
