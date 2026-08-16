@@ -12,8 +12,8 @@ NainTail은 홈·registry·실행 lifecycle을 소유하고, 아래 생성·갤�
 
 MVP 제품 코드는 모두 개발 워크스페이스 안의 중첩 `NainTailUtil/` 폴더에만 들어 있다.
 이 폴더에는 실행에 필요한 Electron 43.1.1 런타임도 포함되어 시스템 Node.js 없이 GUI와
-CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 루트 `Tests/`, `Tools/`,
-`Artifacts/`에 분리했다.
+CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 로컬 개발 워크스페이스의
+`Tests/`, `Tools/`, `Artifacts/`에 분리하며 배포 Git에는 포함하지 않는다.
 
 구현한 수직 기능은 다음과 같다.
 
@@ -108,9 +108,9 @@ CLI를 실행할 수 있다. 테스트, QA 하네스와 캡처 결과는 각각 
 
 - 제품 코드와 release asset: `NainTailUtil/`
 - 개발 문서: `Docs/`
-- 자동 테스트: `Tests/`
-- 검증 도구: `Tools/`
-- 시각 QA 캡처: `Artifacts/` (Git 제외)
+- 자동 테스트: 로컬 개발 `Tests/` (배포 Git 제외)
+- 검증 도구: 로컬 개발 `Tools/` (배포 Git 제외)
+- 시각 QA 캡처: 로컬 개발 `Artifacts/` (배포 Git 제외)
 - Electron runtime: `NainTailUtil/runtime/electron/`, 43.1.1, 75 files, 347.27 MiB
 - AnimaTail Python/CUDA runtime: r1 local runtime ready, 지원 자산 ready
 - AnimaTail catalog: 생성 모델 5개, LoRA 5개

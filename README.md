@@ -104,15 +104,12 @@ NainTail composition root에서 실행하고 Python/CUDA는 호스트가 주입�
 
 ## 포터블 제품 경계
 
-실제 배포·복사 대상은 저장소 전체가 아니라 중첩된 [`NainTailUtil/`](NainTailUtil/README.md)
-폴더 하나다.
+이 저장소의 `main`은 배포용 최소 스냅샷이다. 실제 배포·복사 대상은 중첩된
+[`NainTailUtil/`](NainTailUtil/README.md) 폴더 하나다.
 
 ```text
-NainTailUtil/                 개발 워크스페이스
-├─ Docs/                     호스트·공통·애드온별 개발 문서
-├─ Tests/                    제품 외부 자동 테스트
-├─ Tools/                    검증·QA 보조 도구
-├─ Artifacts/                다시 만들 수 있는 개발 산출물
+NainTailUtil/                 배포 Git 루트
+├─ Docs/                     호스트·공통·애드온별 계약·사용 문서
 └─ NainTailUtil/             독립 실행 가능한 포터블 제품
    ├─ app/                   NainTail 호스트
    ├─ Addons/               내장 애드온
@@ -121,22 +118,15 @@ NainTailUtil/                 개발 워크스페이스
    └─ licenses/             포함 구성 요소 고지문
 ```
 
-테스트 코드와 개발 산출물은 제품 폴더에 포함하지 않는다. 제품은 부모 워크스페이스나
-개발 PC의 절대경로, 시스템 Python·CUDA Toolkit에 조용히 의존하지 않는다.
+로컬 개발 워크스페이스의 `Tests/`, `Tools/`, 루트 개발용 `package.json`, `Artifacts/`와
+`AddonRelease/`는 배포 Git에 포함하지 않는다. 제품은 부모 워크스페이스나 개발 PC의
+절대경로, 시스템 Python·CUDA Toolkit에 조용히 의존하지 않는다.
 
-## 개발과 검증
+## 검증 기록
 
-개발 검증에는 Node.js가 필요하다. 저장소 루트에서 실행한다.
-
-```bash
-npm run test
-npm run check:syntax
-npm run check:portable
-npm run check
-```
-
-자동 검증은 소스·계약·포터블 경계를 확인한다. 실제 외부 API 호출, GPU 생성 품질과
-runtime 설치 성공 여부는 별도의 acceptance 범위다.
+자동 테스트와 QA 도구는 로컬 개발 워크스페이스에서 운용하고 통과한 소스만 이 배포용
+`main`에 반영한다. 실제 외부 API 호출, GPU 생성 품질과 runtime 설치 성공 여부는 별도의
+acceptance 범위다.
 
 ## 문서
 

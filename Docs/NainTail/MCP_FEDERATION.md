@@ -284,5 +284,5 @@ AnimaTail Hosted Adapter는 완료 출력에 session 수명의 `artifactRef`를 
 Hosted 생성 출력 Gate는 실제 외부 NAI 호출이나 GPU 추론 비용 없이 동일한 Adapter·Router·job
 경로에 결정적 Worker를 주입해 검증한다. `naintail_addon_call`로 두 생성 작업을 제출하고 각각의
 `job_wait` 완료 뒤 파일이 현재 Host output 설정의 `naitail/`, `animatail/` namespace에 존재해야
-한다. 같은 작업이 애드온 로컬 `outputs/`에 이중 기록되면 실패다. 이 Gate는
-`Tests/mcp-generation-output.test.cjs`가 소유한다.
+한다. 같은 작업이 애드온 로컬 `outputs/`에 이중 기록되면 실패다. 이 Gate는 배포 Git에서
+제외되는 로컬 개발 테스트 `Tests/mcp-generation-output.test.cjs`가 소유한다.

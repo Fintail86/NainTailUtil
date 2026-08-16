@@ -1,5 +1,8 @@
 Artifacts/
 AddonRelease/
+/Tests/
+/Tools/
+/package.json
 **/__pycache__/
 NainTailUtil/runtime/
 NainTailUtil/outputs/
