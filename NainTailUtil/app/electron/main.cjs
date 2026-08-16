@@ -229,8 +229,27 @@ function registerHostIpc() {
   }));
 }
 
+async function clickAddonLaunch(manifest) {
+  await homeWindow.webContents.executeJavaScript(
+    `document.querySelector('[data-addon-id="${manifest.id}"]')
+      ?.closest('.addon-panel')?.querySelector('.panel-select')?.click()`,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const hitLaunch = await homeWindow.webContents.executeJavaScript(
+    `(() => {
+      const launch = document.querySelector('[data-addon-id="${manifest.id}"]');
+      const rect = launch?.getBoundingClientRect();
+      const hit = rect ? document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) : null;
+      if (!launch || !hit || hit.closest('[data-addon-id="${manifest.id}"]') !== launch) return false;
+      hit.click();
+      return true;
+    })()`,
+  );
+  if (!hitLaunch) throw new Error(`addon launch pointer target blocked: ${manifest.id}`);
+}
+
 async function runAddonRoundTrip(manifest) {
-  await homeWindow.webContents.executeJavaScript(`document.querySelector('[data-addon-id="${manifest.id}"]').click()`);
+  await clickAddonLaunch(manifest);
   for (let attempt = 0; foregroundWindow !== addonWindow && attempt < 20; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -250,7 +269,7 @@ async function runAddonRoundTrip(manifest) {
   if (foregroundWindow !== homeWindow) throw new Error(`addon home navigation failed: ${manifest.id}`);
   const cardEnabled = await homeWindow.webContents.executeJavaScript(`document.querySelector('[data-addon-id="${manifest.id}"]')?.disabled === false`);
   if (!cardEnabled) throw new Error(`host addon card stayed disabled after returning home: ${manifest.id}`);
-  await homeWindow.webContents.executeJavaScript(`document.querySelector('[data-addon-id="${manifest.id}"]').click()`);
+  await clickAddonLaunch(manifest);
   for (let attempt = 0; foregroundWindow !== addonWindow && attempt < 20; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }

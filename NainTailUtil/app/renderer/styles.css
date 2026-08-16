@@ -192,6 +192,7 @@ button:focus-visible {
 }
 
 .panel-select:focus-visible { outline: none; }
+.addon-panel.active .panel-select { pointer-events: none; }
 .addon-panel:has(.panel-select:focus-visible) { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .62); }
 
 .panel-wordmark {
