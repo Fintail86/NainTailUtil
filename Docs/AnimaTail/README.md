@@ -15,7 +15,8 @@ AnimaTail은 Anima 계열 모델을 로컬에서 실행하는 Windows용 이미�
   dependency를 우선 사용한다.
 - **Standalone**: `NainTailUtil/Addons/AnimaTail/` 폴더만 복사해 독립 포터블 유틸로
   실행한다. GUI는 `AnimaTail.bat`, CLI는 `AnimaTail_CLI.bat`, MCP는
-  `AnimaTail_MCP.bat`가 진입점이다.
+  `AnimaTail_MCP.bat`가 진입점이다. 로컬 Electron이 없으면 Windows PowerShell
+  부트스트랩이 고정된 공식 배포본을 크기·SHA-256 검증 후 설치한다.
 
 두 형태의 Core, Worker, UI와 데이터 schema는 동일하다. 실행 환경 선택, 경로 주입과 창
 생명주기만 composition root에서 달라진다. 자세한 규범은

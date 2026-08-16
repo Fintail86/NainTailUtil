@@ -5,7 +5,8 @@ CensorTail이 소유하는 로컬 자동검열 문서는 이 폴더에서 관리
 CensorTail은 Standalone에서 자기 폴더의 Python/CUDA runtime을 사용하고, Hosted에서 NainTail이
 관리·주입하는 공용 runtime을 사용한다. `Models/censor/`와 검열 Worker는 실행 형태와 관계없이
 CensorTail이 소유하며 AnimaTail 설치를 요구하지 않는다. AnimaTail 결과 입력은 양쪽 애드온이
-설치된 경우 호스트가 연결하는 선택적 artifact 연동이다.
+설치된 경우 호스트가 연결하는 선택적 artifact 연동이다. Standalone Electron이 없으면 Windows
+PowerShell 부트스트랩이 고정된 공식 배포본을 크기·SHA-256 검증 후 설치한다.
 
 ## 범위
 

@@ -23,12 +23,14 @@
 
 - GUI: `CensorTail.bat`
 - 전용 Electron: `runtime/electron/`
+- Electron 자동 설치: `tools/ensure-electron.cmd`, `electron-runtime-manifest.json`
 - 전용 Python/CUDA: `runtime/versions/`
 - 검열 모델: `Models/censor/`
 - standalone host: `standalone/`
 
 `CensorTail/` 폴더 하나만 다른 Windows 경로로 복사하면 NainTail host, AnimaTail이나 시스템
-Node/Python 없이 실행할 수 있다. Hosted에서도 AnimaTail을 요구하지 않으며, AnimaTail 결과 입력은
+Node/Python 없이 실행할 수 있다. Electron이 빠져 있으면 첫 실행 시 공식 배포본을 검증해
+자동 설치한다. Hosted에서도 AnimaTail을 요구하지 않으며, AnimaTail 결과 입력은
 두 애드온이 함께 설치된 경우 호스트가 연결하는 선택적 artifact 기능이다. Hosted Python/CUDA는
 NainTail `runtime/`만 사용하고 애드온 로컬 runtime으로 암묵 fallback하지 않는다. GUI와 MCP를 공개한다.
 

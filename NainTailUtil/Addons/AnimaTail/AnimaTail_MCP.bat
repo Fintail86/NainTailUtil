@@ -4,8 +4,8 @@ cd /d "%~dp0"
 
 set "ANIMATAIL_ELECTRON=%~dp0runtime\electron\electron.exe"
 if not exist "%ANIMATAIL_ELECTRON%" (
-  echo [AnimaTail MCP] Portable Electron runtime is missing: runtime/electron/electron.exe 1>&2
-  exit /b 2
+  call "%~dp0tools\ensure-electron.cmd" 1>&2
+  if errorlevel 1 exit /b 2
 )
 
 set "ELECTRON_RUN_AS_NODE=1"

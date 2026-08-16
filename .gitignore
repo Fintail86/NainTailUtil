@@ -1,4 +1,5 @@
 Artifacts/
+AddonRelease/
 **/__pycache__/
 NainTailUtil/runtime/
 NainTailUtil/outputs/

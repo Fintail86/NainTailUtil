@@ -4,8 +4,8 @@ cd /d "%~dp0"
 
 set "NAITAIL_ELECTRON=%~dp0runtime\electron\electron.exe"
 if not exist "%NAITAIL_ELECTRON%" (
-  echo {"ok":false,"error":{"code":"RUNTIME_MISSING","message":"Portable Electron runtime is missing: runtime/electron/electron.exe"}}
-  exit /b 2
+  call "%~dp0tools\ensure-electron.cmd" 1>&2
+  if errorlevel 1 exit /b 2
 )
 
 set "ELECTRON_RUN_AS_NODE=1"

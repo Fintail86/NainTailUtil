@@ -3,6 +3,8 @@
   "addonId": "censortail",
   "platform": "win-x64",
   "electron": "runtime/electron/electron.exe",
+  "electronBootstrap": "tools/ensure-electron.cmd",
+  "electronRuntimeManifest": "electron-runtime-manifest.json",
   "pythonCuda": "runtime/versions",
   "models": "Models/censor",
   "gui": "CensorTail.bat",

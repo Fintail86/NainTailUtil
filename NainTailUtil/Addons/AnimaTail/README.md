@@ -14,7 +14,7 @@
 - `Presets/`, `outputs/`: AnimaTail 생성 전용 사용자 데이터. outputs는 GalleryTail이 읽는다.
 - `cli/`, `mcp/`: headless adapter
 
-애드온은 원본 `C:\Users\...\AnimaUtil` 경로를 참조하지 않는다. `Addons/AnimaTail/` 경계
+애드온은 개발 PC의 원본 AnimaUtil 절대 경로를 참조하지 않는다. `Addons/AnimaTail/` 경계
 안의 자산만 사용한다.
 
 ## 독립 포터블 실행
@@ -23,9 +23,11 @@
 - CLI: `AnimaTail_CLI.bat`
 - MCP: `AnimaTail_MCP.bat`
 - 전용 Electron: `runtime/electron/`
+- Electron 자동 설치: `tools/ensure-electron.cmd`, `electron-runtime-manifest.json`
 - standalone host: `standalone/`
 
 이 `AnimaTail/` 폴더 하나에 Electron, Python/CUDA, 모델·LoRA, 프리셋과 출력이 모두 들어 있다.
-폴더 전체를 복사하면 상위 NainTailUtil이나 시스템 Node/Python 없이 같은 상태로 실행할 수 있다.
+Electron이 빠져 있으면 첫 실행 시 공식 배포본을 검증해 자동 설치한다. 폴더 전체를 복사하면
+상위 NainTailUtil이나 시스템 Node/Python 없이 같은 상태로 실행할 수 있다.
 NainTail에 장착된 Hosted 실행에서는 애드온 로컬 Python/CUDA 대신 NainTail의 `runtime/`을
 주입받아 사용하며, Anima 모델·LoRA·프리셋은 계속 이 애드온 폴더에서 관리한다.

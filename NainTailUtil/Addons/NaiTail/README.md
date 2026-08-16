@@ -22,7 +22,9 @@ NainTail 호스트 안에서 실행하거나 `NaiTail.bat`로 단독 실행하�
 - CLI: `NaiTail_CLI.bat`
 - MCP: `NaiTail_MCP.bat`
 - 전용 Electron: `runtime/electron/`
+- Electron 자동 설치: `tools/ensure-electron.cmd`, `electron-runtime-manifest.json`
 - standalone host: `standalone/`
 
 따라서 이 `NaiTail/` 폴더 하나만 다른 Windows 경로로 복사해 상위 NainTailUtil 없이 실행할 수 있다.
-기존 standalone 데이터까지 옮기려면 폴더 전체를 그대로 복사한다.
+Electron이 빠져 있으면 첫 실행 시 공식 배포본을 크기·SHA-256 검증 후 자동 설치한다. 기존
+standalone 데이터까지 옮기려면 폴더 전체를 그대로 복사한다.

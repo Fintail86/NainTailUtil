@@ -42,7 +42,8 @@ NaiTail은 같은 Core, Worker와 UI를 두 composition root에서 사용한다.
 
 Standalone에서는 NaiTail 폴더가 application root, data root이자 output root의 부모다. 따라서 `NaiTail/` 폴더 하나를
 다른 Windows 경로로 복사해 실행할 수 있어야 하며, 시스템 Node나 전역 Electron을 fallback으로
-사용하지 않는다. Hosted에서는 코드와 데이터 소유권은 NaiTail에 남고, 호스트가 주입한 공용
+사용하지 않는다. 로컬 Electron이 없으면 Windows PowerShell 부트스트랩이 고정된 공식 배포본을
+크기·SHA-256 검증 후 설치한다. Hosted에서는 코드와 데이터 소유권은 NaiTail에 남고, 호스트가 주입한 공용
 service를 우선 사용하며 최종 출력만 NainTail output root에 기록한다.
 
 ## 공개 경계

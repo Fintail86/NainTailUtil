@@ -3,6 +3,8 @@
   "addonId": "naitail",
   "platform": "win-x64",
   "electron": "runtime/electron/electron.exe",
+  "electronBootstrap": "tools/ensure-electron.cmd",
+  "electronRuntimeManifest": "electron-runtime-manifest.json",
   "gui": "NaiTail.bat",
   "cli": "NaiTail_CLI.bat",
   "mcp": "NaiTail_MCP.bat",

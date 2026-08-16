@@ -26,6 +26,10 @@ Standalone을 지원한다고 선언한 애드온은 반드시 다음 조건을 
 - 지원한다고 선언한 GUI·CLI·MCP entry와 launcher를 애드온 폴더 안에 가져야 한다.
 - 실행에 필요한 Electron, Python/CUDA, 모델, 라이선스와 정적 자산을 애드온 경계 안에서
   해결해야 한다. 단, 해당 애드온 기능에 필요하지 않은 런타임은 요구하지 않는다.
+- 로컬 Electron이 빠진 Standalone 패키지는 Windows 기본 PowerShell 부트스트랩으로 애드온이
+  고정한 공식 Electron ZIP을 내려받아 크기와 SHA-256을 검증한 뒤 `runtime/electron/`에
+  설치하고 원래 entry 실행을 계속해야 한다. 부트스트랩 자체가 시스템 Node나 다른 애드온에
+  의존해서는 안 된다.
 - 시스템 Node, 시스템 Python, 전역 패키지, 사용자 `PATH`, 개발 워크스페이스와 부모
   NainTailUtil 폴더를 실행 전제로 삼아서는 안 된다.
 - Standalone 실행 시 애드온 폴더가 기본 application root이자 data root다.
@@ -140,7 +144,9 @@ Standalone에서는 기본적으로 네 루트가 모두 애드온 폴더 안을
 
 Standalone 지원 애드온은 추가로 `naintail.addon-standalone/v1` manifest를 가져야 한다.
 이 manifest는 standalone Electron과 GUI·CLI·MCP launcher, data root를 애드온 상대경로로
-기록한다. 선언한 파일이 빠진 패키지는 포터블 애드온으로 간주하지 않는다.
+기록한다. Electron 자동 설치를 제공하는 경우 `electronBootstrap`과
+`electronRuntimeManifest`도 기록한다. 선언한 파일이 빠진 패키지는 포터블 애드온으로
+간주하지 않는다.
 
 향후 dependency export/import schema가 추가되기 전까지 `requires`, `artifactProviders`와 host
 resolver가 정식 애드온 간 연동 경계다. 새 공유 경로를 암묵적으로 추가하지 않는다.
