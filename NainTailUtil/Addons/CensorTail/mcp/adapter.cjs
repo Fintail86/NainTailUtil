@@ -5,6 +5,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const packageInfo = require("../package.json");
 const { CensorService, collectCensorInputFiles } = require("../electron/censor-service.cjs");
+const { resolveAssetPaths } = require("../electron/shared-assets.cjs");
 const { CensorMcpError } = require("./errors.cjs");
 const { CensorMcpJobManager } = require("./job-manager.cjs");
 const { callTool, createTools } = require("./tools.cjs");
@@ -92,8 +93,19 @@ function createAdapter(options = {}) {
   const resourceRoot = path.resolve(options.resourceRoot
     || options.dependencyRoots?.animatail
     || appRoot);
+  const standaloneAssets = hosted ? null : resolveAssetPaths(appRoot);
+  const runtimeRoot = path.resolve(options.runtimeRoot
+    || standaloneAssets?.runtimeRoot
+    || path.join(resourceRoot, "runtime"));
+  const modelRoot = path.resolve(options.modelRoot
+    || standaloneAssets?.modelRoot
+    || path.join(resourceRoot, "Models", "censor"));
   let manager = options.manager || null;
-  const service = options.service || new CensorService(appRoot, (event) => manager?.handleEvent(event), { resourceRoot });
+  const service = options.service || new CensorService(appRoot, (event) => manager?.handleEvent(event), {
+    resourceRoot,
+    runtimeRoot,
+    modelRoot,
+  });
   manager ||= new CensorMcpJobManager(service, options);
   const artifacts = artifactPublisher(appRoot, hosted, [resourceRoot]);
   const resolveHostArtifact = options.resolveArtifact;

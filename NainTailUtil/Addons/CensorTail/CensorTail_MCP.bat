@@ -2,9 +2,11 @@
 setlocal
 cd /d "%~dp0"
 
-set "CENSORTAIL_ELECTRON=%~dp0runtime\electron\electron.exe"
+if exist "%~dp0config\dev-assets.local.cmd" call "%~dp0config\dev-assets.local.cmd"
+if exist "%~dp0runtime\electron\electron.exe" set "CENSORTAIL_ELECTRON=%~dp0runtime\electron\electron.exe"
+if not defined CENSORTAIL_ELECTRON if defined CENSORTAIL_SHARED_ROOT set "CENSORTAIL_ELECTRON=%CENSORTAIL_SHARED_ROOT%\runtime\electron\electron.exe"
 if not exist "%CENSORTAIL_ELECTRON%" (
-  echo [CensorTail MCP] Portable Electron runtime is missing: runtime/electron/electron.exe 1>&2
+  echo [CensorTail MCP] Electron runtime is missing. Run: node tools\dev-setup.cjs 1>&2
   exit /b 2
 )
 

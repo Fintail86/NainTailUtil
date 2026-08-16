@@ -274,6 +274,8 @@ class CensorService {
   constructor(appRoot, sendEvent = () => {}, options = {}) {
     this.appRoot = path.resolve(appRoot);
     this.resourceRoot = path.resolve(options.resourceRoot || appRoot);
+    this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.resourceRoot, "runtime"));
+    this.modelRoot = path.resolve(options.modelRoot || path.join(this.resourceRoot, "Models", "censor"));
     this.sendEvent = sendEvent;
     this.items = new Map();
     this.child = null;
@@ -286,7 +288,7 @@ class CensorService {
   }
 
   modelPath() {
-    return path.join(this.resourceRoot, "Models", "censor", CENSOR_MODEL.fileName);
+    return path.join(this.modelRoot, CENSOR_MODEL.fileName);
   }
 
   outputRoot() {
@@ -304,7 +306,7 @@ class CensorService {
   }
 
   async status() {
-    const runtime = locateRuntime(this.resourceRoot);
+    const runtime = locateRuntime(this.resourceRoot, { runtimeRoot: this.runtimeRoot });
     const dependencyPath = runtime.pythonPath
       ? path.join(path.dirname(runtime.pythonPath), "Lib", "site-packages", "onnxruntime", "__init__.py")
       : null;
@@ -467,7 +469,7 @@ class CensorService {
 
   ensureWorker() {
     if (this.child && this.readyPromise) return this.readyPromise;
-    const runtime = locateRuntime(this.resourceRoot);
+    const runtime = locateRuntime(this.resourceRoot, { runtimeRoot: this.runtimeRoot });
     if (runtime.state !== "ready" || !runtime.pythonPath) {
       return Promise.reject(new Error("사설 Python 런타임이 준비되지 않았습니다."));
     }

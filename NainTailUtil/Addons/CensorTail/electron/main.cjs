@@ -21,7 +21,9 @@ const { webpDimensions } = require("./webp.cjs");
 let addonContext = null;
 let censorService = null;
 let dropCacheRoot = null;
+let modelRoot = null;
 let resourceRoot = null;
+let runtimeRoot = null;
 let runtimeInstaller = null;
 
 function sendEvent(event) {
@@ -127,14 +129,20 @@ function activate(context) {
   resourceRoot = context.dependencies?.resourceRoot
     || (context.standalone ? context.manifest.directory : resolveAddonDirectory("animatail"));
   if (!resourceRoot) throw new Error("CensorTail에 필요한 Python/CUDA runtime과 검열 모델을 찾을 수 없습니다.");
+  runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(resourceRoot, "runtime"));
+  modelRoot = path.resolve(context.dependencies?.modelRoot || path.join(resourceRoot, "Models", "censor"));
   dropCacheRoot = path.join(
     path.resolve(context.dataRoot || context.manifest.directory),
     "data",
     "drop-cache",
   );
   fs.rmSync(dropCacheRoot, { recursive: true, force: true });
-  censorService = new CensorService(context.manifest.directory, sendEvent, { resourceRoot });
-  runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent);
+  censorService = new CensorService(context.manifest.directory, sendEvent, {
+    resourceRoot,
+    runtimeRoot,
+    modelRoot,
+  });
+  runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent, { runtimeRoot });
   const validateDroppedPath = (event, candidate) => {
     event.returnValue = usableDroppedPath(candidate);
   };
@@ -210,7 +218,9 @@ function activate(context) {
       censorService = null;
       dropCacheRoot = null;
       runtimeInstaller = null;
+      modelRoot = null;
       resourceRoot = null;
+      runtimeRoot = null;
       addonContext = null;
     },
   };

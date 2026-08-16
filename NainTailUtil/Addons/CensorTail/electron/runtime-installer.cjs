@@ -8,8 +8,8 @@ const { Readable } = require("node:stream");
 const { spawn } = require("node:child_process");
 const { locateRuntime } = require("./runtime-locator.cjs");
 
-function readRuntimeStatus(appRoot) {
-  const { state, runtimeId, source } = locateRuntime(appRoot);
+function readRuntimeStatus(appRoot, runtimeRoot) {
+  const { state, runtimeId, source } = locateRuntime(appRoot, { runtimeRoot });
   return { state, runtimeId, source };
 }
 
@@ -233,6 +233,7 @@ function processIsAlive(pid) {
 class RuntimeInstaller {
   constructor(appRoot, sendEvent = () => {}, options = {}) {
     this.appRoot = path.resolve(appRoot);
+    this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.appRoot, "runtime"));
     this.sendEvent = sendEvent;
     this.fetch = options.fetch || globalThis.fetch;
     this.extract = options.extract || null;
@@ -255,7 +256,7 @@ class RuntimeInstaller {
       manifestError = error.message;
     }
     return {
-      ...readRuntimeStatus(this.appRoot),
+      ...readRuntimeStatus(this.appRoot, this.runtimeRoot),
       installing: Boolean(this.installing),
       installMode: manifest?.installMode || null,
       archiveBytes: manifest?.downloadBytes || null,
@@ -319,7 +320,7 @@ class RuntimeInstaller {
     let releaseLock = null;
     try {
       const manifest = loadRuntimeManifest(this.appRoot, { allowFileUrls: this.allowFileUrls });
-      const runtimeRoot = path.join(this.appRoot, "runtime");
+      const runtimeRoot = this.runtimeRoot;
       const versionsRoot = path.join(runtimeRoot, "versions");
       const finalRoot = path.join(versionsRoot, manifest.runtimeId);
       await fs.promises.mkdir(versionsRoot, { recursive: true });

@@ -1,0 +1,65 @@
+.censor-box.batch-selected {
+  z-index: 4;
+  border-color: #8ee8ff;
+  box-shadow: 0 0 0 2px #55c9eb40, 0 0 16px #55c9eb38;
+}
+
+.censor-box.batch-selected > span {
+  color: #e8fbff;
+  background: #286477f2;
+}
+
+.censor-box.batch-selected.selected {
+  z-index: 6;
+  border-color: #c7b8ff;
+  box-shadow: 0 0 0 2px #a68cff66, 0 0 18px #9777ff55;
+}
+
+.censor-selection-marquee {
+  z-index: 20;
+  pointer-events: none;
+  position: absolute;
+  border: 1px solid #9beaff;
+  background: #54cceb22;
+  box-shadow: 0 0 0 1px #12263199, 0 0 12px #55c9eb33;
+}
+
+.censor-canvas.multi-selecting,
+.censor-canvas.multi-selecting .censor-image-content {
+  cursor: crosshair;
+}
+
+.censor-multi-select-toggle {
+  min-width: 82px;
+}
+
+.censor-multi-select-toggle .selection-count {
+  color: #9beaff;
+  font-family: var(--font-family-mono);
+  margin-left: 4px;
+}
+
+.censor-shortcut-toast {
+  z-index: 40;
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  color: #e9faff;
+  background: #10232eee;
+  border: 1px solid #64d8f366;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-min);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 6px 20px #0008;
+}
+
+.censor-shortcut-toast.error {
+  color: var(--danger-bright);
+  border-color: rgba(var(--danger-border-rgb), .5);
+  background: #35151dee;
+}

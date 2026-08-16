@@ -37,15 +37,16 @@ function readManifestRuntime(appRoot, manifestPath, runtimeRoot, source) {
   }
 }
 
-function locateRuntime(appRoot) {
+function locateRuntime(appRoot, options = {}) {
   const productManifest = path.join(appRoot, "runtime-manifest.json");
   const localManifest = path.join(appRoot, "runtime-manifest.local.json");
+  const runtimeRoot = path.resolve(options.runtimeRoot || path.join(appRoot, "runtime"));
 
   const product = fs.existsSync(productManifest)
     ? readManifestRuntime(
       appRoot,
       productManifest,
-      path.join(appRoot, "runtime"),
+      runtimeRoot,
       "product",
     )
     : null;
@@ -55,7 +56,7 @@ function locateRuntime(appRoot) {
     ? readManifestRuntime(
       appRoot,
       localManifest,
-      path.join(appRoot, "runtime"),
+      runtimeRoot,
       "local",
     )
     : null;

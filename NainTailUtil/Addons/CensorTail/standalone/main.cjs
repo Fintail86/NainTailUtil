@@ -11,11 +11,13 @@ const {
   safeStorage,
   shell,
 } = require("electron");
+const { resolveAssetPaths } = require("../electron/shared-assets.cjs");
 
 const addonRoot = path.resolve(__dirname, "..");
 const manifestPath = path.join(addonRoot, "addon.json");
 const rawManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 const manifest = Object.freeze({ ...rawManifest, directory: addonRoot, manifestPath });
+const assetPaths = resolveAssetPaths(addonRoot);
 const smokeMode = process.argv.includes("--smoke");
 const smokeResultPath = process.argv.find((value) => value.startsWith("--smoke-result="))
   ?.slice("--smoke-result=".length) || "";
@@ -67,7 +69,11 @@ function activateAddon() {
     dataRoot: addonRoot,
     manifest,
     standalone: true,
-    dependencies: { resourceRoot: addonRoot },
+    dependencies: {
+      resourceRoot: addonRoot,
+      runtimeRoot: assetPaths.runtimeRoot,
+      modelRoot: assetPaths.modelRoot,
+    },
     getWindow: () => mainWindow,
     broadcast,
     services: {
@@ -106,13 +112,18 @@ async function createWindow() {
     const state = await mainWindow.webContents.executeJavaScript(`(async () => {
       const status = await window.censorTail.getCensorStatus();
       const home = document.querySelector('#hostHomeButton');
-      const pngBytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+Xc9W5QAAAABJRU5ErkJggg=='), (character) => character.charCodeAt(0));
+      const webpBytes = new Uint8Array([
+        0x52, 0x49, 0x46, 0x46, 0x16, 0x00, 0x00, 0x00,
+        0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x58,
+        0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      ]);
       const dropped = await window.censorTail.addDroppedCensorPaths([{
-        bytes: pngBytes,
-        fileName: 'drop-smoke.png',
-        outputRelativePath: 'drop-smoke/image.png',
+        bytes: webpBytes,
+        fileName: 'drop-smoke.webp',
+        outputRelativePath: 'drop-smoke/image.webp',
       }]);
-      const pathlessDropReady = dropped.length === 1 && dropped[0].relativePath === 'drop-smoke/image.png';
+      const pathlessDropReady = dropped.length === 1 && dropped[0].relativePath === 'drop-smoke/image.webp';
       await window.censorTail.clearCensorImages();
       return {
         ready: Boolean(window.censorTail && document.querySelector('.censor-page')),
