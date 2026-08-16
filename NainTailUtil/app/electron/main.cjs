@@ -275,13 +275,147 @@ async function runSmoke() {
   }
   const host = await ensureHomeWindow();
   await new Promise((resolve) => setTimeout(resolve, 100));
-  const expectedSlotCount = Math.max(3, registry.list().length);
+  const expectedSlotCount = registry.list().length;
   const hostReady = await host.webContents.executeJavaScript(
     `Boolean(document.querySelector('[data-host-home]')
       && document.querySelectorAll('[data-addon-slot]').length === ${expectedSlotCount}
       && ${manifests.map((manifest) => `document.querySelector('[data-addon-id="${manifest.id}"]')`).join(" && ") || "true"})`,
   );
   if (!hostReady) throw new Error("host renderer contract missing");
+  if (smokeCaptureDirectory) {
+    await host.webContents.executeJavaScript("document.documentElement.classList.add('smoke-static')");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    fs.mkdirSync(smokeCaptureDirectory, { recursive: true });
+    const capture = await host.webContents.capturePage();
+    fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-home.png"), capture.toPNG());
+    await host.webContents.executeJavaScript("document.documentElement.classList.remove('smoke-static')");
+    const fixedEdgeState = await host.webContents.executeJavaScript(
+      `Object.fromEntries(Array.from(document.querySelectorAll('[data-fixed-edge]'), (edge) => {
+        const rect = edge.getBoundingClientRect();
+        return [edge.dataset.fixedEdge, { left: rect.left, right: rect.right, width: rect.width }];
+      }))`,
+    );
+    if (registry.list().length > 2) {
+      await host.webContents.executeJavaScript(
+        `Array.from({ length: ${Math.max(0, registry.list().length - 3)} }, () => document.querySelector('#nextAddon').click())`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      const transitionSamples = await host.webContents.executeJavaScript(
+        `new Promise((resolve) => {
+          const samples = [];
+          const started = performance.now();
+          document.querySelector('#nextAddon').click();
+          const sample = (now) => {
+            const viewport = document.querySelector('#deckViewport');
+            const track = document.querySelector('#deckTrack')?.getBoundingClientRect();
+            const rightEdge = document.querySelector('[data-fixed-edge="right"]')?.getBoundingClientRect();
+            const active = document.querySelector('.addon-panel.active')?.getBoundingClientRect();
+            samples.push({
+              time: now - started,
+              scrollLeft: viewport?.scrollLeft,
+              scrollWidth: viewport?.scrollWidth,
+              scrollLimit: viewport ? Math.max(0, viewport.scrollWidth - viewport.clientWidth
+                - window.innerHeight * Math.tan(10 * Math.PI / 180) / 2) : null,
+              track: track ? { left: track.left, right: track.right, width: track.width } : null,
+              rightEdge: rightEdge ? { left: rightEdge.left, right: rightEdge.right, width: rightEdge.width } : null,
+              active: active ? { left: active.left, right: active.right, width: active.width } : null,
+            });
+            if (now - started < 650) requestAnimationFrame(sample);
+            else resolve(samples);
+          };
+          requestAnimationFrame(sample);
+        })`,
+      );
+      fs.writeFileSync(
+        path.join(smokeCaptureDirectory, "gui-host-transition.json"),
+        JSON.stringify(transitionSamples, null, 2),
+        "utf8",
+      );
+      const firstTransitionSample = transitionSamples[0];
+      const lastTransitionSample = transitionSamples.at(-1);
+      const transitionStable = Boolean(firstTransitionSample && lastTransitionSample
+        && transitionSamples.every((sample) => (
+          Math.abs(sample.rightEdge.left - firstTransitionSample.rightEdge.left) < 0.5
+          && Math.abs(sample.rightEdge.right - firstTransitionSample.rightEdge.right) < 0.5
+          && Math.abs(sample.track.width - firstTransitionSample.track.width) < 0.5
+        ))
+        && Math.abs(lastTransitionSample.scrollLeft - lastTransitionSample.scrollLimit) < 0.5);
+      if (!transitionStable) {
+        throw new Error(`host Gallery transition shifted: ${JSON.stringify(transitionSamples)}`);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    const penultimateCapture = await host.webContents.capturePage();
+    fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-penultimate.png"), penultimateCapture.toPNG());
+    const penultimateState = await host.webContents.executeJavaScript(
+      `(() => {
+        const rect = document.querySelector('[data-addon-slot="${Math.max(0, registry.list().length - 1)}"]')?.getBoundingClientRect();
+        return rect ? {
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          height: rect.height,
+          scrollLeft: document.querySelector('#deckViewport')?.scrollLeft,
+          scrollLimit: Math.max(0, document.querySelector('#deckViewport').scrollWidth
+            - document.querySelector('#deckViewport').clientWidth
+            - window.innerHeight * Math.tan(10 * Math.PI / 180) / 2),
+        } : null;
+      })()`,
+    );
+    if (registry.list().length > 1) {
+      await host.webContents.executeJavaScript("document.querySelector('#nextAddon').click()");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const lastCardState = await host.webContents.executeJavaScript(
+      `(() => {
+        const last = document.querySelector('[data-addon-slot="${Math.max(0, registry.list().length - 1)}"]')?.getBoundingClientRect();
+        const leftEdge = document.querySelector('[data-fixed-edge="left"]')?.getBoundingClientRect();
+        const rightEdge = document.querySelector('[data-fixed-edge="right"]')?.getBoundingClientRect();
+        const initialEdges = ${JSON.stringify(fixedEdgeState)};
+        const initialLastState = ${JSON.stringify(penultimateState)};
+        const fixedEdgesStable = Boolean(leftEdge && rightEdge
+          && leftEdge.left === initialEdges.left.left
+          && leftEdge.right === initialEdges.left.right
+          && leftEdge.width === initialEdges.left.width
+          && rightEdge.left === initialEdges.right.left
+          && rightEdge.right === initialEdges.right.right
+          && rightEdge.width === initialEdges.right.width);
+        return {
+          ready: Boolean(
+          document.querySelectorAll('.addon-panel.active').length === 1
+          && document.querySelector('[data-addon-slot="${Math.max(0, registry.list().length - 1)}"].active')
+          && fixedEdgesStable
+          && !document.querySelector('.install-panel, .track-install-button, #installAddon')
+          && last
+          && initialLastState
+          && last.left < initialLastState.left
+          && Math.abs(last.right - initialLastState.right) < .5
+          && last.width > initialLastState.width
+          && last.height === initialLastState.height
+          && Math.abs(initialLastState.scrollLeft - initialLastState.scrollLimit) < .5
+          && Math.abs(document.querySelector('#deckViewport').scrollLeft - initialLastState.scrollLeft) < .5
+          && window.scrollX === 0
+          ),
+          last: last ? { left: last.left, right: last.right, width: last.width } : null,
+          fixedEdgesStable,
+          initialLastState,
+          scroll: {
+            left: document.querySelector('#deckViewport')?.scrollLeft,
+            width: document.querySelector('#deckViewport')?.scrollWidth,
+            client: document.querySelector('#deckViewport')?.clientWidth,
+          },
+          active: document.querySelector('.addon-panel.active')?.dataset.addonSlot || null,
+        };
+      })()`,
+    );
+    if (!lastCardState.ready) throw new Error(`host last-card expansion failed: ${JSON.stringify(lastCardState)}`);
+    const lastCapture = await host.webContents.capturePage();
+    fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-last.png"), lastCapture.toPNG());
+    await host.webContents.executeJavaScript(
+      `Array.from({ length: ${registry.list().length} }, () => document.querySelector('#previousAddon').click())`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  }
   for (const manifest of manifests) await runAddonRoundTrip(manifest);
 }
 

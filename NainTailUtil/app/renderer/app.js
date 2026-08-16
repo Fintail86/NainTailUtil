@@ -1,36 +1,84 @@
 "use strict";
 
 const host = window.nainTailHost;
-const grid = document.querySelector("#addonGrid");
-let slots = [];
+const track = document.querySelector("#deckTrack");
+const viewport = document.querySelector("#deckViewport");
+const indexLabel = document.querySelector("#deckIndex");
+const previous = document.querySelector("#previousAddon");
+const next = document.querySelector("#nextAddon");
 const notice = document.querySelector("#hostNotice");
+const settingsDialog = document.querySelector("#settingsDialog");
+const veil = document.querySelector("#launchVeil");
+const veilMark = document.querySelector("#veilMark");
+const veilTitle = document.querySelector("#veilTitle");
 const outputMode = document.querySelector("#outputMode");
 const outputPath = document.querySelector("#outputPath");
 const openOutputFolder = document.querySelector("#openOutputFolder");
 const selectOutputFolder = document.querySelector("#selectOutputFolder");
 const resetOutputFolder = document.querySelector("#resetOutputFolder");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+const addonRoles = Object.freeze({
+  naitail: "NOVELAI ADD-ON",
+  animatail: "LOCAL STUDIO",
+  gallerytail: "OUTPUT BROWSER",
+  censortail: "LOCAL CENSOR",
+});
+
+let addons = [];
+let selected = 0;
+let refreshing = false;
+let scrollFrame = 0;
+let noticeTimer = 0;
+let wheelAccumulator = 0;
+let wheelResetTimer = 0;
+let wheelLocked = false;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function splitWordmark(name) {
+  const match = String(name).match(/^(.*?)(Tail)$/u);
+  return match && match[1] ? [match[1], match[2]] : [String(name)];
+}
+
+function stateShape(state) {
+  const shape = el("span", `state-shape state-${state}`);
+  shape.setAttribute("aria-hidden", "true");
+  return shape;
+}
+
+function addonViewModel(addon, index, installedIds) {
+  const missing = (addon.requires || []).filter((id) => !installedIds.has(id));
+  return {
+    ...addon,
+    initial: String(addon.name || addon.id || "?").slice(0, 1).toUpperCase(),
+    words: splitWordmark(addon.name || addon.id),
+    role: addonRoles[addon.id] || "PORTABLE ADD-ON",
+    state: missing.length ? "warning" : "ready",
+    status: missing.length ? `필수 애드온 없음 · ${missing.join(", ")}` : "실행 가능",
+    meta: `${addon.builtIn ? "내장 애드온" : "연결 애드온"} · v${addon.version}`,
+    theme: `theme-${index % 6}`,
+  };
+}
+
+function showNotice(message, error = false) {
+  clearTimeout(noticeTimer);
+  notice.textContent = message || "";
+  notice.classList.toggle("error", error);
+  notice.classList.toggle("show", Boolean(message));
+  if (message) noticeTimer = setTimeout(() => notice.classList.remove("show"), 2600);
+}
 
 function renderOutputSettings(settings) {
   outputMode.textContent = settings.mode === "custom" ? "사용자 지정" : "기본 위치";
   outputPath.textContent = settings.outputRoot;
   outputPath.title = settings.outputRoot;
   resetOutputFolder.disabled = settings.mode !== "custom";
-}
-
-async function runOutputAction(action) {
-  for (const button of [openOutputFolder, selectOutputFolder, resetOutputFolder]) button.disabled = true;
-  try {
-    const response = await action();
-    if (!response?.ok) throw new Error(response?.error?.message || "출력 폴더를 처리하지 못했다.");
-    renderOutputSettings(response.result);
-    showNotice("공용 출력 폴더 설정을 갱신했다.");
-  } catch (error) {
-    showNotice(error.message, true);
-  } finally {
-    openOutputFolder.disabled = false;
-    selectOutputFolder.disabled = false;
-    resetOutputFolder.disabled = outputMode.textContent !== "사용자 지정";
-  }
 }
 
 async function refreshOutputSettings() {
@@ -40,80 +88,195 @@ async function refreshOutputSettings() {
   renderOutputSettings(response.result);
 }
 
-function renderSlots(count) {
-  const slotCount = Math.max(3, count);
-  grid.style.setProperty("--addon-columns", String(Math.min(slotCount, 4)));
-  slots = Array.from({ length: slotCount }, (_value, index) => {
-    const slot = document.createElement("li");
-    slot.className = "addon-slot";
-    slot.dataset.addonSlot = String(index);
-    grid.append(slot);
-    return slot;
+async function runOutputAction(action, successMessage) {
+  for (const button of [openOutputFolder, selectOutputFolder, resetOutputFolder]) button.disabled = true;
+  try {
+    const response = await action();
+    if (!response?.ok) throw new Error(response?.error?.message || "출력 폴더를 처리하지 못했다.");
+    renderOutputSettings(response.result);
+    showNotice(successMessage);
+  } catch (error) {
+    showNotice(error.message, true);
+  } finally {
+    openOutputFolder.disabled = false;
+    selectOutputFolder.disabled = false;
+    resetOutputFolder.disabled = outputMode.textContent !== "사용자 지정";
+  }
+}
+
+function addonPanels() {
+  return Array.from(track.querySelectorAll(".addon-panel"));
+}
+
+function focusItems() {
+  return addonPanels();
+}
+
+function resolvedDeckWidth(property) {
+  const probe = el("span");
+  probe.style.cssText = `position:fixed;visibility:hidden;pointer-events:none;width:var(${property});`;
+  document.body.append(probe);
+  const width = probe.getBoundingClientRect().width;
+  probe.remove();
+  return width;
+}
+
+function animateViewportTo(left, animate = true) {
+  cancelAnimationFrame(scrollFrame);
+  const startLeft = viewport.scrollLeft;
+  const distance = left - startLeft;
+  if (!animate || reducedMotion.matches || Math.abs(distance) < 0.5) {
+    viewport.scrollLeft = left;
+    return;
+  }
+  const started = performance.now();
+  const duration = 300;
+  const move = (now) => {
+    const progress = Math.min(1, (now - started) / duration);
+    const eased = 1 - (1 - progress) ** 3;
+    viewport.scrollLeft = startLeft + distance * eased;
+    if (progress < 1) scrollFrame = requestAnimationFrame(move);
+    else viewport.scrollLeft = left;
+  };
+  scrollFrame = requestAnimationFrame(move);
+}
+
+function centerSelected(focus, animate = true) {
+  const item = focusItems()[selected];
+  if (!item) return;
+  const collapsed = resolvedDeckWidth("--collapsed");
+  const expanded = resolvedDeckWidth("--expanded");
+  const skewHalf = resolvedDeckWidth("--skew-half");
+  const trackStyle = getComputedStyle(track);
+  const paddingLeft = Number.parseFloat(trackStyle.paddingLeft) || 0;
+  const paddingRight = Number.parseFloat(trackStyle.paddingRight) || 0;
+  const baseWidth = paddingLeft + paddingRight + expanded + Math.max(0, addons.length - 1) * collapsed;
+  const activeWidth = expanded + Math.max(0, viewport.clientWidth - baseWidth);
+  const target = paddingLeft + selected * collapsed + activeWidth / 2 - viewport.clientWidth / 2;
+  const limit = Math.max(0, viewport.scrollWidth - viewport.clientWidth - skewHalf);
+  const atRightEdge = selected >= addons.length - 2;
+  const left = atRightEdge ? limit : Math.max(0, Math.min(target, limit));
+  animateViewportTo(left, animate);
+  if (focus) {
+    item.querySelector(".panel-select")?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }
+}
+
+function selectAddon(index, focus = false) {
+  if (!addons.length) {
+    selected = 0;
+    indexLabel.textContent = "+";
+    previous.disabled = true;
+    next.disabled = true;
+    return;
+  }
+  const previousSelected = selected;
+  const nextSelected = Math.max(0, Math.min(index, addons.length - 1));
+  const preservedScrollLeft = viewport.scrollLeft;
+  const preserveRightEdge = nextSelected === addons.length - 1
+    && previousSelected === addons.length - 2;
+  selected = nextSelected;
+  addonPanels().forEach((panel, panelIndex) => {
+    const active = panelIndex === selected;
+    panel.classList.toggle("active", active);
+    panel.querySelector(".panel-select")?.setAttribute("aria-pressed", String(active));
   });
-}
-
-function showNotice(message, error = false) {
-  notice.textContent = message || "";
-  notice.classList.toggle("error", error);
-}
-
-function placeholder(slot, index) {
-  const card = document.createElement("div");
-  card.className = "addon-placeholder";
-  const copy = document.createElement("div");
-  const mark = document.createElement("span");
-  const label = document.createElement("small");
-  mark.textContent = "+";
-  label.textContent = `애드온 슬롯 ${index + 1} · 비어 있음`;
-  copy.append(mark, label);
-  card.append(copy);
-  slot.replaceChildren(card);
-}
-
-function addonCard(slot, addon) {
-  const card = document.createElement("button");
-  card.type = "button";
-  card.className = "addon-card";
-  card.dataset.addonId = addon.id;
-  card.setAttribute("aria-label", `${addon.name} 열기`);
-
-  const visual = document.createElement("span");
-  visual.className = "addon-visual";
-  const glyph = document.createElement("span");
-  glyph.className = "addon-glyph";
-  glyph.textContent = addon.name.slice(0, 1).toUpperCase();
-  visual.append(glyph);
-
-  const copy = document.createElement("span");
-  copy.className = "addon-copy";
-  const identity = document.createElement("span");
-  const name = document.createElement("strong");
-  const meta = document.createElement("small");
-  name.textContent = addon.name;
-  meta.textContent = `${addon.builtIn ? "내장 애드온" : "애드온"} · v${addon.version}`;
-  identity.append(name, meta);
-  const open = document.createElement("span");
-  open.className = "addon-open";
-  open.textContent = "열기 →";
-  copy.append(identity, open);
-  card.append(visual, copy);
-
-  card.addEventListener("click", async () => {
-    card.disabled = true;
-    showNotice(`${addon.name}을 여는 중…`);
-    try {
-      const response = await host.openAddon(addon.id);
-      if (!response?.ok) throw new Error(response?.error?.message || "애드온을 열지 못했다.");
-    } catch (error) {
-      showNotice(error.message, true);
-    } finally {
-      card.disabled = false;
+  indexLabel.textContent = `${selected + 1} / ${addons.length}`;
+  previous.disabled = selected === 0;
+  next.disabled = selected === addons.length - 1;
+  if (preserveRightEdge) {
+    cancelAnimationFrame(scrollFrame);
+    viewport.scrollLeft = preservedScrollLeft;
+    if (focus) {
+      addonPanels()[selected]?.querySelector(".panel-select")?.focus({ preventScroll: true });
+      window.scrollTo(0, 0);
     }
-  });
-  slot.replaceChildren(card);
+    return;
+  }
+  centerSelected(focus);
 }
 
-let refreshing = false;
+function setVeil(addon, on) {
+  veil.className = `launch-veil ${addon?.theme || "theme-0"}${on ? " on" : ""}`;
+  veil.setAttribute("aria-hidden", String(!on));
+  if (addon) {
+    veilMark.textContent = addon.initial;
+    veilTitle.textContent = `${addon.name} 실행 중…`;
+  }
+}
+
+async function launchAddon(index) {
+  const addon = addons[index];
+  if (!addon || !host?.openAddon) return;
+  selectAddon(index);
+  const button = track.querySelector(`[data-addon-id="${addon.id}"]`);
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
+  setVeil(addon, true);
+  try {
+    const response = await host.openAddon(addon.id);
+    if (!response?.ok) throw new Error(response?.error?.message || "애드온을 열지 못했다.");
+  } catch (error) {
+    showNotice(error.message, true);
+  } finally {
+    setVeil(addon, false);
+    if (button) button.disabled = false;
+  }
+}
+
+function renderAddon(addon, index) {
+  const item = el("li", `addon-panel ${addon.theme}`);
+  item.dataset.addonSlot = String(index);
+
+  const surface = el("article", "panel-surface");
+  const select = el("button", "panel-select");
+  select.type = "button";
+  select.setAttribute("aria-label", `${addon.name} 선택`);
+  select.setAttribute("aria-pressed", "false");
+  select.addEventListener("click", () => selectAddon(index));
+
+  const wordmark = el("div", "panel-wordmark");
+  wordmark.setAttribute("aria-hidden", "true");
+  addon.words.forEach((word) => wordmark.append(el("span", "", word)));
+
+  const summary = el("div", "panel-summary");
+  summary.append(
+    el("span", "summary-mark", addon.initial),
+    el("strong", "summary-name", addon.name),
+    el("span", "summary-role", addon.role),
+  );
+
+  const detail = el("div", "panel-detail");
+  const status = el("div", "detail-status");
+  status.append(stateShape(addon.state), el("span", "", addon.status));
+  const launch = el("button", "launch-button", "런치");
+  launch.type = "button";
+  launch.dataset.addonId = addon.id;
+  launch.addEventListener("click", (event) => {
+    event.stopPropagation();
+    launchAddon(index);
+  });
+  detail.append(
+    el("div", "detail-mark", addon.initial),
+    el("h2", "detail-name", addon.name),
+    el("p", "detail-role", addon.role),
+    status,
+    el("div", "detail-meta", addon.meta),
+    launch,
+  );
+  surface.append(wordmark, summary, detail);
+  item.append(surface, select);
+  return item;
+}
+
+function renderAddons(rawAddons, preferredId = null) {
+  const installedIds = new Set(rawAddons.map((addon) => addon.id));
+  addons = rawAddons.map((addon, index) => addonViewModel(addon, index, installedIds));
+  track.replaceChildren(...addons.map(renderAddon));
+  const preferredIndex = addons.findIndex((addon) => addon.id === preferredId);
+  selectAddon(preferredIndex >= 0 ? preferredIndex : Math.min(selected, Math.max(0, addons.length - 1)));
+}
 
 async function refreshAddons() {
   if (refreshing) return;
@@ -123,15 +286,11 @@ async function refreshAddons() {
     refreshing = false;
     return;
   }
+  const selectedId = addons[selected]?.id || null;
   try {
     const response = await host.listAddons();
     if (!response?.ok) throw new Error(response?.error?.message || "애드온 목록을 읽지 못했다.");
-    const addons = response.result || [];
-    grid.replaceChildren();
-    renderSlots(addons.length);
-    slots.forEach(placeholder);
-    addons.forEach((addon, index) => addonCard(slots[index], addon));
-    showNotice(addons.length ? `${addons.length}개의 애드온을 사용할 수 있다.` : "설치된 애드온이 없다.");
+    renderAddons(response.result || [], selectedId);
   } catch (error) {
     showNotice(error.message, true);
   } finally {
@@ -139,14 +298,69 @@ async function refreshAddons() {
   }
 }
 
-renderSlots(3);
-slots.forEach(placeholder);
-refreshAddons();
-refreshOutputSettings().catch((error) => showNotice(error.message, true));
-openOutputFolder.addEventListener("click", () => runOutputAction(() => host.openOutputFolder()));
-selectOutputFolder.addEventListener("click", () => runOutputAction(() => host.selectOutputFolder()));
-resetOutputFolder.addEventListener("click", () => runOutputAction(() => host.resetOutputFolder()));
+previous.addEventListener("click", () => selectAddon(selected - 1, true));
+next.addEventListener("click", () => selectAddon(selected + 1, true));
+document.querySelector("#openSettings").addEventListener("click", async () => {
+  settingsDialog.showModal();
+  try {
+    await refreshOutputSettings();
+  } catch (error) {
+    showNotice(error.message, true);
+  }
+});
+
+document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+  button.addEventListener("click", () => button.closest("dialog").close());
+});
+
+document.querySelectorAll("dialog").forEach((dialog) => {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+});
+
+openOutputFolder.addEventListener("click", () => runOutputAction(() => host.openOutputFolder(), "공용 출력 폴더를 열었다."));
+selectOutputFolder.addEventListener("click", () => runOutputAction(() => host.selectOutputFolder(), "공용 출력 폴더 설정을 갱신했다."));
+resetOutputFolder.addEventListener("click", () => runOutputAction(() => host.resetOutputFolder(), "기본 출력 폴더로 복원했다."));
+
+viewport.addEventListener("wheel", (event) => {
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  event.preventDefault();
+  clearTimeout(wheelResetTimer);
+  wheelAccumulator += delta;
+  wheelResetTimer = setTimeout(() => { wheelAccumulator = 0; }, 140);
+  if (wheelLocked || Math.abs(wheelAccumulator) < 44) return;
+  const direction = wheelAccumulator > 0 ? 1 : -1;
+  wheelAccumulator = 0;
+  wheelLocked = true;
+  selectAddon(selected + direction, true);
+  setTimeout(() => { wheelLocked = false; }, 240);
+}, { passive: false });
+
+document.addEventListener("keydown", (event) => {
+  if (document.querySelector("dialog[open]")) return;
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    selectAddon(selected - 1, true);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    selectAddon(selected + 1, true);
+  } else if (event.key === "Enter" && (!event.target.closest("button") || event.target.matches(".panel-select"))) {
+    event.preventDefault();
+    launchAddon(selected);
+  } else if (/^[1-9]$/u.test(event.key)) {
+    const index = Number(event.key) - 1;
+    if (index < addons.length) selectAddon(index, true);
+  }
+});
+
+window.addEventListener("resize", () => centerSelected(false, false));
 window.addEventListener("focus", refreshAddons);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refreshAddons();
 });
+
+renderAddons([]);
+refreshAddons();
+refreshOutputSettings().catch((error) => showNotice(error.message, true));

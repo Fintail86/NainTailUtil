@@ -9,29 +9,81 @@
 </head>
 <body>
   <main class="host-home" data-host-home>
-    <header class="host-heading">
-      <span class="host-kicker">PORTABLE CREATIVE HOST</span>
-      <h1><span class="host-mark">N</span>NainTail</h1>
-      <p>사용할 애드온을 선택해.</p>
-    </header>
-
-    <ol id="addonGrid" class="addon-grid" aria-label="설치된 애드온"></ol>
-
-    <section class="output-settings" aria-labelledby="outputSettingsTitle">
-      <div class="output-copy">
-        <strong id="outputSettingsTitle">공용 출력 폴더</strong>
-        <span id="outputMode">기본 위치</span>
-        <code id="outputPath">불러오는 중…</code>
+    <div class="edge-rail edge-rail-left" data-fixed-edge="left" aria-hidden="true"></div>
+    <div class="edge-rail edge-rail-right" data-fixed-edge="right" aria-hidden="true"></div>
+    <section class="launcher" aria-label="설치된 애드온 런처">
+      <button id="previousAddon" class="deck-arrow prev" type="button" aria-label="이전 애드온">‹</button>
+      <div id="deckViewport" class="deck-viewport">
+        <ol id="deckTrack" class="deck-track" aria-label="설치된 애드온"></ol>
       </div>
-      <div class="output-actions">
-        <button id="openOutputFolder" type="button">폴더 열기</button>
-        <button id="selectOutputFolder" type="button">위치 변경</button>
-        <button id="resetOutputFolder" type="button" class="subtle">기본값</button>
-      </div>
+      <button id="nextAddon" class="deck-arrow next" type="button" aria-label="다음 애드온">›</button>
+
+      <footer class="deck-footer">
+        <span id="deckIndex" class="deck-index">—</span>
+        <span class="key-hints"><b>←→ · 휠</b></span>
+      </footer>
     </section>
-
-    <p id="hostNotice" class="host-notice" role="status" aria-live="polite"></p>
   </main>
+
+  <header class="host-brand">
+    <p class="host-kicker">PORTABLE CREATIVE HOST</p>
+    <h1 class="host-title"><span class="host-mark">N</span>NainTail</h1>
+    <button id="openSettings" class="host-settings-button" type="button">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <circle cx="8" cy="8" r="2.3"/>
+        <path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9"/>
+      </svg>
+      호스트 설정
+    </button>
+  </header>
+
+  <dialog id="settingsDialog" aria-labelledby="settingsTitle">
+    <div class="dialog-body">
+      <header class="dialog-head">
+        <div>
+          <h2 id="settingsTitle">호스트 설정</h2>
+          <p>모든 Hosted 애드온이 함께 사용하는 NainTail 설정</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="닫기">×</button>
+      </header>
+      <section class="settings-section" aria-labelledby="outputSettingsTitle">
+        <h3 id="outputSettingsTitle">공용 출력 폴더 <span id="outputMode" class="mode-chip">불러오는 중</span></h3>
+        <p>Hosted 애드온 결과를 애드온별 하위 폴더에 모은다.</p>
+        <div class="path-row">
+          <code id="outputPath" class="path-display">불러오는 중…</code>
+          <button id="openOutputFolder" type="button">폴더 열기</button>
+        </div>
+        <div class="settings-actions">
+          <button id="selectOutputFolder" type="button">위치 변경</button>
+          <button id="resetOutputFolder" class="subtle" type="button" disabled>기본 위치로 복원</button>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="installerDialog" aria-labelledby="installerTitle">
+    <div class="dialog-body">
+      <header class="dialog-head">
+        <div>
+          <h2 id="installerTitle">애드온 추가</h2>
+          <p>포터블 애드온을 NainTail 홈에 연결하는 자리다.</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="닫기">×</button>
+      </header>
+      <section class="installer-pending">
+        <strong>연결 방식 준비 중</strong>
+        <p>현재 빌드는 <code>Addons</code> 폴더에서 애드온을 자동 탐색한다. 폴더 선택·패키지 설치는 설치 계약이 확정된 뒤 이 버튼에 연결한다.</p>
+      </section>
+    </div>
+  </dialog>
+
+  <div id="launchVeil" class="launch-veil" aria-hidden="true">
+    <div id="veilMark" class="veil-mark">N</div>
+    <div id="veilTitle" class="veil-title">애드온 실행 중…</div>
+    <div class="veil-copy">호스트가 애드온 화면을 준비하고 있다</div>
+  </div>
+  <p id="hostNotice" class="toast" role="status" aria-live="polite"></p>
+
   <script src="./app.js"></script>
 </body>
 </html>
