@@ -2,14 +2,14 @@
 
 NainTail의 기본 NovelAI 내장 애드온이다. 기존 NAI 기능 전체를 하나의 두꺼운 모듈로 소유한다.
 
-독립 기준 버전은 `VERSION`, `addon.json`, `package.json`의 `0.1.0`이다. `npm run check`로 버전과
-포터블 entry를 검사하고 `npm run version:set -- <semver>`로 세 파일을 함께 변경한다.
+독립 기준 버전은 `VERSION`, `addon.json`, `package.json`의 `0.1.0`이다. 릴리즈 시 세 파일의
+SemVer를 함께 변경하고 포터블 entry를 검증한다.
 
 - `app/core/`: 작품·프리셋·큐·비용·참조 자산을 포함한 현재 NaiTail Core
 - `app/workers/`: NovelAI 전송 Worker
-- `app/renderer/`: Single, Multi, 작례 연구기, 작품, 프리셋, 설정 UI
-- `app/electron/`: 제한된 IPC와 자격증명 adapter
-- `app/cli/`, `app/mcp/`: headless adapter
+- `dist/renderer/`: Single, Multi, 작례 연구기, 작품, 프리셋, 설정 UI
+- `electron/`: 제한된 IPC와 자격증명 adapter
+- `cli/`, `mcp/`: headless adapter
 
 NainTail 호스트 안에서 실행하거나 `NaiTail.bat`로 단독 실행하는 경우 모두 이 NaiTail 폴더
 자체가 application·data root다. `Projects/`, `Presets/`, `References/`, `outputs/`, `cache/`,
@@ -22,7 +22,7 @@ NainTail 호스트 안에서 실행하거나 `NaiTail.bat`로 단독 실행하�
 - CLI: `NaiTail_CLI.bat`
 - MCP: `NaiTail_MCP.bat`
 - 전용 Electron: `runtime/electron/`
-- Electron 자동 설치: `tools/ensure-electron.cmd`, `electron-runtime-manifest.json`
+- Electron 자동 설치: `bootstrap/ensure-electron.cmd`, `electron-runtime-manifest.json`
 - standalone host: `standalone/`
 
 따라서 이 `NaiTail/` 폴더 하나만 다른 Windows 경로로 복사해 상위 NainTailUtil 없이 실행할 수 있다.

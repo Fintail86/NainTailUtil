@@ -3,8 +3,8 @@
 기존 AnimaUtil의 로컬 Anima 생성, Python/CUDA Worker, 모델과 프리셋을 소유하는 NainTail의
 두 번째 내장 애드온이다. 갤러리는 GalleryTail, 자동검열은 CensorTail로 분리했다.
 
-독립 기준 버전은 `VERSION`, `addon.json`, `package.json`의 `0.1.0`이다. `npm run check`로 버전과
-포터블 entry를 검사하고 `npm run version:set -- <semver>`로 세 파일을 함께 변경한다.
+독립 기준 버전은 `VERSION`, `addon.json`, `package.json`의 `0.1.0`이다. 릴리즈 시 세 파일의
+SemVer를 함께 변경하고 포터블 entry를 검증한다.
 
 - `electron/`: NainTail 애드온 lifecycle과 Anima IPC adapter
 - `dist/renderer/`: AnimaTail GUI
@@ -23,7 +23,7 @@
 - CLI: `AnimaTail_CLI.bat`
 - MCP: `AnimaTail_MCP.bat`
 - 전용 Electron: `runtime/electron/`
-- Electron 자동 설치: `tools/ensure-electron.cmd`, `electron-runtime-manifest.json`
+- Electron 자동 설치: `bootstrap/ensure-electron.cmd`, `electron-runtime-manifest.json`
 - standalone host: `standalone/`
 
 이 `AnimaTail/` 폴더 하나에 Electron, Python/CUDA, 모델·LoRA, 프리셋과 출력이 모두 들어 있다.

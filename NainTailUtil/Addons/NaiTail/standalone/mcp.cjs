@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("node:path");
-const { shutdown, start } = require("../app/mcp/main.cjs");
+const { shutdown, start } = require("../mcp/main.cjs");
 
 try {
   start({

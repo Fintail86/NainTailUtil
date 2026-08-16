@@ -19,12 +19,14 @@
 | 문서 | 범위 |
 |---|---|
 | [`ADDON_DEVELOPMENT_CONTRACT.md`](ADDON_DEVELOPMENT_CONTRACT.md) | Hosted·Standalone 애드온 개발 계약 |
+| [`ADDON_DIRECTORY_STANDARD.md`](ADDON_DIRECTORY_STANDARD.md) | 애드온 공통 배포 폴더와 마이그레이션 표준 |
 | [`ADDON_OUTPUT_CONTRACT.md`](ADDON_OUTPUT_CONTRACT.md) | 실행 형태별 애드온 출력 위치·주입·경계 계약 |
 | [`ADDON_MCP_PROFILE.md`](ADDON_MCP_PROFILE.md) | 애드온 MCP 공통 명령·상태·job·결과 계약 |
 | [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md) | 전체 제품 구조와 개발 계획 |
 | [`MCP.md`](MCP.md) | 범용 MCP host와 NaiTail·AnimaTail 등록 방식 |
 | [`MVP_RESULT.md`](MVP_RESULT.md) | 전체 MVP 구현·검증 결과 |
 | [`UI_SYSTEM.md`](UI_SYSTEM.md) | 호스트와 모든 애드온에 적용되는 공통 UI 계약 |
+| [`TAIL_HEADER_CONTRACT.md`](TAIL_HEADER_CONTRACT.md) | 네 애드온의 R-01~R-08 공용 상단 헤더 계약 |
 
 ## 관리 규칙
 

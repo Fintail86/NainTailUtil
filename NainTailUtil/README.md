@@ -42,8 +42,8 @@ Tags를 저장·복원하고 같은 값으로 API payload를 만든다. 구형 �
 - NaiTail manifest: `Addons/NaiTail/addon.json`
 - NaiTail Core: `Addons/NaiTail/app/core/`
 - NAI Worker: `Addons/NaiTail/app/workers/nai/`
-- NaiTail Electron adapter: `Addons/NaiTail/app/electron/`
-- NaiTail Renderer: `Addons/NaiTail/app/renderer/`
+- NaiTail Electron adapter: `Addons/NaiTail/electron/`
+- NaiTail Renderer: `Addons/NaiTail/dist/renderer/`
 - AnimaTail manifest: `Addons/AnimaTail/addon.json`
 - AnimaTail Electron adapter/GUI: `Addons/AnimaTail/electron/`, `Addons/AnimaTail/dist/renderer/`
 - AnimaTail Python/CUDA Worker: `Addons/AnimaTail/app/`
@@ -135,7 +135,7 @@ Addons/CensorTail/CensorTail_MCP.bat
 각 폴더의 `runtime/electron/`이 전용 Electron을 제공한다. standalone과 NainTail host 실행 모두
 해당 애드온 폴더를 application/data root로 사용하되 output root는 분리한다. Hosted에서는 호스트가
 주입한 공용 runtime, service와 `outputs/<addonId>/`를 우선하고, standalone에서는 애드온 로컬
-runtime과 `outputs/`를 사용한다. 로컬 Electron이 없으면 각 폴더의 `tools/ensure-electron.cmd`가
+runtime과 `outputs/`를 사용한다. 로컬 Electron이 없으면 각 폴더의 `bootstrap/ensure-electron.cmd`가
 공식 배포본을 검증·설치한다. 시스템 Node나 Python은 필요하지 않다.
 CensorTail은 GUI와 MCP standalone을 제공한다.
 

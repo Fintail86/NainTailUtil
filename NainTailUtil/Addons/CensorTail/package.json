@@ -3,12 +3,5 @@
   "version": "0.1.0",
   "private": true,
   "description": "Portable standalone CensorTail utility and NainTail addon",
-  "main": "standalone/main.cjs",
-  "scripts": {
-    "check": "node tools/check.cjs",
-    "dev:setup": "node tools/dev-setup.cjs",
-    "dev:status": "node tools/dev-setup.cjs --check",
-    "test": "node --test tools/verify-dev-assets.cjs",
-    "version:set": "node tools/version.cjs"
-  }
+  "main": "standalone/main.cjs"
 }

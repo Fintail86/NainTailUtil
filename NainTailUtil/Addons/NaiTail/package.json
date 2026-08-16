@@ -3,9 +3,5 @@
   "version": "0.1.0",
   "private": true,
   "description": "Portable standalone NaiTail utility and NainTail addon",
-  "main": "standalone/main.cjs",
-  "scripts": {
-    "check": "node tools/check.cjs",
-    "version:set": "node tools/version.cjs"
-  }
+  "main": "standalone/main.cjs"
 }

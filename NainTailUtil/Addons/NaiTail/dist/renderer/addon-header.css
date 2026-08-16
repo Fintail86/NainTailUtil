@@ -1,0 +1,30 @@
+@import "./tail-header-tokens.css";
+@import "./tail-header.css";
+
+.header-meta .dirty-indicator {
+  max-width: 150px;
+  padding: 6px 9px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 196, 107, 0.28);
+  border-radius: 9px;
+  background: rgba(255, 196, 107, 0.08);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell > .notice {
+  position: fixed;
+  z-index: 100;
+  top: 72px;
+  right: 18px;
+  display: none;
+  max-width: min(440px, calc(100vw - 36px));
+  min-height: 0;
+  border: 1px solid var(--border-default);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.36);
+}
+
+.shell > .notice.show,
+.shell > .notice.error {
+  display: block;
+}

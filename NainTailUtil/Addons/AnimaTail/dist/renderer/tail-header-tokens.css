@@ -1,0 +1,30 @@
+:root {
+  --slotA: 176px;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --alert: #f87171;
+  --nai: #ff7a45;
+  --anima: #8b7cf6;
+  --gallery: #b9aefc;
+  --censor: #c26bf0;
+  --mono: "JetBrains Mono Variable", Consolas, monospace;
+  --sans: "Pretendard Variable", "Segoe UI", sans-serif;
+}
+
+/* Generic mockup names are scoped so they cannot recolor an add-on workspace. */
+.tail-header {
+  --bg: #0a0c11;
+  --panel: #10131a;
+  --panel-2: #151923;
+  --line: #232837;
+  --line-soft: #1a1f2b;
+  --text: #e8eaf0;
+  --text-dim: #8b92a5;
+  --text-faint: #5a6175;
+  --tail-accent: var(--nai);
+}
+
+body[data-tail-addon="naitail"] .tail-header { --tail-accent: var(--nai); }
+body[data-tail-addon="animatail"] .tail-header { --tail-accent: var(--anima); }
+body[data-tail-addon="gallerytail"] .tail-header { --tail-accent: var(--gallery); }
+body[data-tail-addon="censortail"] .tail-header { --tail-accent: var(--censor); }

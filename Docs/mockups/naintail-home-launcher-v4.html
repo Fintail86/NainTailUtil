@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NainTail — Home Launcher v4 Mockup</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b090e;
+      --panel: #131019;
+      --line: #2a2432;
+      --text: #f4f0f6;
+      --dim: #9d95a7;
+      --faint: #67606f;
+      --host: #ff7657;
+      --ok: #4ade80;
+      --warn: #fbbf24;
+      --alert: #f87171;
+      --host-safe: clamp(250px, 22vw, 340px);
+      --tool-safe: 0px;
+      --collapsed: clamp(158px, 15vw, 218px);
+      --expanded: clamp(390px, 38vw, 560px);
+      --sans: "Pretendard Variable", Pretendard, "Segoe UI", sans-serif;
+      --mono: "JetBrains Mono Variable", "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(255, 118, 87, .09), transparent 27%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+    }
+
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--host) 76%, white);
+      outline-offset: 3px;
+    }
+
+    .host-brand {
+      position: fixed;
+      z-index: 30;
+      top: 30px;
+      left: 34px;
+      width: calc(var(--host-safe) - 58px);
+    }
+
+    .host-kicker {
+      margin: 0 0 10px;
+      color: var(--host);
+      font: 700 11px/1.2 var(--mono);
+      letter-spacing: .2em;
+    }
+
+    .host-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0;
+      font-size: 27px;
+      line-height: 1.2;
+    }
+
+    .host-mark {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #ff9271, #ff6148);
+      color: #1a0d0a;
+      font-weight: 850;
+      box-shadow: 0 8px 28px rgba(255, 100, 69, .27);
+    }
+
+    .host-description {
+      max-width: 215px;
+      margin: 9px 0 0;
+      color: var(--dim);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .host-settings-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 17px;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(21, 17, 26, .78);
+      color: var(--dim);
+    }
+
+    .host-settings-button:hover {
+      border-color: color-mix(in srgb, var(--host) 48%, var(--line));
+      color: var(--text);
+    }
+
+    .host-settings-button svg { width: 14px; height: 14px; }
+
+    .launcher {
+      position: fixed;
+      inset: 0;
+    }
+
+    .deck-viewport {
+      position: absolute;
+      inset: 0 var(--tool-safe) 0 var(--host-safe);
+      overflow-x: hidden;
+      overflow-y: hidden;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      cursor: default;
+    }
+
+    .deck-viewport::-webkit-scrollbar { display: none; }
+    .deck-track {
+      display: flex;
+      width: max-content;
+      min-width: 100%;
+      height: 100%;
+      align-items: stretch;
+      gap: 0;
+      margin: 0;
+      padding: 0 42px;
+      list-style: none;
+    }
+
+    .addon-panel {
+      position: relative;
+      flex: 0 0 var(--collapsed);
+      width: var(--collapsed);
+      height: 100%;
+      margin-left: -31px;
+      overflow: hidden;
+      background: #060508;
+      clip-path: polygon(15% 0, 100% 0, 85% 100%, 0 100%);
+      transition: width .32s cubic-bezier(.2, .8, .2, 1), flex-basis .32s cubic-bezier(.2, .8, .2, 1);
+      scroll-snap-align: center;
+    }
+
+    .addon-panel:first-child { margin-left: 0; }
+    .addon-panel.active { flex-basis: var(--expanded); width: var(--expanded); }
+
+    .panel-surface {
+      position: absolute;
+      inset: 0 2px;
+      overflow: hidden;
+      clip-path: inherit;
+      background:
+        linear-gradient(155deg,
+          color-mix(in srgb, var(--accent) 29%, #16121b) 0%,
+          color-mix(in srgb, var(--accent) 18%, #0c0910) 100%);
+      filter: saturate(.55) brightness(.62);
+      transition: filter .26s ease, background .26s ease;
+    }
+
+    .addon-panel:hover .panel-surface {
+      filter: saturate(.7) brightness(.75);
+    }
+
+    .addon-panel.active .panel-surface {
+      background:
+        linear-gradient(155deg,
+          color-mix(in srgb, var(--accent) 87%, white 3%) 0%,
+          color-mix(in srgb, var(--accent) 72%, black 28%) 100%);
+      filter: none;
+    }
+
+    .panel-select {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      clip-path: inherit;
+    }
+
+    .panel-select:focus-visible {
+      outline: none;
+    }
+
+    .addon-panel:has(.panel-select:focus-visible) .panel-surface {
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .62);
+    }
+
+    .panel-wordmark {
+      position: absolute;
+      z-index: 0;
+      top: 50%;
+      left: 50%;
+      width: 128%;
+      color: white;
+      font-size: clamp(204px, 30vw, 460px);
+      font-weight: 900;
+      letter-spacing: -.085em;
+      line-height: .72;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-51%, -50%) rotate(-3deg);
+      transition: opacity .28s ease;
+      user-select: none;
+    }
+
+    .panel-wordmark.long { font-size: clamp(156px, 22vw, 340px); }
+    .addon-panel.active .panel-wordmark { opacity: .12; }
+    .panel-wordmark span { display: block; }
+
+    .panel-summary {
+      position: absolute;
+      z-index: 3;
+      top: 50%;
+      left: 50%;
+      display: grid;
+      width: min(156px, calc(100% - 26px));
+      grid-template-columns: 30px minmax(0, 1fr) 14px;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 11px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 10px;
+      background: rgba(10, 8, 14, .72);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transition: opacity .18s ease;
+    }
+
+    .addon-panel.active .panel-summary { opacity: 0; }
+
+    .summary-mark, .detail-mark {
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .3);
+      background: rgba(255, 255, 255, .12);
+      color: white;
+      font-weight: 800;
+    }
+
+    .summary-mark { width: 30px; height: 30px; border-radius: 8px; }
+    .summary-copy { min-width: 0; }
+    .summary-name, .summary-role {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .summary-name { font-size: 13px; font-weight: 750; }
+    .summary-role {
+      margin-top: 2px;
+      color: rgba(255, 255, 255, .62);
+      font: 650 11px/1.1 var(--mono);
+      letter-spacing: .08em;
+    }
+
+    .state-shape { display: block; width: 10px; height: 10px; background: var(--state-color); }
+    .state-ready { --state-color: var(--ok); border-radius: 50%; }
+    .state-warning { --state-color: var(--warn); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+    .state-alert { --state-color: var(--alert); clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+
+    .panel-detail {
+      position: absolute;
+      z-index: 4;
+      top: 50%;
+      left: 50%;
+      display: flex;
+      width: min(290px, calc(100% - 74px));
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -48%);
+      transition: opacity .18s ease, transform .24s ease;
+    }
+
+    .addon-panel.active .panel-detail {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -50%);
+    }
+
+    .detail-mark {
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      font-size: 24px;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .25);
+    }
+
+    .detail-name {
+      margin: 0;
+      font-size: 25px;
+      line-height: 1.15;
+      text-shadow: 0 2px 16px rgba(0, 0, 0, .32);
+    }
+
+    .detail-role {
+      margin: -4px 0 0;
+      color: rgba(255, 255, 255, .72);
+      font: 700 11px/1.2 var(--mono);
+      letter-spacing: .16em;
+    }
+
+    .detail-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 255, 255, .13);
+      border-radius: 16px;
+      background: rgba(10, 8, 14, .7);
+      font-size: 12px;
+    }
+
+    .detail-meta {
+      color: rgba(255, 255, 255, .57);
+      font: 11px/1.3 var(--mono);
+    }
+
+    .launch-button {
+      min-width: 128px;
+      margin-top: 6px;
+      padding: 11px 22px;
+      border: 1px solid rgba(255, 255, 255, .5);
+      border-radius: 10px;
+      background: rgba(10, 8, 14, .74);
+      color: white;
+      font-weight: 750;
+      letter-spacing: .12em;
+      pointer-events: auto;
+    }
+
+    .launch-button:hover { background: rgba(255, 255, 255, .17); }
+
+    .deck-arrow {
+      position: absolute;
+      z-index: 20;
+      top: 50%;
+      display: grid;
+      width: 36px;
+      height: 50px;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .3);
+      border-radius: 11px;
+      background: rgba(10, 8, 14, .88);
+      color: white;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .25);
+      transform: translateY(-50%);
+    }
+
+    .deck-arrow:hover:not(:disabled) { border-color: rgba(255, 255, 255, .42); color: white; }
+    .deck-arrow:disabled { opacity: .22; cursor: default; }
+    .deck-arrow.prev { left: calc(var(--host-safe) + 8px); }
+    .deck-arrow.next { right: calc(var(--tool-safe) + 8px); }
+
+    .install-panel {
+      position: relative;
+      flex: 0 0 92px;
+      width: 92px;
+      height: 100%;
+      margin-left: -31px;
+      overflow: hidden;
+      background: #060508;
+      clip-path: polygon(28% 0, 100% 0, 72% 100%, 0 100%);
+      scroll-snap-align: center;
+    }
+
+    .track-install-button {
+      position: absolute;
+      inset: 0 2px;
+      display: grid;
+      width: calc(100% - 4px);
+      place-items: center;
+      padding: 0;
+      border: 0;
+      background: linear-gradient(180deg, #242129, #16131a);
+      color: #8c8592;
+      clip-path: inherit;
+      transition: background .18s ease, color .18s ease;
+    }
+
+    .track-install-button span {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border: 1.5px dashed #6f6876;
+      border-radius: 50%;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .install-panel.active .track-install-button,
+    .track-install-button:hover,
+    .track-install-button:focus-visible {
+      background: linear-gradient(180deg, #35313b, #211d26);
+      color: white;
+    }
+
+    .track-install-button:focus-visible { outline: none; }
+
+    .install-panel.active .track-install-button span,
+    .track-install-button:hover span,
+    .track-install-button:focus-visible span {
+      border-color: #d2ccd7;
+      background: rgba(255, 255, 255, .06);
+      color: white;
+    }
+
+    .deck-footer {
+      position: fixed;
+      z-index: 25;
+      right: 22px;
+      bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .deck-index, .key-hints {
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 18px;
+      background: rgba(10, 8, 14, .72);
+      color: var(--dim);
+      font: 11px/1 var(--mono);
+      backdrop-filter: blur(8px);
+    }
+
+    .deck-index { min-width: 58px; padding: 8px 10px; color: white; text-align: center; }
+    .key-hints { padding: 8px 13px; }
+    .key-hints b { color: white; font-weight: 650; }
+
+    dialog {
+      width: min(520px, calc(100vw - 32px));
+      padding: 0;
+      border: 1px solid #3a3244;
+      border-radius: 16px;
+      background: #141019;
+      color: var(--text);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .58);
+    }
+
+    dialog::backdrop { background: rgba(5, 4, 7, .72); backdrop-filter: blur(5px); }
+    .dialog-body { padding: 22px; }
+    .dialog-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+    .dialog-head h2 { margin: 0; font-size: 18px; }
+    .dialog-head p { margin: 5px 0 0; color: var(--dim); font-size: 12px; }
+    .dialog-close {
+      width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px;
+      background: transparent; color: var(--dim);
+    }
+
+    .settings-section {
+      margin-top: 20px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .025);
+    }
+
+    .settings-section h3 { margin: 0 0 5px; font-size: 14px; }
+    .settings-section > p { margin: 0 0 13px; color: var(--dim); font-size: 12px; }
+    .path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .path-display {
+      min-width: 0; padding: 9px 10px; overflow: hidden; border: 1px solid var(--line);
+      border-radius: 8px; background: #0d0a10; color: #c4bccb; font: 11px/1.4 var(--mono);
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .settings-actions button, .path-row button {
+      padding: 8px 10px; border: 1px solid #3a3244; border-radius: 8px;
+      background: #24202b; color: #ddd6e2;
+    }
+    .settings-actions button.subtle { background: transparent; color: var(--dim); }
+    .mode-chip { display: inline-block; margin-left: 6px; color: var(--host); font: 11px/1 var(--mono); }
+
+    .installer-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .installer-options button {
+      min-height: 90px; padding: 14px; border: 1px solid var(--line); border-radius: 12px;
+      background: rgba(255, 255, 255, .035); text-align: left;
+    }
+    .installer-options button:hover { border-color: color-mix(in srgb, var(--host) 55%, var(--line)); }
+    .installer-options strong, .installer-options small { display: block; }
+    .installer-options small { margin-top: 6px; color: var(--dim); font-size: 11px; line-height: 1.45; }
+
+    .launch-veil {
+      position: fixed;
+      z-index: 80;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      background: color-mix(in srgb, var(--veil, #17121b) 84%, black 16%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+
+    .launch-veil.on { opacity: 1; pointer-events: auto; }
+    .veil-mark {
+      display: grid; width: 68px; height: 68px; place-items: center;
+      border: 2px solid rgba(255, 255, 255, .5); border-radius: 18px;
+      background: rgba(255, 255, 255, .13); font-size: 28px; font-weight: 850;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    .veil-title { font-size: 16px; font-weight: 700; }
+    .veil-copy { color: rgba(255, 255, 255, .62); font: 11px/1.2 var(--mono); }
+    @keyframes pulse { 50% { transform: scale(1.06); } }
+
+    .toast {
+      position: fixed;
+      z-index: 90;
+      left: 50%;
+      bottom: 66px;
+      max-width: min(460px, calc(100vw - 32px));
+      padding: 10px 14px;
+      border: 1px solid #3a3244;
+      border-radius: 10px;
+      background: #18131d;
+      color: #ded8e2;
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 6px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1100px) {
+      :root { --host-safe: 250px; --tool-safe: 0px; --expanded: 390px; --collapsed: 158px; }
+      .host-brand { left: 26px; width: 195px; }
+      .key-hints { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="host-brand">
+    <p class="host-kicker">PORTABLE CREATIVE HOST</p>
+    <h1 class="host-title"><span class="host-mark">N</span>NainTail</h1>
+    <p class="host-description">애드온을 선택하고 실행해. 한 번에 하나의 작업 화면만 활성화된다.</p>
+    <button id="openSettings" class="host-settings-button" type="button">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="2.3"/><path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9"/></svg>
+      호스트 설정
+    </button>
+  </header>
+
+  <main class="launcher" aria-label="설치된 애드온 런처">
+    <button id="previousAddon" class="deck-arrow prev" type="button" aria-label="이전 애드온">‹</button>
+    <div id="deckViewport" class="deck-viewport">
+      <ol id="deckTrack" class="deck-track"></ol>
+    </div>
+    <button id="nextAddon" class="deck-arrow next" type="button" aria-label="다음 애드온">›</button>
+
+    <footer class="deck-footer">
+      <span id="deckIndex" class="deck-index">1 / 7</span>
+      <span class="key-hints"><b>←→ / 휠</b> 포커스 이동 · <b>Enter</b> 실행</span>
+    </footer>
+  </main>
+
+  <dialog id="settingsDialog" aria-labelledby="settingsTitle">
+    <div class="dialog-body">
+      <header class="dialog-head">
+        <div><h2 id="settingsTitle">호스트 설정</h2><p>모든 Hosted 애드온이 함께 사용하는 NainTail 설정</p></div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="닫기">×</button>
+      </header>
+      <section class="settings-section" aria-labelledby="outputTitle">
+        <h3 id="outputTitle">공용 출력 폴더 <span id="outputMode" class="mode-chip">기본 위치</span></h3>
+        <p>Hosted 애드온 결과를 애드온별 하위 폴더에 모은다.</p>
+        <div class="path-row">
+          <code id="outputPath" class="path-display" title="C:\Portable\NainTail\outputs">C:\Portable\NainTail\outputs</code>
+          <button id="openOutput" type="button">폴더 열기</button>
+        </div>
+        <div class="settings-actions">
+          <button id="changeOutput" type="button">위치 변경</button>
+          <button id="resetOutput" class="subtle" type="button" disabled>기본 위치로 복원</button>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="installerDialog" aria-labelledby="installerTitle">
+    <div class="dialog-body">
+      <header class="dialog-head">
+        <div><h2 id="installerTitle">애드온 추가</h2><p>포터블 애드온을 NainTail 홈에 연결한다.</p></div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="닫기">×</button>
+      </header>
+      <div class="installer-options">
+        <button type="button" data-install-option><strong>애드온 폴더 선택</strong><small>`addon.json`이 있는 포터블 폴더를 연결</small></button>
+        <button type="button" data-install-option><strong>패키지에서 설치</strong><small>검증된 애드온 패키지를 새 폴더에 설치</small></button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="launchVeil" class="launch-veil" aria-hidden="true">
+    <div id="veilMark" class="veil-mark">N</div>
+    <div id="veilTitle" class="veil-title">NaiTail 실행 중…</div>
+    <div class="veil-copy">호스트가 애드온 창 준비 상태를 기다립니다</div>
+  </div>
+  <p id="toast" class="toast" role="status" aria-live="polite"></p>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const addons = [
+        { initial: "N", name: "NaiTail", words: ["Nai", "Tail"], role: "NOVELAI ADD-ON", accent: "#ff7a45", state: "ready", status: "실행 가능 · Token 설정됨", meta: "마지막 사용 · 오늘 14:22" },
+        { initial: "A", name: "AnimaTail", words: ["Anima", "Tail"], role: "LOCAL STUDIO", accent: "#8b7cf6", state: "ready", status: "로컬 런타임 확인됨", meta: "마지막 사용 · 오늘 13:05" },
+        { initial: "G", name: "GalleryTail", words: ["Gallery", "Tail"], role: "OUTPUT BROWSER", accent: "#b9aefc", state: "ready", status: "공용 출력 폴더 연결됨", meta: "마지막 사용 · 어제" },
+        { initial: "C", name: "CensorTail", words: ["Censor", "Tail"], role: "LOCAL CENSOR", accent: "#c26bf0", state: "warning", status: "초기 설정 확인 필요", meta: "마지막 사용 · 어제" },
+        { initial: "L", name: "LTXTail", words: ["LTX", "Tail"], role: "VIDEO STUDIO", accent: "#49b7a8", state: "ready", status: "로컬 런타임 확인됨", meta: "마지막 사용 · 3일 전" },
+        { initial: "S", name: "SpriteTail", words: ["Sprite", "Tail"], role: "SPRITE PIPELINE", accent: "#79b84a", state: "alert", status: "종속성 설치 필요", meta: "마지막 사용 · 지난주" },
+        { initial: "V", name: "VoiceTail", words: ["Voice", "Tail"], role: "LOCAL TTS", accent: "#d7a744", state: "ready", status: "실행 가능", meta: "마지막 사용 · 지난주" }
+      ];
+
+      const track = document.querySelector("#deckTrack");
+      const viewport = document.querySelector("#deckViewport");
+      const indexLabel = document.querySelector("#deckIndex");
+      const previous = document.querySelector("#previousAddon");
+      const next = document.querySelector("#nextAddon");
+      const settingsDialog = document.querySelector("#settingsDialog");
+      const installerDialog = document.querySelector("#installerDialog");
+      const veil = document.querySelector("#launchVeil");
+      const veilMark = document.querySelector("#veilMark");
+      const veilTitle = document.querySelector("#veilTitle");
+      const toast = document.querySelector("#toast");
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+      let selected = 0;
+      let veilTimer = 0;
+      let toastTimer = 0;
+      let centerTimer = 0;
+      let wheelAccumulator = 0;
+      let wheelResetTimer = 0;
+      let wheelLocked = false;
+
+      function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function stateShape(state) {
+        const shape = el("span", `state-shape state-${state}`);
+        shape.setAttribute("aria-hidden", "true");
+        return shape;
+      }
+
+      function renderAddon(addon, index) {
+        const item = el("li", "addon-panel");
+        item.dataset.addonIndex = String(index);
+        item.style.setProperty("--accent", addon.accent);
+
+        const surface = el("article", "panel-surface");
+        const select = el("button", "panel-select");
+        select.type = "button";
+        select.setAttribute("aria-label", `${addon.name} 선택`);
+        select.setAttribute("aria-pressed", "false");
+        select.addEventListener("click", () => {
+          selectAddon(index, false);
+        });
+
+        const wordmark = el("div", `panel-wordmark${addon.words.some((word) => word.length > 5) ? " long" : ""}`);
+        wordmark.setAttribute("aria-hidden", "true");
+        addon.words.forEach((word) => wordmark.append(el("span", "", word)));
+
+        const summary = el("div", "panel-summary");
+        const summaryMark = el("span", "summary-mark", addon.initial);
+        const summaryCopy = el("span", "summary-copy");
+        summaryCopy.append(el("strong", "summary-name", addon.name), el("span", "summary-role", addon.role));
+        summary.append(summaryMark, summaryCopy, stateShape(addon.state));
+
+        const detail = el("div", "panel-detail");
+        const detailMark = el("div", "detail-mark", addon.initial);
+        const name = el("h2", "detail-name", addon.name);
+        const role = el("p", "detail-role", addon.role);
+        const status = el("div", "detail-status");
+        status.append(stateShape(addon.state), el("span", "", addon.status));
+        const meta = el("div", "detail-meta", addon.meta);
+        const launch = el("button", "launch-button", "런치");
+        launch.type = "button";
+        launch.addEventListener("click", (event) => {
+          event.stopPropagation();
+          launchAddon(index);
+        });
+        detail.append(detailMark, name, role, status, meta, launch);
+        surface.append(select, wordmark, summary, detail);
+        item.append(surface);
+        return item;
+      }
+
+      addons.forEach((addon, index) => track.append(renderAddon(addon, index)));
+      const installItem = el("li", "install-panel");
+      const installButton = el("button", "track-install-button");
+      installButton.type = "button";
+      installButton.setAttribute("aria-label", "애드온 추가");
+      installButton.title = "애드온 추가";
+      installButton.append(el("span", "", "+"));
+      installButton.addEventListener("focus", () => selectAddon(addons.length, false));
+      installButton.addEventListener("click", () => {
+        selectAddon(addons.length, false);
+        installerDialog.showModal();
+      });
+      installItem.append(installButton);
+      track.append(installItem);
+
+      function panels() { return Array.from(track.querySelectorAll(".addon-panel")); }
+      function focusItems() { return [...panels(), installItem]; }
+
+      function selectAddon(index, focus) {
+        selected = Math.max(0, Math.min(index, addons.length));
+        panels().forEach((panel, panelIndex) => {
+          const active = panelIndex === selected;
+          panel.classList.toggle("active", active);
+          panel.querySelector(".panel-select").setAttribute("aria-pressed", String(active));
+        });
+        installItem.classList.toggle("active", selected === addons.length);
+        indexLabel.textContent = selected === addons.length ? "+" : `${selected + 1} / ${addons.length}`;
+        previous.disabled = selected === 0;
+        next.disabled = selected === addons.length;
+        clearTimeout(centerTimer);
+        centerTimer = setTimeout(() => centerSelected(focus), reducedMotion.matches ? 0 : 340);
+      }
+
+      function centerSelected(focus) {
+        const panel = focusItems()[selected];
+        const target = panel.offsetLeft + panel.offsetWidth / 2 - viewport.clientWidth / 2;
+        const limit = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+        viewport.scrollTo({ left: Math.max(0, Math.min(target, limit)), behavior: reducedMotion.matches ? "auto" : "smooth" });
+        if (focus) {
+          panel.querySelector(".panel-select, .track-install-button").focus({ preventScroll: true });
+          window.scrollTo(0, 0);
+        }
+      }
+
+      function launchAddon(index) {
+        if (index === addons.length) {
+          selectAddon(index, false);
+          installerDialog.showModal();
+          return;
+        }
+        selectAddon(index, false);
+        const addon = addons[index];
+        clearTimeout(veilTimer);
+        veil.style.setProperty("--veil", addon.accent);
+        veilMark.textContent = addon.initial;
+        veilTitle.textContent = `${addon.name} 실행 중…`;
+        veil.classList.add("on");
+        veil.setAttribute("aria-hidden", "false");
+        veilTimer = setTimeout(() => {
+          veil.classList.remove("on");
+          veil.setAttribute("aria-hidden", "true");
+          showToast(`목업: ${addon.name} 창 준비 이벤트를 받으면 전환된다.`);
+        }, 1250);
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add("show");
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 2300);
+      }
+
+      previous.addEventListener("click", () => selectAddon(selected - 1, true));
+      next.addEventListener("click", () => selectAddon(selected + 1, true));
+      document.querySelector("#openSettings").addEventListener("click", () => settingsDialog.showModal());
+      document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
+      document.querySelectorAll("[data-install-option]").forEach((button) => button.addEventListener("click", () => {
+        installerDialog.close();
+        showToast("목업: 실제 제품에서는 폴더 검증과 설치 흐름으로 연결된다.");
+      }));
+
+      document.querySelector("#openOutput").addEventListener("click", () => showToast("목업: 공용 출력 폴더를 연다."));
+      document.querySelector("#changeOutput").addEventListener("click", () => {
+        document.querySelector("#outputPath").textContent = "D:\\CreativeOutputs\\NainTail";
+        document.querySelector("#outputPath").title = "D:\\CreativeOutputs\\NainTail";
+        document.querySelector("#outputMode").textContent = "사용자 지정";
+        document.querySelector("#resetOutput").disabled = false;
+        showToast("목업: 공용 출력 폴더를 변경했다.");
+      });
+      document.querySelector("#resetOutput").addEventListener("click", (event) => {
+        document.querySelector("#outputPath").textContent = "C:\\Portable\\NainTail\\outputs";
+        document.querySelector("#outputPath").title = "C:\\Portable\\NainTail\\outputs";
+        document.querySelector("#outputMode").textContent = "기본 위치";
+        event.currentTarget.disabled = true;
+        showToast("목업: 기본 출력 폴더로 복원했다.");
+      });
+
+      viewport.addEventListener("wheel", (event) => {
+        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+        if (!delta) return;
+        event.preventDefault();
+        clearTimeout(wheelResetTimer);
+        wheelAccumulator += delta;
+        wheelResetTimer = setTimeout(() => { wheelAccumulator = 0; }, 140);
+        if (wheelLocked || Math.abs(wheelAccumulator) < 44) return;
+        const direction = wheelAccumulator > 0 ? 1 : -1;
+        wheelAccumulator = 0;
+        wheelLocked = true;
+        selectAddon(selected + direction, true);
+        setTimeout(() => { wheelLocked = false; }, 240);
+      }, { passive: false });
+
+      document.addEventListener("keydown", (event) => {
+        if (document.querySelector("dialog[open]")) return;
+        if (event.key === "ArrowLeft") { event.preventDefault(); selectAddon(selected - 1, true); }
+        else if (event.key === "ArrowRight") { event.preventDefault(); selectAddon(selected + 1, true); }
+        else if (event.key === "Enter") { event.preventDefault(); launchAddon(selected); }
+        else if (/^[1-8]$/u.test(event.key)) {
+          const index = Number(event.key) - 1;
+          if (index < addons.length) selectAddon(index, true);
+        }
+        else if (event.key === "Escape" && veil.classList.contains("on")) {
+          clearTimeout(veilTimer);
+          veil.classList.remove("on");
+          veil.setAttribute("aria-hidden", "true");
+        }
+      });
+
+      window.addEventListener("resize", () => centerSelected(false));
+      selectAddon(0, false);
+    })();
+  </script>
+</body>
+</html>

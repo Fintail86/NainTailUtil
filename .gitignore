@@ -3,6 +3,9 @@ AddonRelease/
 /Tests/
 /Tools/
 /package.json
+NainTailUtil/Addons/*/tools/
+NainTailUtil/Addons/*/runtime-manifest.local.json
+NainTailUtil/Addons/CensorTail/config/dev-assets.local.*
 **/__pycache__/
 NainTailUtil/runtime/
 NainTailUtil/outputs/

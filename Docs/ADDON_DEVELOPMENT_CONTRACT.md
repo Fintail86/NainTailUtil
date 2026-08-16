@@ -128,6 +128,9 @@ Standalone에서는 기본적으로 네 루트가 모두 애드온 폴더 안을
 ## 4. Manifest와 공개 경계
 
 모든 Hosted 애드온은 `naintail.addon/v1` manifest를 가져야 한다.
+공통 루트 파일, 공개 adapter, bootstrap과 데이터 폴더의 배치 규칙은
+[`ADDON_DIRECTORY_STANDARD.md`](ADDON_DIRECTORY_STANDARD.md)를 따른다. 이 디렉터리 표준은
+manifest entry를 대체하지 않으며, 호스트가 애드온 내부 경로를 추측할 권한을 부여하지 않는다.
 
 - `entries`는 호스트가 호출할 진입점만 공개한다.
 - `requires`는 로드 전에 존재해야 하는 애드온 ID를 선언한다.

@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("node:path");
-const { run } = require("../app/cli/main.cjs");
+const { run } = require("../cli/main.cjs");
 
 run({
   productRoot: path.resolve(__dirname, ".."),

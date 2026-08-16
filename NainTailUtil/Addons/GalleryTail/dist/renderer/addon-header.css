@@ -1,0 +1,10 @@
+@import "./tail-header-tokens.css";
+@import "./tail-header.css";
+
+main:not(.generate-main) {
+  padding-top: 16px;
+}
+
+.gallery-page {
+  height: calc(100vh - 116px);
+}

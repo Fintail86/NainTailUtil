@@ -1,7 +1,0 @@
-{
-  "schemaVersion": 1,
-  "runtimeId": "anima-py31213-torch2110-cu128-win-x64-r1",
-  "platform": "win-x64",
-  "archiveSha256": "0c1aec37347f4c6cb186b562d471350b6973be73e36c1cdedde149fa971603c9",
-  "entrypoint": "python.exe"
-}

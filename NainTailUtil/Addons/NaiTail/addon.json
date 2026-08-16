@@ -8,12 +8,12 @@
   "default": true,
   "order": 1,
   "entries": {
-    "electron": "app/electron/main.cjs",
-    "preload": "app/electron/preload.cjs",
-    "renderer": "app/renderer/index.html",
-    "cli": "app/cli/main.cjs",
-    "mcp": "app/mcp/main.cjs",
-    "mcpAdapter": "app/mcp/adapter.cjs"
+    "electron": "electron/main.cjs",
+    "preload": "electron/preload.cjs",
+    "renderer": "dist/renderer/index.html",
+    "cli": "cli/main.cjs",
+    "mcp": "mcp/main.cjs",
+    "mcpAdapter": "mcp/adapter.cjs"
   },
   "capabilities": [
     "single",

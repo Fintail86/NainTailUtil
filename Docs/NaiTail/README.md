@@ -35,7 +35,7 @@ NaiTail은 같은 Core, Worker와 UI를 두 composition root에서 사용한다.
 
 | 형태 | 진입점 | 실행 환경 |
 |---|---|---|
-| Hosted GUI | `app/electron/main.cjs` | NainTail host가 Electron service와 창 생명주기를 주입 |
+| Hosted GUI | `electron/main.cjs` | NainTail host가 Electron service와 창 생명주기를 주입 |
 | Standalone GUI | `NaiTail.bat` | 애드온 내부 `runtime/electron/electron.exe` 사용 |
 | Standalone CLI | `NaiTail_CLI.bat` | 포터블 Electron을 Node 런타임으로 사용 |
 | Standalone MCP | `NaiTail_MCP.bat` | stdio MCP 서버로 실행 |
@@ -52,11 +52,11 @@ service를 우선 사용하며 최종 출력만 NainTail output root에 기록�
 
 | Entry | 경로 |
 |---|---|
-| Electron | `app/electron/main.cjs` |
-| Preload | `app/electron/preload.cjs` |
-| Renderer | `app/renderer/index.html` |
-| CLI | `app/cli/main.cjs` |
-| MCP | `app/mcp/main.cjs` |
+| Electron | `electron/main.cjs` |
+| Preload | `electron/preload.cjs` |
+| Renderer | `dist/renderer/index.html` |
+| CLI | `cli/main.cjs` |
+| MCP | `mcp/main.cjs` |
 
 Standalone 패키지는 별도의 `standalone-manifest.json`에서 포터블 Electron, GUI·CLI·MCP launcher와
 data root를 선언한다. Standalone entry는 조립과 생명주기만 담당하며 Core나 Worker를 복제하지
@@ -68,10 +68,10 @@ data root를 선언한다. Standalone entry는 조립과 생명주기만 담당�
 |---|---|
 | `app/core/` | 요청 정규화, 작품·프리셋, 비용, 큐, 출력과 참조 자산 |
 | `app/workers/nai/` | NovelAI payload, API 전송, ZIP·이미지 처리와 Vibe cache |
-| `app/renderer/` | 여섯 개 사용자 화면과 상태·결과 표시 |
-| `app/electron/` | 제한된 IPC, dialog·shell·safeStorage adapter |
-| `app/cli/` | 동기형 headless 명령 adapter |
-| `app/mcp/` | 비동기 작업 등록·조회·대기·취소 도구 |
+| `dist/renderer/` | 여섯 개 사용자 화면과 상태·결과 표시 |
+| `electron/` | 제한된 IPC, dialog·shell·safeStorage adapter |
+| `cli/` | 동기형 headless 명령 adapter |
+| `mcp/` | 비동기 작업 등록·조회·대기·취소 도구 |
 | `standalone/` | 독립 실행용 GUI·CLI·MCP composition root |
 
 Core와 Worker는 NainTail host나 Electron UI의 세부 구현을 직접 참조하지 않는다. 호스트 기능이
