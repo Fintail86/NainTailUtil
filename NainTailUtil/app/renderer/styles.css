@@ -73,7 +73,7 @@ button:focus-visible {
 }
 
 .host-kicker {
-  margin: 0 0 10px;
+  margin: 10px 0 0;
   color: var(--host);
   font: 700 11px/1.2 var(--mono);
   letter-spacing: .2em;
@@ -101,19 +101,19 @@ button:focus-visible {
 }
 
 .host-settings-button {
-  position: fixed;
-  z-index: 110;
-  right: 20px;
-  bottom: 20px;
-  display: inline-flex;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   align-items: center;
-  gap: 7px;
+  justify-items: center;
   margin: 0;
-  padding: 8px 11px;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 50%;
   background: rgba(21, 17, 26, .78);
   color: var(--dim);
+  backdrop-filter: blur(8px);
 }
 
 .host-settings-button:hover {
@@ -121,7 +121,7 @@ button:focus-visible {
   color: var(--text);
 }
 
-.host-settings-button svg { width: 14px; height: 14px; }
+.host-settings-button svg { width: 16px; height: 16px; }
 
 .deck-viewport {
   position: absolute;
@@ -337,7 +337,7 @@ button:focus-visible {
   position: fixed;
   z-index: 80;
   right: 20px;
-  bottom: 68px;
+  bottom: 20px;
   display: flex;
   align-items: center;
   gap: 8px;
