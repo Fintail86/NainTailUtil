@@ -63,8 +63,9 @@ NaiTail과 AnimaTail의 설정·프리셋·프로젝트·참조·캐시 데이�
 `설정 재사용`은 host handoff로 AnimaTail을 열어 값을 전달한다. Hosted CensorTail 결과는
 `outputs/censortail/censored/`에 저장한다.
 
-전용 Electron runtime이 없으면 BAT가 Windows PowerShell 부트스트랩을 먼저 실행한다.
-부트스트랩은 애드온이 고정한 공식 Electron ZIP의 크기와 SHA-256을 검증해
+호스트 또는 독립 애드온의 전용 Electron runtime이 없으면 BAT가 Windows PowerShell
+부트스트랩을 먼저 실행한다. 부트스트랩은 각 제품이 고정한 공식 Electron ZIP의 크기와
+SHA-256을 검증해
 `runtime/electron/`에 설치한 뒤 원래 GUI·CLI·MCP 실행을 계속한다. 개발 중 순수 Core와
 CLI는 Node.js로 직접 검증할 수 있지만 최종 포터블 실행은 시스템 Node에 의존하지 않는다.
 

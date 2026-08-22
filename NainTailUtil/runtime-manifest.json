@@ -2,7 +2,9 @@
   "schema": "naintail.runtime-manifest/v1",
   "electron": {
     "version": "43.1.1",
-    "relativeExecutable": "runtime/electron/electron.exe"
+    "relativeExecutable": "runtime/electron/electron.exe",
+    "bootstrap": "bootstrap/ensure-electron.cmd",
+    "bootstrapManifest": "electron-runtime-manifest.json"
   },
   "mcp": {
     "status": "included",

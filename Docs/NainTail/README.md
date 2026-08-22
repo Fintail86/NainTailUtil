@@ -12,6 +12,7 @@ NainTail이 소유하는 기능은 다음과 같다.
 - 홈 카드 목록, 표시 순서와 기본 애드온 결정
 - 필수 애드온 존재 여부 확인
 - Electron·CLI·MCP entry 선택과 경계 내부 경로 해석
+- 호스트 Electron이 없을 때 고정 manifest 기반 검증 다운로드와 `runtime/electron/` 설치
 - GUI 창 lifecycle, 홈 이동과 같은 애드온 재진입
 - 제한된 host service, dependency resolver와 handoff 전달
 - Hosted Python/CUDA runtime의 저장·설치 경계와 `runtimeRoot` 주입
@@ -109,6 +110,11 @@ CLI·MCP의 도메인 도구 schema와 결과는 각 애드온이 소유한다. 
 데이터를 직접 수정하지 않는다.
 
 ## 포터블·Hosted 계약
+
+NainTail 호스트의 GUI·CLI·MCP launcher는 `runtime/electron/electron.exe`가 없으면 Windows
+PowerShell 부트스트랩을 호출한다. 부트스트랩은 공식 Electron ZIP의 URL·크기·SHA-256을
+`electron-runtime-manifest.json`과 대조하고 제품 루트의 `runtime/electron/`에 원자적으로
+설치한다. 따라서 호스트 ZIP에 Electron 바이너리를 중복 포함하거나 시스템 Node에 의존하지 않는다.
 
 Standalone 지원 애드온은 폴더 하나만 복사해 독립 실행할 수 있어야 한다. Hosted에서는
 NainTail이 composition root가 되어 공용 service와 dependency를 우선 주입한다. 어느 쪽도
