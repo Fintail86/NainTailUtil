@@ -122,6 +122,18 @@ button:focus-visible {
 }
 
 .host-settings-button svg { width: 16px; height: 16px; }
+.host-settings-button { position: relative; }
+.host-update-indicator {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--host);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--host) 76%, transparent);
+}
 .host-addon-button { font: 300 22px/1 var(--sans); }
 .host-action-stack { display: grid; gap: 8px; }
 
@@ -437,6 +449,9 @@ dialog::backdrop { background: rgba(5, 4, 7, .72); backdrop-filter: blur(5px); }
 .settings-actions button.subtle { background: transparent; color: var(--dim); }
 .settings-actions button:disabled, .path-row button:disabled { cursor: default; opacity: .45; }
 .mode-chip { display: inline-block; margin-left: 6px; color: var(--host); font: 11px/1 var(--mono); }
+.host-update-versions { display: flex; gap: 18px; color: var(--dim); font: 11px/1.4 var(--mono); }
+.host-update-versions strong { color: var(--text); font-weight: 650; }
+.host-update-warning { margin: 10px 0 0 !important; color: #ffb3a9 !important; }
 
 .launch-veil {
   --accent-bright: #f07b4b;

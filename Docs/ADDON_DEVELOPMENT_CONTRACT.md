@@ -87,6 +87,29 @@ Standalone의 실행 우선순위는 다음과 같다.
 이 규칙은 중복 파일의 존재를 허용하지만, 실행 중 서로 다른 runtime이나 모델이 우연히 섞이는
 것은 허용하지 않는다.
 
+### 2.4 런타임 의존성 버전 변경 주의사항
+
+Python, PyTorch, CUDA, ONNX Runtime 또는 그 밖의 실제 실행 의존성 구성이 바뀌는 애드온
+업데이트는 기존 runtime을 그대로 재사용할 수 있다고 가정해서는 안 된다.
+
+- 배포 결과나 호환성에 영향을 주는 runtime 의존성 구성이 바뀌면 새로운 `runtimeId`를 발급해야
+  한다. 이미 공개한 `runtimeId`의 내용을 다른 구성으로 덮어쓰는 것은 금지한다.
+- 애드온의 `runtime-manifest.json`이 요구하는 `runtimeId`와 설치된 runtime을 실행 전에 대조하고,
+  일치하는 버전이 없으면 신규 runtime 설치가 필요하다고 명시적으로 보고해야 한다.
+- 신규 runtime은 `runtime/versions/<runtimeId>/`에 기존 버전과 병렬 설치한다. 업데이트와 롤백을
+  위해 구버전을 즉시 덮어쓰거나 자동 삭제하지 않는다.
+- Hosted에서는 호스트가 주입한 runtime root 안에서 애드온 manifest가 요구하는 정확한
+  `runtimeId`를 선택하고, Standalone에서는 애드온 로컬 runtime root에서 같은 규칙을 적용한다.
+- 구 runtime 정리는 어떤 설치된 애드온 버전도 해당 `runtimeId`를 요구하지 않는다는 사실을
+  확인한 뒤에만 수행한다. 자동 정리 기능을 추가하기 전까지는 사용자가 명시적으로 요청하지
+  않은 구 runtime을 보존한다.
+- 실제 runtime 구성이 처음 변경되는 릴리즈부터 설치·전환·롤백과 구버전 공존을 별도 Gate로
+  검증한다.
+
+현재 동일한 `runtimeId`를 요구하는 릴리즈에는 추가 migration이 필요하지 않다. 이 항목은 실제
+의존성 구성이 달라지는 첫 업데이트에서 누락되기 쉬운 호환성 경계를 미리 고정하기 위한
+주의사항이다.
+
 ## 3. 루트와 데이터 소유권
 
 `application root`, `data root`, `dependency root`, `output root`는 서로 다른 개념이며 하나의 전역변수로
@@ -170,7 +193,8 @@ NainTail 호스트와 각 애드온은 다음 태그 namespace로 별도 릴리�
 - `gallerytail-vX.Y.Z`
 - `censortail-vX.Y.Z`
 
-한 릴리즈에는 해당 컴포넌트 ZIP과 그 시점의 전체 `official-addons.json`만 필수 자산으로 둔다.
+한 릴리즈에는 해당 컴포넌트 ZIP, 그 시점의 전체 `official-addons.json`과 최신 호스트를 가리키는
+`official-host.json`만 필수 자산으로 둔다.
 다른 컴포넌트의 ZIP을 다시 만들거나 같은 버전으로 올리지 않는다. ZIP 파일명은
 `<ComponentName>-vX.Y.Z-win-x64.zip`이며 카탈로그에는 각 애드온의 실제 `releaseTag`, 파일명,
 크기와 SHA-256을 기록한다. 호스트 버전은 애드온 카탈로그 버전을 변경하지 않는다.
@@ -178,6 +202,13 @@ NainTail 호스트와 각 애드온은 다음 태그 namespace로 별도 릴리�
 애드온 릴리즈를 준비할 때는 그 애드온 항목만 새 메타데이터로 바꾸고 `catalogVersion`을
 증가시킨다. 나머지 항목은 마지막 공개 릴리즈를 그대로 가리킨다. 카탈로그 변경은 실제 자산
 게시와 함께 승격해야 하며 아직 게시하지 않은 태그를 내장 기본 카탈로그에 먼저 확정하지 않는다.
+
+호스트 릴리즈를 준비할 때는 완성된 호스트 ZIP의 크기와 SHA-256으로 별도
+`naintail.official-host/v1` manifest를 만든다. 자기 ZIP의 hash를 호스트 ZIP 내부에 넣는 순환
+참조를 만들지 않으며, `official-host.json`은 릴리즈 자산과 마지막 정상 캐시로만 배포한다.
+0.1.2 이후 호스트 업데이트는 사용자가 승인한 뒤 외부 updater가 실행 중인 호스트를 종료하고
+교체한다. 이때 `Addons/`, `config/`, `outputs/`, `runtime/`을 보존하고 제품 폴더 바깥의
+transaction marker로 중단된 이동을 재개하거나 구버전 전체를 롤백할 수 있어야 한다.
 
 MCP entry를 선언하는 애드온은 추가로
 [`ADDON_MCP_PROFILE.md`](ADDON_MCP_PROFILE.md)를 따라야 한다. 상태·discovery·비동기 job·결과

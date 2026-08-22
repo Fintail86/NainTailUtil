@@ -14,6 +14,8 @@ const channels = Object.freeze({
   OUTPUT_SELECT: "host:outputs:select",
   OUTPUT_RESET: "host:outputs:reset",
   OUTPUT_OPEN: "host:outputs:open",
+  UPDATE_STATUS: "host:update:status",
+  UPDATE_APPLY: "host:update:apply",
 });
 
 contextBridge.exposeInMainWorld("nainTailHost", Object.freeze({
@@ -27,6 +29,8 @@ contextBridge.exposeInMainWorld("nainTailHost", Object.freeze({
   selectOutputFolder: () => ipcRenderer.invoke(channels.OUTPUT_SELECT),
   resetOutputFolder: () => ipcRenderer.invoke(channels.OUTPUT_RESET),
   openOutputFolder: () => ipcRenderer.invoke(channels.OUTPUT_OPEN),
+  getHostUpdateStatus: (refresh = true) => ipcRenderer.invoke(channels.UPDATE_STATUS, { refresh }),
+  applyHostUpdate: () => ipcRenderer.invoke(channels.UPDATE_APPLY),
   onHandoff: (listener) => {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on(channels.HANDOFF, handler);

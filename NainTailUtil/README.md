@@ -16,6 +16,12 @@ NovelAI 기능 전체는 공식 애드온 `NaiTail`, 로컬 Anima 생성은 `Ani
 기본 `outputs/<addonId>/`, 애드온 단독 실행 출력은 각 애드온의 `outputs/`에 저장한다.
 홈의 공용 출력 폴더 설정을 바꾸면 Hosted GUI·CLI·MCP는 선택한 폴더의 `<addonId>/`를 함께 사용한다.
 
+호스트 0.1.2부터 설정 화면은 공식 호스트 manifest를 확인해 새 버전이 있을 때 업데이트를
+제공한다. ZIP의 크기와 SHA-256, 패키지 버전을 검증한 뒤 호스트를 종료하고 외부 updater가
+코드를 교체한다. `Addons/`, `config/`, `outputs/`, `runtime/`은 보존하며 중단된 transaction은
+다음 BAT 실행에서 재개하거나 구버전으로 롤백한다. 설치된 Electron도
+`electron-runtime-manifest.json`과 `.runtime-ready`를 대조해 요구 버전이 바뀌면 다시 설치한다.
+
 V4.5 Precise Reference로 가져온 이미지는 NAI 권장 캔버스 PNG로 처리해 NaiTail data root의
 `References/precise/`에 해시 이름으로 보관한다. 이 폴더도 애드온과 함께 복사해야 결과의
 참조 설정을 다시 불러올 수 있다.

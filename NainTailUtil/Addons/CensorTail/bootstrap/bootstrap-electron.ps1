@@ -60,7 +60,18 @@ if ($expectedBytes -le 0 -or $expectedSha256 -notmatch "^[0-9a-f]{64}$") {
 $runtimeRoot = Join-Path $resolvedAddonRoot "runtime"
 $destinationRoot = Join-Path $runtimeRoot "electron"
 $electronPath = Join-Path $destinationRoot "electron.exe"
-if (Test-Path -LiteralPath $electronPath -PathType Leaf) {
+$readyPath = Join-Path $destinationRoot ".runtime-ready"
+$expectedReadyId = "electron-$($manifest.version)-win32-x64"
+
+function Test-ElectronRuntimeReady {
+  if (-not (Test-Path -LiteralPath $electronPath -PathType Leaf) -or -not (Test-Path -LiteralPath $readyPath -PathType Leaf)) {
+    return $false
+  }
+  $ready = @(Get-Content -LiteralPath $readyPath -ErrorAction SilentlyContinue)
+  return $ready.Count -ge 2 -and $ready[0] -eq $expectedReadyId -and $ready[1] -eq $expectedSha256
+}
+
+if (Test-ElectronRuntimeReady) {
   exit 0
 }
 
@@ -73,7 +84,7 @@ for ($attempt = 0; $attempt -lt 1200; $attempt += 1) {
     $ownsLock = $true
     break
   } catch {
-    if (Test-Path -LiteralPath $electronPath -PathType Leaf) {
+    if (Test-ElectronRuntimeReady) {
       exit 0
     }
     if ($attempt -eq 1199) {
@@ -88,7 +99,7 @@ $archivePath = Join-Path $downloadRoot "$expectedFileName.part"
 $stagingRoot = Join-Path $runtimeRoot ".electron-staging-$PID"
 
 try {
-  if (Test-Path -LiteralPath $electronPath -PathType Leaf) {
+  if (Test-ElectronRuntimeReady) {
     exit 0
   }
   New-Item -ItemType Directory -Path $downloadRoot -Force | Out-Null
@@ -149,7 +160,7 @@ try {
   }
   Move-Item -LiteralPath $stagingRoot -Destination $destinationRoot
   @(
-    "electron-$($manifest.version)-win32-x64"
+    $expectedReadyId
     $expectedSha256
   ) | Set-Content -LiteralPath (Join-Path $destinationRoot ".runtime-ready") -Encoding ASCII
   Remove-Item -LiteralPath $archivePath -Force

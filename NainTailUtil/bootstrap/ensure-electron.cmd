@@ -2,8 +2,6 @@
 setlocal
 
 set "NAINTAIL_ELECTRON=%~dp0..\runtime\electron\electron.exe"
-if exist "%NAINTAIL_ELECTRON%" exit /b 0
-
 set "WINDOWS_POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if not exist "%WINDOWS_POWERSHELL%" (
   echo [Electron bootstrap] Windows PowerShell is required. 1>&2

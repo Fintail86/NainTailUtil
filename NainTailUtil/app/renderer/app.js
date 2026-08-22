@@ -22,6 +22,15 @@ const emptyAddonInstall = document.querySelector("#emptyAddonInstall");
 const openAddonInstaller = document.querySelector("#openAddonInstaller");
 const installerLoading = document.querySelector("#installerLoading");
 const officialAddonList = document.querySelector("#officialAddonList");
+const openSettings = document.querySelector("#openSettings");
+const hostUpdateIndicator = document.querySelector("#hostUpdateIndicator");
+const hostUpdateMode = document.querySelector("#hostUpdateMode");
+const hostUpdateCopy = document.querySelector("#hostUpdateCopy");
+const hostCurrentVersion = document.querySelector("#hostCurrentVersion");
+const hostAvailableVersion = document.querySelector("#hostAvailableVersion");
+const hostUpdateWarning = document.querySelector("#hostUpdateWarning");
+const checkHostUpdate = document.querySelector("#checkHostUpdate");
+const applyHostUpdate = document.querySelector("#applyHostUpdate");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 const addonRoles = Object.freeze({
@@ -41,6 +50,7 @@ let wheelResetTimer = 0;
 let wheelLocked = false;
 let installerBusy = false;
 let installerRestartPending = false;
+let hostUpdateBusy = false;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -109,6 +119,76 @@ async function runOutputAction(action, successMessage) {
     openOutputFolder.disabled = false;
     selectOutputFolder.disabled = false;
     resetOutputFolder.disabled = outputMode.textContent !== "사용자 지정";
+  }
+}
+
+function renderHostUpdate(status) {
+  const labels = {
+    update: "업데이트 가능",
+    current: "최신 버전",
+    "local-newer": "로컬 최신",
+    unavailable: "확인 불가",
+    unknown: "확인 필요",
+  };
+  hostUpdateMode.textContent = labels[status.state] || "확인 필요";
+  hostCurrentVersion.textContent = status.currentVersion ? `v${status.currentVersion}` : "—";
+  hostAvailableVersion.textContent = status.availableVersion ? `v${status.availableVersion}` : "—";
+  hostUpdateIndicator.hidden = status.state !== "update";
+  openSettings.classList.toggle("update-available", status.state === "update");
+  hostUpdateWarning.hidden = !status.warning;
+  hostUpdateWarning.textContent = status.warning || "";
+  applyHostUpdate.disabled = status.state !== "update" || hostUpdateBusy;
+  applyHostUpdate.textContent = status.state === "update"
+    ? `v${status.availableVersion} 업데이트`
+    : status.state === "current" ? "최신 버전" : "업데이트 없음";
+  hostUpdateCopy.textContent = status.state === "update"
+    ? `${status.sizeLabel || "업데이트 파일"}을 내려받아 검증한 뒤 호스트를 재시작한다.`
+    : "공식 릴리즈에서 NainTail 호스트의 새 버전을 확인한다.";
+}
+
+async function refreshHostUpdate(force = true) {
+  if (!host?.getHostUpdateStatus) return;
+  checkHostUpdate.disabled = true;
+  try {
+    const response = await host.getHostUpdateStatus(force);
+    if (!response?.ok) throw new Error(response?.error?.message || "호스트 업데이트를 확인하지 못했다.");
+    renderHostUpdate(response.result);
+  } catch (error) {
+    renderHostUpdate({ state: "unavailable", currentVersion: null, availableVersion: null, warning: error.message });
+  } finally {
+    checkHostUpdate.disabled = false;
+  }
+}
+
+async function startHostUpdate() {
+  if (hostUpdateBusy || !host?.applyHostUpdate) return;
+  let applying = false;
+  hostUpdateBusy = true;
+  checkHostUpdate.disabled = true;
+  applyHostUpdate.disabled = true;
+  applyHostUpdate.textContent = "다운로드 및 검증 중…";
+  try {
+    const response = await host.applyHostUpdate();
+    if (!response?.ok) throw new Error(response?.error?.message || "호스트 업데이트를 준비하지 못했다.");
+    if (response.result?.cancelled) {
+      renderHostUpdate(response.result);
+      return;
+    }
+    if (response.result?.alreadyCurrent) {
+      renderHostUpdate(response.result);
+      showNotice("NainTail 호스트가 이미 최신 버전이다.");
+      return;
+    }
+    hostUpdateMode.textContent = "적용 중";
+    hostUpdateCopy.textContent = "NainTail을 종료하고 업데이트를 적용한 뒤 다시 실행한다.";
+    applyHostUpdate.textContent = "재시작 준비 중…";
+    applying = true;
+  } catch (error) {
+    showNotice(error.message, true);
+    await refreshHostUpdate(false);
+  } finally {
+    hostUpdateBusy = false;
+    if (!applying) await refreshHostUpdate(false);
   }
 }
 
@@ -395,10 +475,10 @@ openAddonInstaller.addEventListener("click", openOfficialAddonInstaller);
 installerDialog.addEventListener("close", () => {
   if (installerRestartPending) host.restartHost();
 });
-document.querySelector("#openSettings").addEventListener("click", async () => {
+openSettings.addEventListener("click", async () => {
   settingsDialog.showModal();
   try {
-    await refreshOutputSettings();
+    await Promise.all([refreshOutputSettings(), refreshHostUpdate(true)]);
   } catch (error) {
     showNotice(error.message, true);
   }
@@ -421,6 +501,8 @@ installerDialog.addEventListener("cancel", (event) => {
 openOutputFolder.addEventListener("click", () => runOutputAction(() => host.openOutputFolder(), "공용 출력 폴더를 열었다."));
 selectOutputFolder.addEventListener("click", () => runOutputAction(() => host.selectOutputFolder(), "공용 출력 폴더 설정을 갱신했다."));
 resetOutputFolder.addEventListener("click", () => runOutputAction(() => host.resetOutputFolder(), "기본 출력 폴더로 복원했다."));
+checkHostUpdate.addEventListener("click", () => refreshHostUpdate(true));
+applyHostUpdate.addEventListener("click", startHostUpdate);
 
 viewport.addEventListener("wheel", (event) => {
   const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
@@ -463,3 +545,4 @@ document.addEventListener("visibilitychange", () => {
 renderAddons([]);
 refreshAddons();
 refreshOutputSettings().catch((error) => showNotice(error.message, true));
+refreshHostUpdate(true);

@@ -6,6 +6,7 @@ const path = require("node:path");
 const { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, shell } = require("electron");
 const { AddonRegistry } = require("../host/addon-registry.cjs");
 const { OfficialAddonInstaller } = require("../host/official-addon-installer.cjs");
+const { OfficialHostUpdater } = require("../host/official-host-updater.cjs");
 const { HostOutputSettings } = require("../host/output-settings.cjs");
 const { hostedRuntimeDependencies } = require("../host/runtime-dependencies.cjs");
 
@@ -20,6 +21,8 @@ const HOST_OUTPUT_GET = "host:outputs:get";
 const HOST_OUTPUT_SELECT = "host:outputs:select";
 const HOST_OUTPUT_RESET = "host:outputs:reset";
 const HOST_OUTPUT_OPEN = "host:outputs:open";
+const HOST_UPDATE_STATUS = "host:update:status";
+const HOST_UPDATE_APPLY = "host:update:apply";
 const productRoot = path.resolve(__dirname, "..", "..");
 const hostRenderer = path.join(productRoot, "app", "renderer", "index.html");
 const hostPreload = path.join(productRoot, "app", "electron", "preload.cjs");
@@ -32,6 +35,9 @@ const registry = new AddonRegistry(productRoot);
 const officialAddonInstaller = new OfficialAddonInstaller(productRoot, smokeMode ? {
   fetchRelease: async () => { throw new Error("smoke mode uses the bundled official addon catalog"); },
 } : {});
+const officialHostUpdater = new OfficialHostUpdater(productRoot, smokeMode ? {
+  fetchRelease: async () => { throw new Error("smoke mode skips host update lookup"); },
+} : {});
 const outputSettings = new HostOutputSettings(productRoot);
 registry.discover();
 const addonProtocols = registry.protocols();
@@ -43,6 +49,7 @@ let foregroundWindow = null;
 let activeAddon = null;
 let isQuitting = false;
 let smokeTimer = null;
+let hostUpdateBusy = false;
 
 function writeSmokeResult(result) {
   if (!smokeResultPath) return;
@@ -264,6 +271,39 @@ function registerHostIpc() {
     if (error) throw new Error(error);
     return outputSettings.status();
   }));
+  ipcMain.handle(HOST_UPDATE_STATUS, reply((_event, payload) => (
+    officialHostUpdater.status(payload?.refresh !== false)
+  )));
+  ipcMain.handle(HOST_UPDATE_APPLY, reply(async () => {
+    if (hostUpdateBusy) throw new Error("호스트 업데이트가 이미 진행 중입니다.");
+    const status = await officialHostUpdater.status(true);
+    if (status.state !== "update") {
+      if (status.state === "current") return { ...status, cancelled: false, alreadyCurrent: true };
+      throw new Error(status.warning || "설치 가능한 호스트 업데이트가 없습니다.");
+    }
+    const confirmation = await dialog.showMessageBox(homeWindow || foregroundWindow, {
+      type: "question",
+      buttons: ["업데이트", "취소"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+      title: "NainTail 호스트 업데이트",
+      message: `NainTail v${status.availableVersion} 업데이트를 설치할까요?`,
+      detail: `${status.sizeLabel || "크기 확인 불가"}를 내려받아 검증한 뒤 호스트를 재시작합니다. 애드온, 설정, 출력과 런타임은 보존됩니다.`,
+    });
+    if (confirmation.response !== 0) return { ...status, cancelled: true };
+    hostUpdateBusy = true;
+    try {
+      const prepared = await officialHostUpdater.prepare(status.availableVersion);
+      officialHostUpdater.launch(prepared.transactionPath, process.pid);
+      isQuitting = true;
+      setTimeout(() => app.exit(0), 250);
+      return { ...prepared, applying: true };
+    } catch (error) {
+      hostUpdateBusy = false;
+      throw error;
+    }
+  }));
 }
 
 async function clickAddonLaunch(manifest) {
@@ -369,6 +409,24 @@ async function runSmoke() {
       const installerCapture = await host.webContents.capturePage();
       fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-installer.png"), installerCapture.toPNG());
       await host.webContents.executeJavaScript("document.querySelector('#installerDialog').close()");
+    }
+    {
+      const settingsReady = await host.webContents.executeJavaScript(
+        `(() => {
+          const button = document.querySelector('#openSettings');
+          if (!button) return false;
+          button.click();
+          return Boolean(document.querySelector('#settingsDialog[open]')
+            && document.querySelector('#hostCurrentVersion')
+            && document.querySelector('#checkHostUpdate')
+            && document.querySelector('#applyHostUpdate'));
+        })()`,
+      );
+      if (!settingsReady) throw new Error("host update settings contract missing");
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const settingsCapture = await host.webContents.capturePage();
+      fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-settings.png"), settingsCapture.toPNG());
+      await host.webContents.executeJavaScript("document.querySelector('#settingsDialog').close()");
     }
     await host.webContents.executeJavaScript("document.documentElement.classList.remove('smoke-static')");
     const fixedEdgeState = await host.webContents.executeJavaScript(
@@ -516,7 +574,10 @@ else {
     try {
       registry.discover();
       registerHostIpc();
-      if (!smokeMode) officialAddonInstaller.refreshCatalog();
+      if (!smokeMode) {
+        officialAddonInstaller.refreshCatalog();
+        officialHostUpdater.refresh();
+      }
       if (smokeMode) {
         smokeTimer = setTimeout(() => {
           writeSmokeResult({ ok: false, error: "timeout" });

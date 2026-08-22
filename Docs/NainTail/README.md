@@ -96,11 +96,13 @@ CLI·MCP의 도메인 도구 schema와 결과는 각 애드온이 소유한다. 
 - 필수 애드온 누락 확인
 - 실행, 홈 복귀, 재진입과 다른 애드온 전환
 - host-to-addon handoff
+- 공식 애드온 카탈로그 조회와 설치·업데이트
+- 호스트 공식 버전 조회와 사용자 승인형 자기 업데이트
 
 다음은 아직 구현 범위가 아니다.
 
-- 온라인 애드온 카탈로그와 마켓
-- GUI에서 다운로드, 설치, 업데이트, 제거
+- 제3자 애드온 마켓과 임의 저장소 등록
+- GUI에서 설치된 애드온 제거
 - 활성화·비활성화 토글과 사용자별 정렬
 - semantic version 범위 해결과 자동 migration
 - 서명 검증, 권한 선언과 애드온 sandbox 정책
@@ -109,12 +111,38 @@ CLI·MCP의 도메인 도구 schema와 결과는 각 애드온이 소유한다. 
 향후 이 기능들을 추가하더라도 호스트는 패키지와 lifecycle만 관리하고 각 애드온의 도메인
 데이터를 직접 수정하지 않는다.
 
+## 호스트 자기 업데이트
+
+NainTail 0.1.2부터 설정 화면에서 공식 `official-host.json`을 조회해 현재 호스트와 공개 버전을
+비교한다. 새 버전이 있을 때만 업데이트 버튼을 활성화하며, 사용자가 확인한 뒤 다음 순서로
+적용한다.
+
+1. 공식 호스트 ZIP의 크기와 SHA-256을 검증한다.
+2. 별도 staging 폴더에 압축을 풀고 `package.json`, 버전과 필수 entry를 검증한다.
+3. 제품 폴더 바깥의 transaction marker를 기록한다.
+4. 호스트 종료 후 외부 PowerShell updater가 새 코드로 교체한다.
+5. `Addons/`, `config/`, `outputs/`, `runtime/`을 디렉터리 단위로 신버전에 이동한다.
+6. 검증 완료 후 백업과 marker를 제거하고 호스트를 다시 실행한다.
+
+전원 차단 등으로 보존 디렉터리가 구버전 백업과 신버전에 나뉘면 다음 `NainTailUtil.bat`
+실행에서 marker를 발견해 남은 이동을 재개한다. 적용 오류가 정상적으로 포착되면 보존 데이터를
+구버전에 되돌리고 전체 호스트를 롤백한다.
+
+`official-host.json`은 호스트 ZIP과 분리된 릴리즈 자산이다. 호스트 ZIP 안에 자기 ZIP의 SHA-256을
+넣으면 순환 참조가 생기기 때문이다. 마지막으로 검증한 manifest는 `runtime/catalog/`에 캐시한다.
+호스트와 각 애드온 릴리즈에는 그 시점의 최신 `official-host.json`을 함께 게시한다.
+
+이미 공개된 0.1.1에는 자기 업데이트 코드가 없으므로 0.1.1에서 0.1.2로 넘어가는 한 번은 수동
+교체가 필요하다. 0.1.2 이후부터 이 업데이트 경로를 사용한다.
+
 ## 포터블·Hosted 계약
 
 NainTail 호스트의 GUI·CLI·MCP launcher는 `runtime/electron/electron.exe`가 없으면 Windows
 PowerShell 부트스트랩을 호출한다. 부트스트랩은 공식 Electron ZIP의 URL·크기·SHA-256을
 `electron-runtime-manifest.json`과 대조하고 제품 루트의 `runtime/electron/`에 원자적으로
-설치한다. 따라서 호스트 ZIP에 Electron 바이너리를 중복 포함하거나 시스템 Node에 의존하지 않는다.
+설치한다. 설치된 `.runtime-ready`의 버전과 hash도 매 실행 시 manifest와 대조하므로 호스트
+업데이트가 새 Electron을 요구하면 기존 실행 파일의 존재만으로 구버전을 재사용하지 않는다.
+따라서 호스트 ZIP에 Electron 바이너리를 중복 포함하거나 시스템 Node에 의존하지 않는다.
 
 Standalone 지원 애드온은 폴더 하나만 복사해 독립 실행할 수 있어야 한다. Hosted에서는
 NainTail이 composition root가 되어 공용 service와 dependency를 우선 주입한다. 어느 쪽도

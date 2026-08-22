@@ -32,6 +32,7 @@
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
               <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.57 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.57h.01A1.7 1.7 0 0 0 10 3.01V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 19.8 7l-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.99 10H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/>
             </svg>
+            <span id="hostUpdateIndicator" class="host-update-indicator" aria-hidden="true" hidden></span>
           </button>
         </span>
       </footer>
@@ -62,6 +63,19 @@
         <div class="settings-actions">
           <button id="selectOutputFolder" type="button">위치 변경</button>
           <button id="resetOutputFolder" class="subtle" type="button" disabled>기본 위치로 복원</button>
+        </div>
+      </section>
+      <section class="settings-section" aria-labelledby="hostUpdateTitle">
+        <h3 id="hostUpdateTitle">호스트 업데이트 <span id="hostUpdateMode" class="mode-chip">확인 중</span></h3>
+        <p id="hostUpdateCopy">공식 릴리즈에서 NainTail 호스트의 새 버전을 확인한다.</p>
+        <div class="host-update-versions">
+          <span>현재 <strong id="hostCurrentVersion">—</strong></span>
+          <span>공식 <strong id="hostAvailableVersion">—</strong></span>
+        </div>
+        <p id="hostUpdateWarning" class="host-update-warning" hidden></p>
+        <div class="settings-actions">
+          <button id="checkHostUpdate" class="subtle" type="button">다시 확인</button>
+          <button id="applyHostUpdate" type="button" disabled>최신 버전</button>
         </div>
       </section>
     </div>
