@@ -1,0 +1,6 @@
+# CensorTail-only hosted layer. The Python/PyTorch/CUDA base is requested separately.
+flatbuffers==25.12.19
+onnxruntime-gpu==1.26.0
+packaging==26.2
+pillow==12.2.0
+protobuf==7.35.1

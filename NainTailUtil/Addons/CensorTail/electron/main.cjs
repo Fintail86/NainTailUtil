@@ -16,6 +16,7 @@ const {
   collectCensorInputFiles,
 } = require("./censor-service.cjs");
 const { RuntimeInstaller } = require("./runtime-installer.cjs");
+const { ComponentRuntimeInstaller } = require("./component-runtime-installer.cjs");
 const { AddonOutputSettings } = require("./output-settings.cjs");
 const { webpDimensions } = require("./webp.cjs");
 
@@ -137,9 +138,9 @@ function activate(context) {
     || context.manifest.directory;
   if (!resourceRoot) throw new Error("CensorTail에 필요한 Python/CUDA runtime과 검열 모델을 찾을 수 없습니다.");
   runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(resourceRoot, "runtime"));
-  runtimeManifestPath = context.dependencies?.runtimeManifestPath
-    ? path.resolve(context.dependencies.runtimeManifestPath)
-    : null;
+  runtimeManifestPath = context.standalone === true
+    ? null
+    : path.join(resourceRoot, "hosted-runtime-requirements.json");
   modelRoot = path.resolve(context.dependencies?.modelRoot || path.join(resourceRoot, "Models", "censor"));
   dropCacheRoot = path.join(
     path.resolve(context.dataRoot || context.manifest.directory),
@@ -163,7 +164,10 @@ function activate(context) {
     modelRoot,
     outputRoot,
   });
-  runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent, {
+  const RuntimeInstallerType = context.standalone === true
+    ? RuntimeInstaller
+    : ComponentRuntimeInstaller;
+  runtimeInstaller = new RuntimeInstallerType(resourceRoot, sendRuntimeEvent, {
     runtimeRoot,
     runtimeManifestPath,
   });

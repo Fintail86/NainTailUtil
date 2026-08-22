@@ -31,8 +31,10 @@ SemVer를 함께 변경하고 포터블 entry를 검증한다.
 이 `AnimaTail/` 폴더 하나에 Electron, Python/CUDA, 모델·LoRA, 프리셋과 출력이 모두 들어 있다.
 Electron이 빠져 있으면 첫 실행 시 공식 배포본을 검증해 자동 설치한다. 폴더 전체를 복사하면
 상위 NainTailUtil이나 시스템 Node/Python 없이 같은 상태로 실행할 수 있다.
-NainTail에 장착된 Hosted 실행에서는 애드온 로컬 Python/CUDA 대신 NainTail의 `runtime/`을
-주입받아 사용하며, Anima 모델·LoRA·프리셋은 계속 이 애드온 폴더에서 관리한다.
+NainTail에 장착된 Hosted 실행에서는 `hosted-runtime-requirements.json`이 필요한 기반 ID와
+Anima 전용 DiffSynth 계층 ID를 선언한다. NainTail의 `runtime/` 캐시에 같은 ID·무결성이
+있으면 그 항목만 건너뛰고, 없는 항목만 설치한다. Anima 모델·LoRA·프리셋은 계속 이 애드온
+폴더에서 관리한다.
 
 초기 0.1.0 배포 도구가 실수로 만든 `Models/checkpoints/`도 하위 호환 경로로 인식한다.
 기존 파일을 옮기지 않아도 목록·호환성 검사·생성에서 동일한 `diffusion_models:` ID로 사용할

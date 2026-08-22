@@ -102,7 +102,7 @@ function createAdapter(options = {}) {
     || path.join(resourceRoot, "runtime"));
   const runtimeManifestPath = options.runtimeManifestPath
     || options.dependencies?.runtimeManifestPath
-    || null;
+    || (hosted ? path.join(resourceRoot, "hosted-runtime-requirements.json") : null);
   const modelRoot = path.resolve(options.modelRoot
     || standaloneAssets?.modelRoot
     || path.join(resourceRoot, "Models", "censor"));

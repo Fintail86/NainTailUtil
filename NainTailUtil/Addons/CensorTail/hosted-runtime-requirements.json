@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "addon-runtime-requirements",
+  "platform": "win-x64",
+  "environmentManifest": "hosted-runtime-base.json",
+  "components": [
+    {
+      "id": "censortail-onnxruntime126-cu128-py312-r1",
+      "integrity": "b04ab924393091f330337e3570fe6edaa9afc18bbadbf3ce439ed32e450f0e17",
+      "requirementsPath": "config/hosted-runtime-addon.lock.txt",
+      "estimatedDownloadBytes": 260000000,
+      "expandedBytes": 700000000,
+      "assets": [],
+      "imports": ["torch", "onnxruntime"],
+      "requireTorchCuda": true,
+      "requireOnnxCuda": true,
+      "files": [
+        {
+          "path": "Lib/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.pyd",
+          "bytes": 17581368,
+          "sha256": "74f13885e61803aa7cca971c8a967438e7e6ca1ece8c43f97feaf360d6ceb2e0"
+        }
+      ]
+    }
+  ]
+}

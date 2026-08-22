@@ -365,9 +365,12 @@ if (require.main === module) {
 
 async function run(options = {}) {
   const appRoot = path.resolve(options.productRoot || options.dataRoot || APP_ROOT);
+  const runtimeManifestPath = options.runtimeManifestPath
+    || options.dependencies?.runtimeManifestPath
+    || (options.hosted === true ? path.join(appRoot, "hosted-runtime-requirements.json") : null);
   const exitCode = await main(options.argv || [], appRoot, {
     runtimeRoot: options.runtimeRoot || options.dependencies?.runtimeRoot,
-    runtimeManifestPath: options.runtimeManifestPath || options.dependencies?.runtimeManifestPath,
+    runtimeManifestPath,
     outputRoot: options.outputRoot,
   });
   if (exitCode) process.exitCode = exitCode;

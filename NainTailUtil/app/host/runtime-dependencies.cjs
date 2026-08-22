@@ -11,9 +11,7 @@ function hostedRuntimeDependencies(productRoot, addon) {
   if (!usesPythonCuda(addon)) return Object.freeze({});
   const hostRoot = path.resolve(productRoot);
   return Object.freeze({
-    runtimeOwner: "naintail",
     runtimeRoot: path.join(hostRoot, "runtime"),
-    runtimeManifestPath: path.join(hostRoot, "python-runtime-manifest.json"),
   });
 }
 

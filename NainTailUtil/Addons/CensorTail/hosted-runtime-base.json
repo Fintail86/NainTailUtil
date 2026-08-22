@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 3,
+  "runtimeId": "py31213-torch2110-cu128-win-x64-r1",
+  "platform": "win-x64",
+  "installMode": "bootstrap",
+  "integrity": "18d0eff256de08a72b405bb1e102b692d4af63ff83b7d5888eed2b9df84c4d25",
+  "estimatedDownloadBytes": 2500000000,
+  "expandedBytes": 3500000000,
+  "entrypoint": "python.exe",
+  "requirementsPath": "config/hosted-runtime-base.lock.txt",
+  "assets": [
+    {
+      "id": "python",
+      "role": "python",
+      "format": "tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260320/cpython-3.12.13%2B20260320-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      "bytes": 21846885,
+      "sha256": "61e26d4ddd7e4345a8f980c4b3730aa9b388e5ac909555a6ad2ef9bae3b9f1ac"
+    },
+    {
+      "id": "uv",
+      "role": "uv",
+      "format": "zip",
+      "url": "https://github.com/astral-sh/uv/releases/download/0.12.1/uv-x86_64-pc-windows-msvc.zip",
+      "bytes": 19073343,
+      "sha256": "8fcb0cb46e1229065e344758980924e569bef5882ef45f46fada8fb24e06b74a"
+    }
+  ],
+  "files": [
+    {
+      "path": "python.exe",
+      "bytes": 91648,
+      "sha256": "3bcdba7ad853f00890f1b8d58c8d673c22c26e60d6e50a8cb580114cee097f79"
+    },
+    {
+      "path": "python312.dll",
+      "bytes": 6971904,
+      "sha256": "f18b2c24ad054d512e7702be1a680b610de5bfe5fcd6e5e3569b01372dcadfdb"
+    },
+    {
+      "path": "Lib/site-packages/torch/_C.cp312-win_amd64.pyd",
+      "bytes": 10752,
+      "sha256": "8b4f9f50a2b6ad1d51b35d654d1c2927401ddf9219cf44f5654e7eb59a0da38d"
+    },
+    {
+      "path": "Lib/site-packages/torch/lib/torch_cuda.dll",
+      "bytes": 811555840,
+      "sha256": "d5ca93bdf3e246af9c962ec92554e5576dec03b665f9cbf1c664e653f76ddb50"
+    },
+    {
+      "path": "Lib/site-packages/torch/lib/cudnn64_9.dll",
+      "bytes": 264304,
+      "sha256": "c6de55089c4759a545ff63459c00a6223dacffa5e797109a6be2be0477fb6c5c"
+    }
+  ]
+}

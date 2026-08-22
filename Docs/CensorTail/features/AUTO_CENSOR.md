@@ -115,10 +115,11 @@
 - CUDA 12.x / cuDNN 9 계열
 - `CUDAExecutionProvider` 우선, 사용할 수 없으면 CPU provider로 fallback
 - 시스템 Python, 시스템 CUDA Toolkit과 사용자 `PATH`를 사용하지 않는다. Standalone은
-  `CensorTail/runtime/`의 CensorTail 전용 계약을 사용한다. Hosted는 NainTail이
-  `runtimeRoot`와 `runtimeManifestPath`로 주입한 `<NainTailRoot>/runtime/`의 공용 runtime ID
-  한 벌을 AnimaTail과 함께 재사용한다. Hosted에서 애드온 로컬 runtime으로 암묵 fallback하지
-  않으며, 같은 Python/PyTorch/CUDA/cuDNN을 애드온별로 중복 설치하지 않는다.
+  `CensorTail/runtime/`의 CensorTail 전용 계약을 사용한다. Hosted에서는 NainTail이
+  `<NainTailRoot>/runtime/` 캐시 위치만 주입하고, CensorTail이
+  `hosted-runtime-requirements.json`의 요구 ID를 판단한다. 같은 ID·무결성의
+  Python/PyTorch/CUDA 기반이 이미 있으면 건너뛰고 ONNX Runtime 계층만 추가한다. Hosted에서
+  애드온 로컬 runtime으로 암묵 fallback하지 않는다.
 
 ONNX Runtime 1.27.0의 현재 Windows wheel은 CUDA 13 계열이라 이 프로젝트의 PyTorch
 2.11.0+cu128 런타임과 맞지 않았다. 실제 DLL 로딩을 확인한 1.26.0을 고정한다.

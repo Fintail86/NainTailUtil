@@ -36,7 +36,8 @@ AnimaTail은 다음 범위를 직접 소유한다.
 생성 결과 탐색은 `GalleryTail`, 자동검열은 `CensorTail`이 소유한다. GalleryTail만 AnimaTail의
 공개된 출력 경계를 필수로 사용한다. CensorTail은 자체 검열 모델을 소유하며 AnimaTail 결과
 전달은 호스트의 선택적 artifact 연동을 통해서만 수행한다. Python/CUDA runtime은 Standalone에서
-각 애드온 로컬 사본을, Hosted에서 NainTail이 관리하는 공용 runtime을 사용한다.
+각 애드온 로컬 사본을 사용한다. Hosted에서는 AnimaTail의 요구 ID 중 NainTail runtime 캐시에
+동일한 ID·무결성이 있는 항목만 재사용하고, DiffSynth 생성 계층은 AnimaTail이 별도로 설치한다.
 
 ## 문서 사용 순서
 

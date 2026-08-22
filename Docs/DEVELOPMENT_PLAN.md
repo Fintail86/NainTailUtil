@@ -171,8 +171,9 @@ AnimaTail은 기존 AnimaUtil의 로컬 생성 기능과 앱 전용 Python 3.12/
 각 애드온은 자기 renderer와 Worker 생명주기를 소유한다. GalleryTail은 특정 생성 애드온에
 종속되지 않고 주입된 공용 출력과 명시적으로 공개된 포터블 출력 루트를 탐색한다. CensorTail은 자체 Worker와 모델로 독립
 기동하며 `artifactProviders: ["animatail"]`는 선택적인 결과 입력 권한만 선언한다. Python/CUDA는
-Standalone에서 각 애드온 사본, Hosted에서 NainTail 공용 runtime을 사용한다. 호스트는 창 전환,
-manifest entry 로딩, runtime root 주입과 명시적 handoff만 제공하고 갤러리나 검열 의미를 알지 않는다.
+Standalone에서 각 애드온 사본을 사용한다. Hosted에서는 각 애드온이 요구 ID 목록을 소유하고,
+NainTail runtime 캐시에 같은 ID·무결성이 있으면 그 항목만 재사용한다. 호스트는 창 전환,
+manifest entry 로딩, runtime 캐시 root 주입과 명시적 handoff만 제공하고 갤러리나 검열 의미를 알지 않는다.
 
 ### 3.4 Interface adapters
 

@@ -327,7 +327,8 @@ export function createAdapter(options = {}) {
   }
   const runtimeRoot = options.runtimeRoot || options.dependencies?.runtimeRoot;
   const runtimeManifestPath = options.runtimeManifestPath
-    || options.dependencies?.runtimeManifestPath;
+    || options.dependencies?.runtimeManifestPath
+    || (options.hosted === true ? path.join(appRoot, "hosted-runtime-requirements.json") : null);
   const outputRoot = path.resolve(options.outputRoot || path.join(appRoot, "outputs"));
   const manager = options.manager || new McpGenerationJobManager({
     appRoot,

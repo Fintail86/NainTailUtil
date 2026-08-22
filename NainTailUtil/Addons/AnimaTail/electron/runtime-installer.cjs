@@ -12,6 +12,7 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
 const RUNTIME_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const ASSET_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const BOOTSTRAP_ROLES = Object.freeze(["python", "uv", "diffsynth"]);
+const REQUIRED_BOOTSTRAP_ROLES = Object.freeze(["python", "uv"]);
 const BOOTSTRAP_FORMATS = Object.freeze(["zip", "tar.gz"]);
 const DOWNLOAD_MARGIN_BYTES = 512 * 1024 * 1024;
 
@@ -126,9 +127,14 @@ function normalizeRuntimeManifest(raw, options = {}) {
       index,
       Boolean(options.allowFileUrls),
     )));
-    for (const role of BOOTSTRAP_ROLES) {
+    for (const role of REQUIRED_BOOTSTRAP_ROLES) {
       if (assets.filter((asset) => asset.role === role).length !== 1) {
         throw new Error(`bootstrap runtime requires exactly one ${role} asset.`);
+      }
+    }
+    for (const role of BOOTSTRAP_ROLES) {
+      if (assets.filter((asset) => asset.role === role).length > 1) {
+        throw new Error(`bootstrap runtime allows at most one ${role} asset.`);
       }
     }
     return Object.freeze({
@@ -470,6 +476,9 @@ class RuntimeInstaller {
         (entry) => entry.name.toLowerCase() === "uv.exe" && entry.isFile(),
       );
       if (!uvExe) throw new Error("uv archive does not contain uv.exe.");
+      const installedToolsRoot = path.join(stagingRoot, "tools");
+      await fs.promises.mkdir(installedToolsRoot, { recursive: true });
+      await fs.promises.copyFile(uvExe, path.join(installedToolsRoot, "uv.exe"));
 
       const requirementsPath = path.resolve(this.runtimeManifestRoot, manifest.requirementsPath);
       const requirementsBoundary = `${this.runtimeManifestRoot}${path.sep}`;
@@ -491,33 +500,36 @@ class RuntimeInstaller {
       );
       this.throwIfCancelled();
 
-      this.sendEvent({ event: "install", stage: "installing-diffsynth", progress: 82 });
-      const diffSynthExtractRoot = path.join(workRoot, "d");
-      await fs.promises.mkdir(diffSynthExtractRoot, { recursive: true });
-      await extractZip(assetPaths.get("diffsynth"), { dir: diffSynthExtractRoot });
-      const pyproject = await this.findPath(
-        diffSynthExtractRoot,
-        (entry) => entry.name === "pyproject.toml" && entry.isFile(),
-      );
-      const diffSynthRoot = pyproject ? path.dirname(pyproject) : null;
-      const diffSynthPackage = diffSynthRoot ? path.join(diffSynthRoot, "diffsynth") : null;
-      if (!diffSynthPackage || !fs.existsSync(path.join(diffSynthPackage, "__init__.py"))) {
-        throw new Error("DiffSynth source archive has an unexpected layout.");
-      }
-      const installedDiffSynth = path.join(stagingRoot, "Lib", "site-packages", "diffsynth");
-      await fs.promises.rm(installedDiffSynth, { recursive: true, force: true });
-      await fs.promises.cp(diffSynthPackage, installedDiffSynth, { recursive: true, force: true });
-      const diffSynthLicense = path.join(diffSynthRoot, "LICENSE");
-      if (fs.existsSync(diffSynthLicense)) {
-        const licensesRoot = path.join(stagingRoot, "licenses");
-        await fs.promises.mkdir(licensesRoot, { recursive: true });
-        await fs.promises.copyFile(
-          diffSynthLicense,
-          path.join(licensesRoot, "DiffSynth-Studio-LICENSE"),
+      if (assetPaths.has("diffsynth")) {
+        this.sendEvent({ event: "install", stage: "installing-diffsynth", progress: 82 });
+        const diffSynthExtractRoot = path.join(workRoot, "d");
+        await fs.promises.mkdir(diffSynthExtractRoot, { recursive: true });
+        await extractZip(assetPaths.get("diffsynth"), { dir: diffSynthExtractRoot });
+        const pyproject = await this.findPath(
+          diffSynthExtractRoot,
+          (entry) => entry.name === "pyproject.toml" && entry.isFile(),
         );
+        const diffSynthRoot = pyproject ? path.dirname(pyproject) : null;
+        const diffSynthPackage = diffSynthRoot ? path.join(diffSynthRoot, "diffsynth") : null;
+        if (!diffSynthPackage || !fs.existsSync(path.join(diffSynthPackage, "__init__.py"))) {
+          throw new Error("DiffSynth source archive has an unexpected layout.");
+        }
+        const installedDiffSynth = path.join(stagingRoot, "Lib", "site-packages", "diffsynth");
+        await fs.promises.rm(installedDiffSynth, { recursive: true, force: true });
+        await fs.promises.cp(diffSynthPackage, installedDiffSynth, { recursive: true, force: true });
+        const diffSynthLicense = path.join(diffSynthRoot, "LICENSE");
+        if (fs.existsSync(diffSynthLicense)) {
+          const licensesRoot = path.join(stagingRoot, "licenses");
+          await fs.promises.mkdir(licensesRoot, { recursive: true });
+          await fs.promises.copyFile(
+            diffSynthLicense,
+            path.join(licensesRoot, "DiffSynth-Studio-LICENSE"),
+          );
+        }
       }
 
       this.sendEvent({ event: "install", stage: "probing", progress: 92 });
+      const probeDiffSynth = assetPaths.has("diffsynth");
       const probeOnnxRuntime = manifest.files.some((file) => (
         file.path.replaceAll("\\", "/").includes("/onnxruntime/")
       ));
@@ -527,7 +539,9 @@ class RuntimeInstaller {
           "-I",
           "-c",
           [
-            probeOnnxRuntime ? "import torch, onnxruntime, diffsynth" : "import torch, diffsynth",
+            ["torch", ...(probeOnnxRuntime ? ["onnxruntime"] : []), ...(probeDiffSynth ? ["diffsynth"] : [])]
+              .join(", ")
+              .replace(/^/, "import "),
             "assert torch.cuda.is_available(), 'PyTorch CUDA is unavailable'",
             ...(probeOnnxRuntime
               ? ["assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'ONNX CUDA provider is unavailable'"]

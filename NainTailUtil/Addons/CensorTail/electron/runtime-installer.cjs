@@ -476,6 +476,9 @@ class RuntimeInstaller {
         (entry) => entry.name.toLowerCase() === "uv.exe" && entry.isFile(),
       );
       if (!uvExe) throw new Error("uv archive does not contain uv.exe.");
+      const installedToolsRoot = path.join(stagingRoot, "tools");
+      await fs.promises.mkdir(installedToolsRoot, { recursive: true });
+      await fs.promises.copyFile(uvExe, path.join(installedToolsRoot, "uv.exe"));
 
       const requirementsPath = path.resolve(this.runtimeManifestRoot, manifest.requirementsPath);
       const requirementsBoundary = `${this.runtimeManifestRoot}${path.sep}`;
@@ -525,6 +528,10 @@ class RuntimeInstaller {
         }
       }
 
+      const probeOnnxRuntime = manifest.files.some((file) => (
+        file.path.replaceAll("\\", "/").includes("/onnxruntime/")
+      ));
+      const probeDiffSynth = assetPaths.has("diffsynth");
       this.sendEvent({ event: "install", stage: "probing", progress: 86 });
       await this.executeCommand(
         pythonExe,
@@ -532,11 +539,13 @@ class RuntimeInstaller {
           "-I",
           "-c",
           [
-            assetPaths.has("diffsynth")
-              ? "import torch, onnxruntime, diffsynth"
-              : "import torch, onnxruntime",
+            ["torch", ...(probeOnnxRuntime ? ["onnxruntime"] : []), ...(probeDiffSynth ? ["diffsynth"] : [])]
+              .join(", ")
+              .replace(/^/, "import "),
             "assert torch.cuda.is_available(), 'PyTorch CUDA is unavailable'",
-            "assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'ONNX CUDA provider is unavailable'",
+            ...(probeOnnxRuntime
+              ? ["assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'ONNX CUDA provider is unavailable'"]
+              : []),
             "x=torch.ones((64,64), device='cuda', dtype=torch.bfloat16)",
             "assert bool(torch.isfinite(x @ x).all())",
             "print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))",

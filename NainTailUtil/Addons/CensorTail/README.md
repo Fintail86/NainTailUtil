@@ -7,9 +7,10 @@
 
 - UI, 입력 목록, 검출·미리보기·효과 적용과 출력은 CensorTail이 소유한다.
 - Python Worker는 `CensorTail/app/censor_worker.py`에서 실행한다.
-- Standalone은 CensorTail 로컬 Python/CUDA/ONNX runtime을 사용하고, Hosted는 AnimaTail과
-  NainTail 공용 runtime ID 한 벌을 재사용한다. `Models/censor/`와 Standalone의
-  `onnxruntime-gpu` 계약은 CensorTail이 소유한다.
+- Standalone은 CensorTail 로컬 Python/CUDA/ONNX runtime을 사용한다. Hosted에서는
+  `hosted-runtime-requirements.json`이 요구한 ID만 설치하며, AnimaTail과 동일한
+  Python/PyTorch/CUDA 기반 ID가 이미 있으면 그 항목만 건너뛴다. ONNX Runtime 계층과
+  `Models/censor/` 계약은 CensorTail이 소유한다.
 - 검열 결과는 `CensorTail/outputs/censored/`에 저장한다.
 - 폴더는 `+ 폴더` 버튼이나 Explorer 드래그로 입력할 수 있다. 하위 이미지를 재귀적으로
   불러오며, 입력한 폴더 이름부터 시작하는 상대 경로를 `outputs/censored/` 아래에 그대로 유지한다.

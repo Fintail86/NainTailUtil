@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "kind": "addon-runtime-requirements",
+  "platform": "win-x64",
+  "environmentManifest": "hosted-runtime-base.json",
+  "components": [
+    {
+      "id": "animatail-diffsynth-fb337f-py312-r1",
+      "integrity": "6b35bf5dafad8bb0510df1cc459f18b8361520548f76d58d6fb9b4321c656d50",
+      "requirementsPath": "config/hosted-runtime-addon.lock.txt",
+      "estimatedDownloadBytes": 240000000,
+      "expandedBytes": 1000000000,
+      "assets": [
+        {
+          "id": "diffsynth",
+          "role": "diffsynth",
+          "format": "zip",
+          "url": "https://codeload.github.com/modelscope/DiffSynth-Studio/zip/fb337fbb90945ff829de69dbd44ded618f73e889",
+          "bytes": 4124167,
+          "sha256": "ae63294210509a0f108ae99507a26f5e86bc627703efdc239a94e3c69872817d"
+        }
+      ],
+      "imports": ["torch", "diffsynth"],
+      "requireTorchCuda": true,
+      "files": [
+        {
+          "path": "Lib/site-packages/diffsynth/__init__.py",
+          "bytes": 20,
+          "sha256": "2b490dcb6e959ba03ed55e65493de2972eb256c34b51b8aa93a0190c59b69c92"
+        },
+        {
+          "path": "Lib/site-packages/transformers/__init__.py",
+          "bytes": 41736,
+          "sha256": "67b01cb68df95d42da0661ea120535f33bb618225622e9523bd32e3b7741f9e1"
+        }
+      ]
+    }
+  ]
+}

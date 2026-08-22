@@ -2,9 +2,10 @@
 
 CensorTail이 소유하는 로컬 자동검열 문서는 이 폴더에서 관리한다.
 
-CensorTail은 Standalone에서 자기 폴더의 Python/CUDA/ONNX runtime을 사용하고, Hosted에서
-AnimaTail과 같은 NainTail 공용 runtime ID 한 벌을 재사용한다. `Models/censor/`와 검열 Worker,
-Standalone ONNX Runtime 계약은 CensorTail이 소유하며
+CensorTail은 Standalone에서 자기 폴더의 Python/CUDA/ONNX runtime을 사용한다. Hosted에서는
+자신이 선언한 ID 중 NainTail 런타임 캐시에 이미 있는 동일 ID·무결성 항목만 재사용하고,
+ONNX Runtime 계층은 CensorTail을 처음 실행할 때 별도로 설치한다. `Models/censor/`와 검열 Worker,
+Standalone ONNX Runtime 계약도 CensorTail이 소유하며
 AnimaTail 설치를 요구하지 않는다. AnimaTail 결과 입력은 양쪽 애드온이
 설치된 경우 호스트가 연결하는 선택적 artifact 연동이다. Standalone Electron이 없으면 Windows
 PowerShell 부트스트랩이 고정된 공식 배포본을 크기·SHA-256 검증 후 설치한다.
@@ -16,7 +17,7 @@ PowerShell 부트스트랩이 고정된 공식 배포본을 크기·SHA-256 검�
 - Python ONNX Worker와 CUDA provider
 - 검열 모델 다운로드·무결성 검증과 라이선스 경계
 - Standalone `outputs/censored/`, Hosted NainTail `outputs/censortail/censored/` 저장과 이미지 내장 metadata
-- Hosted 공유 runtime root의 CensorTail 전용 런타임과 Standalone 포터블 런타임
+- Hosted runtime 캐시의 CensorTail 요구 ID 목록과 Standalone 포터블 런타임
 - CensorTail Electron service, preload와 renderer
 - Hosted/Standalone MCP Adapter, 비동기 검출·저장 queue와 artifactRef 계약
 

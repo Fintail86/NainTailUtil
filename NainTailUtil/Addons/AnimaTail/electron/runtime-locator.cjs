@@ -7,6 +7,37 @@ const { requiredSupportAssetsReady } = require("./support-asset-service.cjs");
 function readManifestRuntime(appRoot, manifestPath, runtimeRoot, source) {
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    if (manifest?.schemaVersion === 1 && manifest.kind === "addon-runtime-requirements") {
+      const manifestRoot = path.dirname(manifestPath);
+      const environmentManifestPath = path.resolve(manifestRoot, manifest.environmentManifest || "");
+      if (!environmentManifestPath.startsWith(`${manifestRoot}${path.sep}`)) {
+        return { state: "manifest-invalid", runtimeId: null, pythonPath: null, source };
+      }
+      const environment = readManifestRuntime(appRoot, environmentManifestPath, runtimeRoot, source);
+      if (environment.state !== "ready") return environment;
+      const components = Array.isArray(manifest.components) ? manifest.components : [];
+      if (components.length === 0) {
+        return { state: "manifest-invalid", runtimeId: null, pythonPath: null, source };
+      }
+      const environmentRoot = path.dirname(environment.pythonPath);
+      const allReady = components.every((component) => {
+        if (typeof component?.id !== "string" || typeof component?.integrity !== "string") return false;
+        try {
+          const marker = fs.readFileSync(
+            path.join(environmentRoot, ".components", `${component.id}.ready`),
+            "utf8",
+          ).trim().split(/\r?\n/);
+          return marker[0] === component.id && marker[1] === component.integrity;
+        } catch {
+          return false;
+        }
+      });
+      return {
+        ...environment,
+        state: allReady ? "ready" : "not-installed",
+        requiredRuntimeIds: [environment.runtimeId, ...components.map((component) => component.id)],
+      };
+    }
     if (typeof manifest.runtimeId !== "string" || manifest.runtimeId.length === 0) {
       return { state: "manifest-invalid", runtimeId: null, pythonPath: null, source };
     }

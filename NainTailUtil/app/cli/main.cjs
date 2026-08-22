@@ -34,6 +34,7 @@ async function main() {
   const dependencies = hostedRuntimeDependencies(productRoot, addon);
   const outputSettings = new HostOutputSettings(productRoot);
   return entry.run({
+    hosted: true,
     hostRoot: productRoot,
     productRoot: addon.directory,
     dataRoot: addon.directory,

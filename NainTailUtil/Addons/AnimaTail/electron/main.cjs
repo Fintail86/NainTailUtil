@@ -6,6 +6,7 @@ const { pathToFileURL } = require("node:url");
 const { app, nativeImage, net, protocol } = require("electron");
 const channels = require("./channels.cjs");
 const { RuntimeInstaller } = require("./runtime-installer.cjs");
+const { ComponentRuntimeInstaller } = require("./component-runtime-installer.cjs");
 const { listModels } = require("./model-catalog.cjs");
 const { InferenceService } = require("./inference-service.cjs");
 const { normalizeGenerationRequest: normalizeSharedGenerationRequest } = require("./generation-request.cjs");
@@ -271,16 +272,19 @@ function activate(context) {
     throw new Error("Hosted AnimaTail에 NainTail runtimeRoot가 주입되지 않았습니다.");
   }
   runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(getAppRoot(), "runtime"));
-  runtimeManifestPath = context.dependencies?.runtimeManifestPath
-    ? path.resolve(context.dependencies.runtimeManifestPath)
-    : null;
+  runtimeManifestPath = context.standalone === true
+    ? null
+    : path.join(getAppRoot(), "hosted-runtime-requirements.json");
   outputSettings = new AddonOutputSettings({
     addonRoot: getAppRoot(),
     standalone: context.standalone === true,
     hostedOutputRoot: context.outputRoot,
   });
   outputRoot = outputSettings.outputRoot();
-  runtimeInstaller = new RuntimeInstaller(getAppRoot(), (event) => (
+  const RuntimeInstallerType = context.standalone === true
+    ? RuntimeInstaller
+    : ComponentRuntimeInstaller;
+  runtimeInstaller = new RuntimeInstallerType(getAppRoot(), (event) => (
     sendToAll(channels.RUNTIME_EVENT, event)
   ), { allowFileUrls: !app.isPackaged, runtimeRoot, runtimeManifestPath });
   inferenceService = new InferenceService(getAppRoot(), (event) => {

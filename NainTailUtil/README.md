@@ -54,7 +54,7 @@ Tags를 저장·복원하고 같은 값으로 API payload를 만든다. 구형 �
 - AnimaTail manifest: `Addons/AnimaTail/addon.json`
 - AnimaTail Electron adapter/GUI: `Addons/AnimaTail/electron/`, `Addons/AnimaTail/dist/renderer/`
 - AnimaTail Python/CUDA Worker: `Addons/AnimaTail/app/`
-- Hosted Python/CUDA runtime root: `runtime/` (AnimaTail·CensorTail 공용 `runtimeId` 한 벌)
+- Hosted runtime cache root: `runtime/` (애드온별 요구 ID를 저장하며 동일 ID·무결성만 재사용)
 - AnimaTail Standalone runtime/model/data: `Addons/AnimaTail/runtime/`, `Models/`, `Presets/`, `outputs/`
 - GalleryTail manifest/UI/service: `Addons/GalleryTail/`
 - CensorTail manifest/UI/Worker/output: `Addons/CensorTail/`
@@ -142,9 +142,9 @@ Addons/CensorTail/CensorTail_MCP.bat
 ```
 
 각 폴더의 `runtime/electron/`이 전용 Electron을 제공한다. standalone과 NainTail host 실행 모두
-해당 애드온 폴더를 application/data root로 사용하되 output root는 분리한다. Hosted에서는 호스트가
-주입한 공용 runtime, service와 `outputs/<addonId>/`를 우선하고, standalone에서는 애드온 로컬
-runtime과 `outputs/`를 사용한다. 로컬 Electron이 없으면 각 폴더의 `bootstrap/ensure-electron.cmd`가
+해당 애드온 폴더를 application/data root로 사용하되 output root는 분리한다. Hosted에서는 호스트의
+runtime 캐시에서 애드온이 요청한 동일 ID를 재사용하고 `outputs/<addonId>/`를 우선하며,
+standalone에서는 애드온 로컬 runtime과 `outputs/`를 사용한다. 로컬 Electron이 없으면 각 폴더의 `bootstrap/ensure-electron.cmd`가
 공식 배포본을 검증·설치한다. 시스템 Node나 Python은 필요하지 않다.
 CensorTail은 GUI와 MCP standalone을 제공한다.
 
