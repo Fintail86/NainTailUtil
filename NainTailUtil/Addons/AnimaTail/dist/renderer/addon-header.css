@@ -8,3 +8,19 @@ main:not(.generate-main) {
 .gallery-page {
   height: calc(100vh - 116px);
 }
+
+.addon-output-settings { padding: 18px; }
+.addon-output-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.addon-output-heading strong, .addon-output-heading span { display: block; }
+.addon-output-heading strong { color: var(--text-primary); font-size: var(--font-size-heading); }
+.addon-output-heading span { margin-top: 5px; color: var(--text-secondary); font-size: var(--font-size-caption); }
+.addon-output-badge { flex: none; padding: 6px 9px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface-raised); color: var(--text-secondary); font-size: var(--font-size-min); }
+.addon-output-badge.hosted { border-color: rgba(var(--success-bg-rgb), .25); background: rgba(var(--success-bg-rgb), .08); color: var(--success-text); }
+.addon-output-path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 15px; }
+.addon-output-path-row code { min-width: 0; padding: 10px 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-input); color: var(--text-secondary); font: var(--font-size-min)/1.45 var(--font-family-mono); text-overflow: ellipsis; white-space: nowrap; }
+.addon-output-path-row button, .addon-output-actions button { min-height: 37px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-size: var(--font-size-caption); }
+.addon-output-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.addon-output-actions button.primary { border-color: rgba(var(--accent-border-rgb), .35); background: rgba(var(--accent-bg-rgb), .16); color: var(--accent-bright); }
+.addon-output-path-row button:disabled, .addon-output-actions button:disabled { cursor: not-allowed; opacity: .42; }
+.addon-output-status { margin: 10px 0 0; color: var(--success-text); font-size: var(--font-size-min); }
+.addon-output-status.error { color: var(--danger); }

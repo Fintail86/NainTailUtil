@@ -47,16 +47,21 @@ function estimateAnlasCost(settings, options = {}) {
   const vibeEncodingCount = count(options.vibeEncodingCount, 0, "미인코딩 Vibe 수");
   const subscriptionKnown = options.subscriptionKnown === true;
   const isOpus = subscriptionKnown && options.isOpus === true;
+  const opusUsageExhausted = isOpus && options.opusUsageExhausted === true;
   const perImageExtras = preciseReferenceCount * PRECISE_REFERENCE_COST + Math.max(0, vibeCount - FREE_VIBE_COUNT) * EXTRA_VIBE_COST;
   let baseGenerationCost = 0;
   let maximumPerImageCost = 0;
+  let exhaustedV5GenerationCount = 0;
 
   for (const variant of variants) {
     const sampleCost = imageSampleCost(variant.settings);
+    const v5UsageLimitApplies = String(variant.settings.model || "").startsWith("nai-diffusion-5");
     const opusFree = isOpus
+      && !(v5UsageLimitApplies && opusUsageExhausted)
       && !options.hasBaseImage
       && variant.settings.width * variant.settings.height <= OPUS_FREE_PIXELS
       && variant.settings.steps <= 28;
+    if (v5UsageLimitApplies && opusUsageExhausted) exhaustedV5GenerationCount += variant.count;
     const baseCost = opusFree ? 0 : sampleCost;
     baseGenerationCost += baseCost * variant.count;
     maximumPerImageCost = Math.max(maximumPerImageCost, baseCost + perImageExtras);
@@ -68,6 +73,7 @@ function estimateAnlasCost(settings, options = {}) {
   const totalCost = baseGenerationCost + preciseReferenceCost + vibeGenerationCost + vibeEncodingCost;
   const reasons = [];
   if (!subscriptionKnown) reasons.push("구독 등급 미확인: 비Opus 기준 최대 예상입니다.");
+  if (exhaustedV5GenerationCount) reasons.push(`V5 Opus 무료 할당량 소진: ${exhaustedV5GenerationCount}장에 Anlas가 적용됩니다.`);
   if (baseGenerationCost) reasons.push(`기본 생성 ${baseGenerationCost} Anlas`);
   if (preciseReferenceCost) reasons.push(`Precise ${preciseReferenceCost} Anlas`);
   if (vibeGenerationCost) reasons.push(`Vibe 생성 가산 ${vibeGenerationCost} Anlas`);
@@ -77,6 +83,7 @@ function estimateAnlasCost(settings, options = {}) {
     formulaVersion: FORMULA_VERSION,
     subscriptionKnown,
     isOpus,
+    opusUsageExhausted,
     generationCount,
     baseGenerationCost,
     preciseReferenceCost,

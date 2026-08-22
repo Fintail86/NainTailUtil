@@ -1,8 +1,9 @@
 # GalleryTail
 
-AnimaTail의 출력 탐색과 metadata 확인을 분리한 NainTail 내장 애드온이다.
+NainTail 공용 출력 루트의 이미지 탐색과 metadata 확인을 소유한 독립 애드온이다.
 
-- 원본 이미지와 출력은 `AnimaTail/outputs/`에 그대로 둔다.
+- 특정 생성 애드온을 요구하지 않으며 워크스페이스 공용 출력과 애드온별 포터블 출력을 탐색한다.
 - GalleryTail은 파일 탐색, Prompt·설정 확인, 폴더 표시와 휴지통 이동만 소유한다.
-- `설정 불러오기`는 host handoff로 AnimaTail을 열고 해당 metadata를 전달한다.
-- `gallerytail:` protocol은 허용된 AnimaTail output 이미지만 읽는다.
+- `전체 보기`는 워크스페이스와 애드온별 포터블 저장 위치를 두 구역으로 함께 표시한다.
+- 탐색·폴더 열기·위치 표시·휴지통은 현재 선택한 저장 위치를 기준으로 동작한다.
+- `gallerytail:` protocol은 허용된 GalleryTail 탐색 루트 안의 이미지만 읽는다.

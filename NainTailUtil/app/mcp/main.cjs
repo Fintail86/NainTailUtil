@@ -53,7 +53,7 @@ function startSelectedAddon(registry, addonId) {
     dependencyRoots,
     runtimeRoot: dependencies.runtimeRoot,
     resourceRoot: addon.directory,
-    outputRoot: outputSettings.resolveAddonOutputRoot(addon.id),
+    outputRoot: outputSettings.resolveManifestOutputRoot(addon),
   });
   activeRuntime = { mode: "selected-addon", addonId: addon.id, entry, server };
   return activeRuntime;

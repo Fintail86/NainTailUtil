@@ -32,7 +32,7 @@ CLI와 MCP composition root가 모두 같은 설정을 읽는다. 경로 변경�
 |---|---|---|
 | NaiTail | `<NaiTailRoot>/outputs/` | `<HostOutputRoot>/naitail/` |
 | AnimaTail | `<AnimaTailRoot>/outputs/` | `<HostOutputRoot>/animatail/` |
-| GalleryTail | 자체 출력 없음 | `<HostOutputRoot>/animatail/`을 읽음 |
+| GalleryTail | `<GalleryTailRoot>/outputs/`을 탐색 | `<HostOutputRoot>/`와 Standalone 애드온별 실제 출력 경로를 탐색 |
 | CensorTail | `<CensorTailRoot>/outputs/censored/` | `<HostOutputRoot>/censortail/censored/` |
 
 NaiTail의 `single/`, `multi/`, `artist-study/` 같은 모드 하위 구조와 AnimaTail의 생성 결과 구조는
@@ -51,10 +51,12 @@ Composition root는 절대경로로 정규화된 `outputRoot`를 애드온 entry
 애드온은 `hostRoot`, `cwd`, 실행 파일 위치 또는 `../` 상대경로로 출력 위치를 추측해서는 안 된다.
 
 - Standalone entry는 `<AddonRoot>/outputs/`를 주입한다.
-- NainTail Electron, CLI와 MCP composition root는
+- NainTail Electron, CLI와 MCP composition root는 기본적으로
   `<HostOutputRoot>/<addonId>/`를 동일하게 주입한다.
-- GalleryTail처럼 다른 애드온 출력을 읽는 소비자는 폴더 이름을 추측하지 않고 호스트의
-  `resolveAddonOutputRoot(addonId)` service를 사용한다.
+- manifest가 `outputRootScope: "host"`를 선언한 GalleryTail에는 `<HostOutputRoot>/` 자체를
+  주입한다. 포터블 출력 목록은 호스트가 Standalone manifest와 공통
+  `naintail.addon-output-settings/v1` 설정을 확인해 명시적인 service로 제공한다. GalleryTail은
+  특정 제공자 ID나 폴더 이름을 추측하지 않는다.
 
 ## 4. 경로와 공개 안전성
 
@@ -81,7 +83,7 @@ Standalone 출력 구조는 바뀌지 않으므로 애드온 폴더 단독 복�
 2. NaiTail `OutputStore`를 data root와 output root가 분리된 형태로 변경한다.
 3. AnimaTail 생성 Worker 요청에 output root를 명시하고 결과 경로 검증 기준을 맞춘다.
 4. CensorTail 저장 service와 MCP artifact publisher가 주입된 output root를 사용하게 한다.
-5. GalleryTail이 AnimaTail 폴더가 아니라 호스트가 공개한 AnimaTail output root를 탐색하게 한다.
+5. GalleryTail이 특정 애드온 폴더가 아니라 호스트가 공개한 공용 output root를 탐색하게 한다.
 6. GUI 폴더 열기·위치 표시·휴지통과 MCP artifactRef를 두 실행 형태에서 검증한다.
 
 ## 7. 완료 Gate
@@ -91,7 +93,9 @@ Standalone 출력 구조는 바뀌지 않으므로 애드온 폴더 단독 복�
 - NainTail federation MCP의 NaiTail·AnimaTail 생성/대기 종단 스모크가 선택된
   `<HostOutputRoot>/<addonId>/`에 실제 파일을 만들고 애드온 로컬 출력에는 이중 기록하지 않아야 한다.
 - Hosted 생성 후 애드온 폴더의 `outputs/`에는 같은 결과가 새로 생기지 않아야 한다.
-- 한 애드온이 다른 애드온 namespace에 쓰거나 파일 작업을 수행할 수 없어야 한다.
-- GalleryTail은 Hosted AnimaTail 출력을 조회하고 설정 handoff를 유지해야 한다.
+- 한 애드온이 다른 애드온 namespace에 쓰거나 파일 작업을 수행할 수 없어야 한다. 단, GalleryTail의
+  사용자 명시 탐색·위치 표시·휴지통 작업은 호스트가 공개한 출력 루트 안에서만 허용한다.
+- GalleryTail은 생성 애드온 설치 여부와 무관하게 Hosted 공용 출력과 설치된 Standalone 애드온의
+  실제 포터블 출력 위치를 범위별로 조회해야 한다.
 - CensorTail 결과 artifactRef는 CensorTail namespace를 가리키고 원본 artifactRef와 혼동되지 않아야 한다.
 - 기존 자동 테스트, 포터블 검사와 실제 Standalone/Hosted smoke를 모두 통과해야 한다.

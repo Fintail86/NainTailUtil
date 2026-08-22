@@ -13,6 +13,7 @@ const { JobQueue } = require("./job-queue.cjs");
 const { listLocales } = require("./locale-service.cjs");
 const { diagnoseModels, readModelDiagnostics } = require("./model-diagnostics.cjs");
 const { SupportAssetService } = require("./support-asset-service.cjs");
+const { AddonOutputSettings } = require("./output-settings.cjs");
 const { resolveOutputItem } = require("./output-result-service.cjs");
 const { REFINE_IMAGE_EXTENSIONS, RefineInputService } = require("./refine-input-service.cjs");
 const packageInfo = require("../package.json");
@@ -32,6 +33,7 @@ let supportAssetService;
 let runtimeInstaller;
 let runtimeRoot;
 let outputRoot;
+let outputSettings;
 let addonContext;
 
 function getAppRoot() {
@@ -151,6 +153,38 @@ function registerIpcHandlers() {
   ipcMain.handle(channels.MODELS_GET_DIAGNOSTICS, () => readModelDiagnostics(getAppRoot()));
   ipcMain.handle(channels.MODELS_DIAGNOSE, () => diagnoseModels(getAppRoot()));
   ipcMain.handle(channels.MODELS_OPEN_FOLDER, () => shell.openPath(path.join(getAppRoot(), "Models")));
+  ipcMain.handle(channels.OUTPUT_SETTINGS_GET, () => outputSettings.status());
+  ipcMain.handle(channels.OUTPUT_SETTINGS_SELECT, async () => {
+    const current = outputSettings.status();
+    if (current.locked) throw new Error("Hosted 모드에서는 호스트 출력 폴더를 사용합니다.");
+    const queue = jobQueue.snapshot();
+    if (queue.activeJobId || queue.jobs.some((job) => ["pending", "running"].includes(job.state))) {
+      throw new Error("출력 폴더는 생성 큐가 비어 있을 때 변경할 수 있습니다.");
+    }
+    const picked = await dialog.showOpenDialog(addonContext.getWindow(), {
+      title: "AnimaTail 출력 폴더 선택",
+      defaultPath: current.outputRoot,
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return current;
+    const status = outputSettings.setOutputRoot(picked.filePaths[0]);
+    inferenceService.shutdown();
+    outputRoot = status.outputRoot;
+    inferenceService.outputRoot = outputRoot;
+    return status;
+  });
+  ipcMain.handle(channels.OUTPUT_SETTINGS_RESET, () => {
+    const queue = jobQueue.snapshot();
+    if (queue.activeJobId || queue.jobs.some((job) => ["pending", "running"].includes(job.state))) {
+      throw new Error("출력 폴더는 생성 큐가 비어 있을 때 변경할 수 있습니다.");
+    }
+    const status = outputSettings.reset();
+    inferenceService.shutdown();
+    outputRoot = status.outputRoot;
+    inferenceService.outputRoot = outputRoot;
+    return status;
+  });
+  ipcMain.handle(channels.OUTPUTS_OPEN, () => shell.openPath(outputRoot));
   ipcMain.handle(channels.SUPPORT_ASSETS_GET_STATUS, () => publicSupportAssetStatus());
   ipcMain.handle(channels.SUPPORT_ASSETS_INSTALL, async (_event, request) => {
     const kind = request?.kind === "optional" ? "optional" : "required";
@@ -233,8 +267,12 @@ function activate(context) {
     throw new Error("Hosted AnimaTail에 NainTail runtimeRoot가 주입되지 않았습니다.");
   }
   runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(getAppRoot(), "runtime"));
-  outputRoot = path.resolve(context.outputRoot || path.join(getAppRoot(), "outputs"));
-  fs.mkdirSync(outputRoot, { recursive: true });
+  outputSettings = new AddonOutputSettings({
+    addonRoot: getAppRoot(),
+    standalone: context.standalone === true,
+    hostedOutputRoot: context.outputRoot,
+  });
+  outputRoot = outputSettings.outputRoot();
   runtimeInstaller = new RuntimeInstaller(getAppRoot(), (event) => (
     sendToAll(channels.RUNTIME_EVENT, event)
   ), { allowFileUrls: !app.isPackaged, runtimeRoot });
@@ -254,7 +292,27 @@ function activate(context) {
     id: context.manifest.id,
     async smokeCheck(webContents) {
       return webContents.executeJavaScript(
-        "Boolean(window.animaUtil && document.querySelector('.app-header') && document.querySelector('.brand') && !document.body.textContent.includes('오류가 발생'))",
+        `(async () => {
+          let settingsTab = null;
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            settingsTab = Array.from(document.querySelectorAll('.tab-item')).find((item) => item.textContent.includes('설정'));
+            if (settingsTab && !settingsTab.disabled) break;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          settingsTab?.click();
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          const status = await window.animaUtil?.getOutputSettings?.();
+          return Boolean(window.animaUtil
+            && document.querySelector('.app-header')
+            && document.querySelector('.brand')
+            && settingsTab?.classList.contains('active')
+            && document.querySelector('.feature-page.settings-page')
+            && status?.mode === 'hosted' && status?.locked === true
+            && document.querySelector('[data-addon-output-settings]')
+            && document.querySelector('#animaOutputSelect')?.disabled
+            && document.querySelector('#animaOutputReset')?.disabled
+            && !document.body.textContent.includes('오류가 발생'));
+        })()`,
       );
     },
     close() {
@@ -269,6 +327,7 @@ function activate(context) {
       runtimeInstaller = null;
       runtimeRoot = null;
       outputRoot = null;
+      outputSettings = null;
       addonContext = null;
     },
   };

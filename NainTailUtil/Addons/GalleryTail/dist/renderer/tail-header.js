@@ -175,8 +175,16 @@
     if (key === "naitail") {
       source = header.querySelector("#anlasBalanceBadge");
       value = text(source);
-      source?.classList.add("tail-header-source");
+      const usagePopover = header.querySelector(".header-usage-popover");
+      const generatedResource = meta.querySelector(".tail-resource:not(.header-usage-popover)");
+      generatedResource?.remove();
+      source?.classList.remove("tail-header-source");
       header.querySelector("#connectionBadge")?.classList.add("tail-header-source");
+      if (usagePopover) {
+        usagePopover.classList.add("tail-resource");
+        usagePopover.removeAttribute("title");
+        return;
+      }
     } else if (key === "animatail") {
       header.querySelector(".runtime-chip")?.classList.add("tail-header-source");
       header.querySelector(".version-chip")?.classList.add("tail-header-static");

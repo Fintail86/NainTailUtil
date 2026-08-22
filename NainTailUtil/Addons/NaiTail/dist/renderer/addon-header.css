@@ -28,3 +28,55 @@
 .shell > .notice.error {
   display: block;
 }
+
+.tail-header .header-model-selector {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 0;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.tail-header .header-model-selector:focus-within {
+  border-color: color-mix(in srgb, var(--tail-accent) 60%, var(--line));
+}
+
+.tail-header .header-model-selector > span {
+  color: var(--tail-accent);
+  font: 700 9px/1 var(--mono);
+  letter-spacing: .08em;
+}
+
+.tail-header .header-model-selector select {
+  width: 124px;
+  min-height: 24px;
+  padding: 1px 20px 1px 4px;
+  border: 0;
+  background-color: transparent;
+  color: var(--text);
+  font: 600 11px/1.2 var(--sans);
+}
+
+.tail-header .header-model-selector.disabled {
+  opacity: .42;
+}
+
+.tail-header .header-usage-popover.tail-resource {
+  display: flex;
+  max-width: none;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 1160px) {
+  .tail-header .header-model-selector > span { display: none; }
+  .tail-header .header-model-selector select { width: 108px; }
+}

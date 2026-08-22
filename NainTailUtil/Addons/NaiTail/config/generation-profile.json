@@ -11,6 +11,7 @@
     "seed": null,
     "cfgRescale": 0,
     "decrisper": false,
+    "includeMetadata": true,
     "qualityTags": true,
     "ucPreset": "Heavy"
   },

@@ -6,7 +6,7 @@ const { pathToFileURL } = require("node:url");
 const { createId } = require("./ids.cjs");
 const { safeFileStem } = require("./json-store.cjs");
 const { ensureProductDirectories, resolveInside } = require("./paths.cjs");
-const { withJsonMetadata, readJsonMetadata } = require("./png-metadata.cjs");
+const { withJsonMetadata, withoutGenerationMetadata, readJsonMetadata } = require("./png-metadata.cjs");
 const { NainTailError } = require("./errors.cjs");
 
 function compactTimestamp(date = new Date()) {
@@ -16,7 +16,13 @@ function compactTimestamp(date = new Date()) {
 class OutputStore {
   constructor(productRoot, options = {}) {
     this.productRoot = ensureProductDirectories(productRoot);
-    this.directory = path.resolve(options.outputRoot || resolveInside(this.productRoot, "outputs"));
+    this.setDirectory(options.outputRoot || resolveInside(this.productRoot, "outputs"));
+  }
+
+  setDirectory(outputRoot) {
+    this.directory = path.resolve(outputRoot);
+    fs.mkdirSync(this.directory, { recursive: true });
+    return this.directory;
   }
 
   directoryForTask(task) {
@@ -55,7 +61,10 @@ class OutputStore {
         model: workerResult.model,
       },
     };
-    const encoded = withJsonMetadata(raw, "NainTailUtil", metadata);
+    const includeMetadata = task.request.settings?.includeMetadata !== false;
+    const encoded = includeMetadata
+      ? withJsonMetadata(raw, "NainTailUtil", metadata)
+      : withoutGenerationMetadata(raw);
     fs.writeFileSync(absolutePath, encoded, { flag: "wx" });
     const relativePath = path.join("outputs", path.relative(this.directory, absolutePath));
     return {

@@ -9,6 +9,8 @@ NainTailUtil/Addons/CensorTail/config/dev-assets.local.*
 **/__pycache__/
 NainTailUtil/runtime/
 NainTailUtil/outputs/
+NainTailUtil/config/output-settings.json
+NainTailUtil/Addons/*/config/output-settings.json
 NainTailUtil/Addons/AnimaTail/runtime/
 NainTailUtil/Addons/AnimaTail/Models/
 NainTailUtil/Addons/AnimaTail/outputs/
@@ -24,6 +26,7 @@ NainTailUtil/Addons/NaiTail/cache/
 NainTailUtil/Addons/NaiTail/logs/
 NainTailUtil/Addons/NaiTail/outputs/
 NainTailUtil/Addons/NaiTail/Projects/
+NainTailUtil/Addons/NaiTail/References/precise/*.png
 NainTailUtil/Addons/NaiTail/Presets/sub-slots/*.json
 NainTailUtil/Addons/NaiTail/config/credentials.json
 NainTailUtil/Addons/NaiTail/config/settings.local.json

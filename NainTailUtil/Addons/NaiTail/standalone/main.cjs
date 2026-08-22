@@ -74,7 +74,6 @@ function activateAddon() {
     hostRoot: null,
     productRoot: addonRoot,
     dataRoot: addonRoot,
-    outputRoot: path.join(addonRoot, "outputs"),
     manifest,
     standalone: true,
     getWindow: () => mainWindow,
@@ -114,17 +113,24 @@ async function createWindow() {
   await mainWindow.loadFile(resolveEntry("renderer"));
 
   if (smokeMode) {
-    const apiGlobal = manifest.id === "animatail" ? "animaUtil" : "nainTail";
     const state = await mainWindow.webContents.executeJavaScript(
-      `(() => {
+      `(async () => {
+        document.querySelector('[data-tab="settings"]')?.click();
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        const response = await window.nainTail?.getOutputSettings?.();
         const home = document.querySelector('#hostHomeButton');
         return {
-          ready: Boolean(window[${JSON.stringify(apiGlobal)}] && document.querySelector('.app-shell, .shell')),
+          ready: Boolean(window.nainTail && document.querySelector('.app-shell, .shell')),
           hostHomeVisible: Boolean(home && !home.hidden && home.getClientRects().length),
+          outputSettingsReady: Boolean(response?.ok
+            && response.result?.mode === 'standalone'
+            && response.result?.locked === false
+            && document.querySelector('#outputSettingsPath')
+            && !document.querySelector('#selectOutputFolder')?.disabled),
         };
       })()`,
     );
-    if (!state.ready || state.hostHomeVisible) throw new Error("standalone renderer contract가 준비되지 않았습니다.");
+    if (!state.ready || state.hostHomeVisible || !state.outputSettingsReady) throw new Error("standalone renderer contract가 준비되지 않았습니다.");
     writeSmokeResult({ ok: true, addon: manifest.id, root: path.basename(addonRoot), hostHomeVisible: false });
     app.quit();
     return;

@@ -72,7 +72,6 @@ function activateAddon() {
   }
   addonRuntime = electronEntry.activate({
     productRoot: addonRoot,
-    outputRoot: path.join(addonRoot, "outputs"),
     manifest,
     standalone: true,
     getWindow: () => mainWindow,
@@ -112,17 +111,31 @@ async function createWindow() {
   await mainWindow.loadFile(resolveEntry("renderer"));
 
   if (smokeMode) {
-    const apiGlobal = manifest.id === "animatail" ? "animaUtil" : "nainTail";
     const state = await mainWindow.webContents.executeJavaScript(
-      `(() => {
+      `(async () => {
+        let settingsTab = null;
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+          settingsTab = Array.from(document.querySelectorAll('.tab-item')).find((item) => item.textContent.includes('설정'));
+          if (settingsTab && !settingsTab.disabled) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        settingsTab?.click();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const outputSettings = await window.animaUtil?.getOutputSettings?.();
         const home = document.querySelector('#hostHomeButton');
         return {
-          ready: Boolean(window[${JSON.stringify(apiGlobal)}] && document.querySelector('.app-shell, .shell')),
+          ready: Boolean(window.animaUtil && document.querySelector('.app-shell, .shell')),
           hostHomeVisible: Boolean(home && !home.hidden && home.getClientRects().length),
+          outputSettingsReady: Boolean(outputSettings?.mode === 'standalone'
+            && outputSettings?.locked === false
+            && settingsTab?.classList.contains('active')
+            && document.querySelector('.feature-page.settings-page')
+            && document.querySelector('[data-addon-output-settings]')
+            && !document.querySelector('#animaOutputSelect')?.disabled),
         };
       })()`,
     );
-    if (!state.ready || state.hostHomeVisible) throw new Error("standalone renderer contract가 준비되지 않았습니다.");
+    if (!state.ready || state.hostHomeVisible || !state.outputSettingsReady) throw new Error("standalone renderer contract가 준비되지 않았습니다.");
     writeSmokeResult({ ok: true, addon: manifest.id, root: path.basename(addonRoot), hostHomeVisible: false });
     app.quit();
     return;

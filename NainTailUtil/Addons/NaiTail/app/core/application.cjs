@@ -50,6 +50,11 @@ class NainTailApplication extends EventEmitter {
     };
   }
 
+  setOutputRoot(outputRoot) {
+    this.outputStore.setDirectory(outputRoot);
+    return this.info();
+  }
+
   status() {
     const presets = this.presetStore.list();
     return {

@@ -2,12 +2,20 @@
 
 const { randomInt } = require("node:crypto");
 const { activeCharacterPrompts, positionToCenter } = require("../../core/character-prompt.cjs");
+const { requireModelDefinition } = require("../../core/nai-models.cjs");
 
 // Exact V4.5 suffixes observed in NovelAI's public web client build
 // c410ef7-production (2026-08-11). The prose docs can lag this wire contract.
 const QUALITY_SUFFIX = Object.freeze({
   "nai-diffusion-4-5-full": ", very aesthetic, masterpiece, no text",
   "nai-diffusion-4-5-curated": ", very aesthetic, masterpiece, no text, -0.8::feet::, rating:general",
+  "nai-diffusion-5-full": ", very aesthetic, masterpiece, no text",
+  "nai-diffusion-5-curated": ", very aesthetic, masterpiece, no text",
+});
+
+const QUALITY_PRESETS = Object.freeze({
+  "nai-diffusion-5-full": Object.freeze({ Standard: QUALITY_SUFFIX["nai-diffusion-5-full"], Light: ", very aesthetic, amazing quality, no text", None: "" }),
+  "nai-diffusion-5-curated": Object.freeze({ Standard: QUALITY_SUFFIX["nai-diffusion-5-curated"], Light: ", very aesthetic, amazing quality, no text", None: "" }),
 });
 
 const UC_PRESETS = Object.freeze({
@@ -24,10 +32,29 @@ const UC_PRESETS = Object.freeze({
     ["Human Focus", "blurry, lowres, upscaled, artistic error, film grain, scan artifacts, bad anatomy, bad hands, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, @_@, mismatched pupils, glowing eyes, negative space, blank page"],
     ["None", ""],
   ],
+  "nai-diffusion-5-full": [
+    ["Heavy", "lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page"],
+    ["Light", "lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::"],
+    ["Furry Focus", "{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, blurred foreground, chromatic aberration, sketch, everyone, simple, flat colors, outline, multiple scenes"],
+    ["Human Focus", "lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy"],
+    ["None", ""],
+  ],
+  "nai-diffusion-5-curated": [
+    ["Heavy", "lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page"],
+    ["Light", "lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::"],
+    ["Furry Focus", "{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, blurred foreground, chromatic aberration, sketch, everyone, simple, flat colors, outline, multiple scenes"],
+    ["Human Focus", "lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy"],
+    ["None", ""],
+  ],
 });
 
-const NO_NSFW_PREFIX = new Set(["nai-diffusion-4-5-curated"]);
+const NO_NSFW_PREFIX = new Set(["nai-diffusion-4-5-curated", "nai-diffusion-5-curated"]);
 const TEXT_CLAUSE = /(?:^|\s|[,.:\[\]{}、。])text:(?!:)/iu;
+const TRANSPARENCY_PROMPT_TAGS = Object.freeze({
+  "transparent-background": "transparent background",
+  "has-alpha": "has alpha",
+  "alpha-transparency": "alpha transparency",
+});
 
 function appendBeforeTextClause(prompt, addition) {
   const match = TEXT_CLAUSE.exec(prompt);
@@ -65,17 +92,23 @@ function createPayload(request) {
 
   const settings = request.settings;
   const model = settings.model;
+  const definition = requireModelDefinition(model);
   let prompt = String(request.prompt || "").trim();
-  if (settings.qualityTags) {
-    prompt = appendBeforeTextClause(prompt, QUALITY_SUFFIX[model] || QUALITY_SUFFIX["nai-diffusion-4-5-full"]);
+  const qualityPreset = settings.qualityPreset || (settings.qualityTags === false ? "None" : "Standard");
+  if (qualityPreset !== "None") {
+    const suffix = QUALITY_PRESETS[model]?.[qualityPreset] || QUALITY_SUFFIX[model] || QUALITY_SUFFIX["nai-diffusion-4-5-full"];
+    prompt = appendBeforeTextClause(prompt, suffix);
   }
+  const transparencyMode = settings.transparencyMode || (settings.transparentBackground ? "transparent-background" : "none");
+  const transparencyTag = TRANSPARENCY_PROMPT_TAGS[transparencyMode] || "";
+  if (transparencyTag && !prompt.toLowerCase().includes(transparencyTag)) prompt = appendBeforeTextClause(prompt, `, ${transparencyTag}`);
   const negative = resolveUc(model, settings.ucPreset, prompt, request.negativePrompt);
   const seed = settings.seed === null ? randomInt(0, 0xffffffff) : settings.seed;
   const presets = UC_PRESETS[model] || UC_PRESETS["nai-diffusion-4-5-full"];
   const ucPresetIndex = resolveUcPresetIndex(presets, settings.ucPreset);
   const useCoords = characters.some((character) => character.position);
   const params = {
-    params_version: 3,
+    params_version: definition.paramsVersion,
     width: settings.width,
     height: settings.height,
     scale: settings.guidance,
@@ -83,14 +116,12 @@ function createPayload(request) {
     steps: settings.steps,
     seed,
     n_samples: 1,
-    ucPreset: ucPresetIndex,
-    qualityToggle: settings.qualityTags,
-    dynamic_thresholding: settings.decrisper === true,
+    dynamic_thresholding: definition.capabilities.decrisper && settings.decrisper === true,
     controlnet_strength: 1,
     legacy: false,
     add_original_image: true,
     cfg_rescale: settings.cfgRescale,
-    noise_schedule: settings.scheduler,
+    noise_schedule: definition.capabilities.scheduler ? settings.scheduler : "karras",
     legacy_v3_extend: false,
     negative_prompt: negative,
     prompt,
@@ -112,13 +143,21 @@ function createPayload(request) {
       caption: { base_caption: negative, char_captions: characters.map((character) => ({ char_caption: character.negativePrompt, centers: [character.center] })) },
     },
   };
-  if (settings.sampler === "k_euler_ancestral" && settings.scheduler !== "native") {
+  if (definition.generation >= 5) {
+    params.tag_hint_qt = qualityPreset === "Standard" ? 1 : qualityPreset === "Light" ? 3 : 0;
+    params.tag_hint_uc_preset = ucPresetIndex;
+    params.tag_hint_transparent_background = Boolean(transparencyTag);
+  } else {
+    params.ucPreset = ucPresetIndex;
+    params.qualityToggle = qualityPreset !== "None";
+  }
+  if (settings.sampler === "k_euler_ancestral" && params.noise_schedule !== "native") {
     params.deliberate_euler_ancestral_bug = false;
     params.prefer_brownian = true;
   }
   const preciseReferences = Array.isArray(request.preciseReferences) ? request.preciseReferences : [];
   if (preciseReferences.length) {
-    if (!model.includes("diffusion-4-5")) throw new Error("Precise Reference는 NAI V4.5 모델에서만 사용할 수 있습니다.");
+    if (!definition.capabilities.preciseReference) throw new Error("Precise Reference는 현재 NAI V4.5 모델에서만 사용할 수 있습니다.");
     if (preciseReferences.some((reference) => !reference.image)) throw new Error("Precise Reference 이미지 데이터가 없습니다.");
     params.director_reference_images = preciseReferences.map((reference) => reference.image);
     params.director_reference_information_extracted = preciseReferences.map(() => 1);
@@ -131,6 +170,7 @@ function createPayload(request) {
   }
   const vibes = Array.isArray(request.vibes) ? request.vibes : [];
   if (vibes.length) {
+    if (!definition.capabilities.vibe) throw new Error("Vibe Transfer는 현재 NAI V4.5 모델에서만 사용할 수 있습니다.");
     if (preciseReferences.length) throw new Error("Vibe Transfer와 Precise Reference는 동시에 사용할 수 없습니다.");
     if (vibes.some((vibe) => !vibe.encoded)) throw new Error("V4 Vibe 인코딩 데이터가 없습니다.");
     let strengths = vibes.map((vibe) => Number(vibe.strength));
@@ -147,4 +187,4 @@ function createPayload(request) {
   };
 }
 
-module.exports = { QUALITY_SUFFIX, UC_PRESETS, appendBeforeTextClause, createPayload, resolveUc };
+module.exports = { QUALITY_PRESETS, QUALITY_SUFFIX, UC_PRESETS, appendBeforeTextClause, createPayload, resolveUc };

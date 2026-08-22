@@ -39,7 +39,7 @@ async function main() {
     dataRoot: addon.directory,
     dependencies,
     runtimeRoot: dependencies.runtimeRoot,
-    outputRoot: outputSettings.resolveAddonOutputRoot(addon.id),
+    outputRoot: outputSettings.resolveManifestOutputRoot(addon),
     argv: selection.argv,
   });
 }

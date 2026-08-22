@@ -16,14 +16,22 @@
       <nav id="tabs" class="tab-nav" aria-label="주요 화면">
         <button class="tab active" data-tab="single"><span class="tab-icon" aria-hidden="true">✦</span>싱글</button>
         <button class="tab" data-tab="multi"><span class="tab-icon" aria-hidden="true">✧</span>멀티</button>
-        <button class="tab" data-tab="artist-study"><span class="tab-icon" aria-hidden="true">◇</span>작례 연구기</button>
-        <button class="tab" data-tab="projects"><span class="tab-icon" aria-hidden="true">▣</span>작품</button>
+        <button id="artistStudyTab" class="tab" data-tab="artist-study" data-development-feature="true" aria-hidden="true" hidden><span class="tab-icon" aria-hidden="true">◇</span>작례 연구기</button>
+        <button id="projectsTab" class="tab" data-tab="projects" data-development-feature="true" aria-hidden="true" hidden><span class="tab-icon" aria-hidden="true">▣</span>작품</button>
         <button class="tab" data-tab="presets"><span class="tab-icon" aria-hidden="true">⌁</span>프리셋</button>
         <button class="tab" data-tab="settings"><span class="tab-icon" aria-hidden="true">⚙</span>설정</button>
       </nav>
       <div class="header-meta">
+        <label id="modelSelectorWrap" class="header-model-selector"><span>MODEL</span><select id="modelSelector" aria-label="NovelAI 모델 선택"><optgroup label="NAI Diffusion V5"><option value="nai-diffusion-5-curated">V5 Curated</option><option value="nai-diffusion-5-full">V5 Full</option></optgroup><optgroup label="Legacy"><option value="nai-diffusion-4-5-full" selected>V4.5 Full</option><option value="nai-diffusion-4-5-curated">V4.5 Curated</option></optgroup></select></label>
         <span id="dirtyIndicator" class="dirty-indicator" hidden>저장되지 않은 변경</span>
-        <button id="anlasBalanceBadge" type="button" class="anlas-balance muted" title="토큰을 설정하면 현재 Anlas 잔액을 조회한다." disabled><span class="anlas-balance-icon" aria-hidden="true">◆</span><span class="anlas-balance-label">Anlas</span><strong id="anlasBalanceValue">—</strong></button>
+        <div class="header-usage-popover">
+          <button id="anlasBalanceBadge" type="button" class="anlas-balance muted" aria-label="Anlas 잔액" aria-describedby="headerOpusUsageCard" disabled><span class="anlas-balance-icon" aria-hidden="true">◆</span><span class="anlas-balance-label">Anlas</span><strong id="anlasBalanceValue">—</strong></button>
+          <section id="headerOpusUsageCard" class="opus-usage-card header-opus-tooltip" role="tooltip">
+            <div class="opus-usage-head"><div><span class="opus-usage-kicker">V5 OPUS ALLOWANCE</span><strong id="headerOpusUsagePercent">—</strong></div><span id="headerOpusUsageState" class="pill">확인 중</span></div>
+            <div id="headerOpusUsageProgress" class="opus-usage-progress" role="progressbar" aria-label="V5 Opus 무료 생성 잔여량" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="headerOpusUsageProgressFill"></span></div>
+            <div class="opus-usage-details"><span id="headerOpusUsageImages">Opus 사용량 정보 없음</span><span id="headerOpusUsageRefill">배지를 클릭해 새로고침</span></div>
+          </section>
+        </div>
         <div id="connectionBadge" class="connection muted"><span class="status-dot" aria-hidden="true"></span><span id="connectionLabel">확인 중…</span></div>
       </div>
     </header>
@@ -40,12 +48,12 @@
           <form id="singleForm" class="panel editor-panel single-control-panel">
             <div class="single-control-scroll">
               <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">작례 → 현재 입력 순서로 합성</span></div>
-              <details class="prompt-block example-prompt-block">
-                <summary><span>작례</span><small>기본 접힘 · 품질·화풍 공통값</small></summary>
+              <details class="prompt-block example-prompt-block" open>
+                <summary><span>작례</span><small>Prompt + UC 세트</small></summary>
                 <div class="prompt-block-body">
-                  <div class="example-preset-picker"><select id="singleExamplePreset" aria-label="작례 프리셋"><option value="">작례 프리셋 없음</option></select><button type="button" id="applyExamplePreset" class="secondary" disabled>적용</button><div class="inline-preset-save"><button type="button" id="examplePresetSaveMenuButton" class="secondary" aria-haspopup="menu" aria-expanded="false" disabled>저장</button><div id="examplePresetSaveMenu" class="inline-preset-save-menu" role="menu" hidden><button type="button" id="saveExampleAsNew" role="menuitem"><strong>새 프리셋으로 저장</strong><span>이름을 입력해 새 작례 생성</span></button><button type="button" id="overwriteExamplePreset" role="menuitem" disabled><strong>현재 프리셋 덮어쓰기</strong><span id="overwriteExamplePresetName">먼저 프리셋을 선택해.</span></button></div></div></div>
+                  <div class="example-preset-picker"><select id="singleExamplePreset" aria-label="작례 프리셋"><option value="">작례 프리셋 없음</option></select><button type="button" id="applyExamplePreset" class="secondary" disabled>세트 적용</button><div class="inline-preset-save"><button type="button" id="examplePresetSaveMenuButton" class="secondary" aria-haspopup="menu" aria-expanded="false" disabled>세트 저장</button><div id="examplePresetSaveMenu" class="inline-preset-save-menu" role="menu" hidden><button type="button" id="saveExampleAsNew" role="menuitem"><strong>새 세트로 저장</strong><span>작례 Prompt와 UC를 함께 저장</span></button><button type="button" id="overwriteExamplePreset" role="menuitem" disabled><strong>현재 세트 덮어쓰기</strong><span id="overwriteExamplePresetName">먼저 프리셋을 선택해.</span></button></div></div></div>
                   <label>작례 Prompt<textarea name="examplePrompt" rows="5" placeholder="재사용할 스타일·구도·품질 프롬프트"></textarea></label>
-                  <label>작례 Undesired Content<textarea name="exampleNegativePrompt" rows="3" placeholder="작례에 함께 적용할 UC"></textarea></label>
+                  <label>작례 UC (Undesired Content)<textarea name="exampleNegativePrompt" rows="3" placeholder="작례 Prompt와 세트로 저장·적용할 UC"></textarea></label>
                 </div>
               </details>
               <details class="prompt-block current-prompt-block" open>
@@ -57,8 +65,9 @@
               </details>
               <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="singleCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addSingleCharacter" class="secondary" title="V4 캐릭터 Prompt·UC와 5×5 위치 추가">＋ 캐릭터</button></div></div>
               <section class="single-character-section"><div id="singleCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 싱글 생성</small></div></div></section>
-              <details class="prompt-block precise-reference-block">
-                <summary><span><span class="step-number">03</span> 이미지 참조</span><small id="singleReferenceCount">0개 · V4.5 Precise</small></summary>
+              <details class="precise-reference-block">
+                <summary class="single-section-heading reference-section-heading"><div><span class="step-number">03</span><h2>이미지 참조</h2></div><span class="single-hint"><span id="singleReferenceCount">0개 · V4.5 Precise</span><span class="reference-disclosure-caret" aria-hidden="true">⌄</span></span></summary>
+                <p id="singleReferenceUnavailable" class="model-capability-note" hidden>V5에서는 Vibe Transfer와 Precise Reference를 아직 사용할 수 없다. 등록한 참조는 V4.5로 돌아오면 그대로 유지된다.</p>
                 <div class="prompt-block-body reference-tools-body">
                   <section class="reference-tool-section"><header><h3>Vibe Transfer</h3><span id="singleVibeCount">0 / 16</span></header><label class="checkbox reference-normalize"><input id="singleNormalizeVibes" type="checkbox" checked> 다중 Vibe Strength 정규화</label><p class="precise-reference-hint">첫 인코딩·Information Extracted 변경 시 2 Anlas · 4개 초과 시 장당 추가 비용</p><div id="singleVibeList" class="precise-reference-list"><p class="muted">등록된 Vibe가 없다.</p></div><button type="button" id="addSingleVibe" class="secondary precise-reference-add">＋ Vibe 이미지</button></section>
                   <section class="reference-tool-section precise-tool-section"><header><h3>Precise Reference</h3><span id="singlePreciseCount">0 / 16</span></header><p class="precise-reference-hint">Character / Style / Character &amp; Style · 참조당 5 Anlas</p><div id="singleReferenceList" class="precise-reference-list"><p class="muted">등록된 이미지 참조가 없다.</p></div><button type="button" id="addSingleReference" class="secondary precise-reference-add">＋ Precise 이미지</button></section>
@@ -75,6 +84,7 @@
               <div class="local-generation-buttons"><button type="button" class="secondary" id="singleEstimate">비용 조건 확인</button><button id="singleGenerateButton" class="primary" type="submit">큐에 추가 · 1장</button></div>
             </div>
           </form>
+          <button type="button" class="generation-panel-resizer" data-generation-resizer="single" role="separator" aria-label="Single 생성 영역 폭 조절" aria-orientation="vertical" aria-valuemin="320" aria-valuemax="620" aria-valuenow="430" title="드래그해서 생성 영역 폭 조절 · 더블클릭으로 초기화"><span aria-hidden="true"></span></button>
           <section class="single-result-column">
             <div class="panel result-panel single-preview-panel"><div class="panel-head"><div><h2>미리보기</h2><p>휠로 확대하고 드래그해서 이동할 수 있다.</p></div><span id="singlePreviewSize" class="single-preview-size">—</span></div><div id="singlePreview" class="single-preview-canvas"><div class="single-preview-empty"><span>✦</span><strong>아직 생성된 이미지가 없다.</strong><p>생성 결과를 선택하면 여기에 크게 표시된다.</p></div></div><div class="single-preview-actions"><button type="button" id="reuseSingleResult" disabled>생성값 불러오기</button><button type="button" id="revealSingleResult" disabled>폴더에서 보기</button><button type="button" id="trashSingleResult" class="danger" disabled>휴지통</button></div></div>
             <div class="panel single-result-strip"><div class="result-strip-heading"><strong>최근 결과</strong><span id="singleResultCount">0장</span></div><div id="resultGallery" class="gallery empty"><p>아직 생성된 이미지가 없다.</p></div></div>
@@ -87,12 +97,13 @@
           <section class="panel multi-common-panel">
             <div class="multi-panel-scroll">
               <div class="single-section-heading"><div><span class="step-number">01</span><h2>공통 프롬프트</h2></div><span class="single-hint">모든 활성 슬롯에 적용</span></div>
-              <details class="prompt-block multi-example-prompt" open><summary><span>작례</span><small>품질·화풍 공통값</small></summary><div class="prompt-block-body"><div class="example-preset-picker"><select id="multiExamplePreset" aria-label="멀티 작례 프리셋"><option value="">작례 프리셋 없음</option></select><button type="button" id="applyMultiExamplePreset" class="secondary" disabled>적용</button></div><label>작례 Prompt<textarea name="examplePrompt" rows="4" placeholder="모든 슬롯에 공통 적용할 스타일·품질"></textarea></label><label>작례 UC<textarea name="exampleNegativePrompt" rows="2" placeholder="모든 슬롯에 공통 적용할 작례 UC"></textarea></label></div></details>
+              <details class="prompt-block multi-example-prompt" open><summary><span>작례</span><small>Prompt + UC 세트</small></summary><div class="prompt-block-body"><div class="example-preset-picker"><select id="multiExamplePreset" aria-label="멀티 작례 프리셋"><option value="">작례 프리셋 없음</option></select><button type="button" id="applyMultiExamplePreset" class="secondary" disabled>세트 적용</button></div><label>작례 Prompt<textarea name="examplePrompt" rows="4" placeholder="모든 슬롯에 공통 적용할 스타일·품질"></textarea></label><label>작례 UC<textarea name="exampleNegativePrompt" rows="2" placeholder="Prompt와 세트로 모든 슬롯에 적용할 UC"></textarea></label></div></details>
               <details class="prompt-block multi-current-prompt" open><summary><span>현재 공통 프롬프트</span><small>캐릭터·대상·공통 구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="prompt" rows="5" placeholder="1girl, portrait"></textarea></label><label>Undesired Content<textarea name="negativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
               <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="multiCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addMultiCharacter" class="secondary">＋ 캐릭터</button></div></div>
               <div id="multiCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>모든 슬롯에 공통 적용</small></div></div>
-              <details class="prompt-block precise-reference-block">
-                <summary><span><span class="step-number">03</span> 이미지 참조</span><small id="multiReferenceCount">0개 · V4.5 Precise</small></summary>
+              <details class="precise-reference-block">
+                <summary class="single-section-heading reference-section-heading"><div><span class="step-number">03</span><h2>이미지 참조</h2></div><span class="single-hint"><span id="multiReferenceCount">0개 · V4.5 Precise</span><span class="reference-disclosure-caret" aria-hidden="true">⌄</span></span></summary>
+                <p id="multiReferenceUnavailable" class="model-capability-note" hidden>V5에서는 Vibe Transfer와 Precise Reference를 아직 사용할 수 없다. 등록한 참조는 V4.5로 돌아오면 그대로 유지된다.</p>
                 <div class="prompt-block-body reference-tools-body">
                   <section class="reference-tool-section"><header><h3>Vibe Transfer</h3><span id="multiVibeCount">0 / 16</span></header><label class="checkbox reference-normalize"><input id="multiNormalizeVibes" type="checkbox" checked> 다중 Vibe Strength 정규화</label><p class="precise-reference-hint">모든 활성 슬롯에 공통 적용 · 첫 인코딩·IE 변경 시 2 Anlas</p><div id="multiVibeList" class="precise-reference-list"><p class="muted">등록된 Vibe가 없다.</p></div><button type="button" id="addMultiVibe" class="secondary precise-reference-add">＋ Vibe 이미지</button></section>
                   <section class="reference-tool-section precise-tool-section"><header><h3>Precise Reference</h3><span id="multiPreciseCount">0 / 16</span></header><p class="precise-reference-hint">모든 활성 슬롯에 공통 적용 · 참조당 이미지마다 5 Anlas</p><div id="multiReferenceList" class="precise-reference-list"><p class="muted">등록된 이미지 참조가 없다.</p></div><button type="button" id="addMultiReference" class="secondary precise-reference-add">＋ Precise 이미지</button></section>
@@ -110,6 +121,7 @@
             </div>
           </section>
 
+          <button type="button" class="generation-panel-resizer" data-generation-resizer="multi" role="separator" aria-label="Multi 생성 영역 폭 조절" aria-orientation="vertical" aria-valuemin="320" aria-valuemax="620" aria-valuenow="430" title="드래그해서 생성 영역 폭 조절 · 더블클릭으로 초기화"><span aria-hidden="true"></span></button>
           <section class="panel multi-slot-panel">
             <div class="multi-slot-heading"><div><h2>멀티 슬롯</h2><p>공통값과 각 슬롯 Prompt·UC를 결합해 한 장씩 순차 생성한다.</p></div><button type="button" id="addMultiSlot" class="icon-button" aria-label="멀티 슬롯 추가">＋</button></div>
             <div class="multi-slot-summary"><span id="multiSlotCount">0 / 20</span><strong id="multiSelectedSlotCount">0개 출력</strong></div>
@@ -172,9 +184,28 @@
 
       <section id="view-settings" class="view">
         <div class="settings-page">
+          <section class="panel settings-option" id="developmentSettingsPanel"><div><strong>Dev 옵션</strong><span>검증이 끝나지 않은 기능을 상단 탭에 표시합니다.</span><span id="developmentFeaturesState" class="development-features-state">상태 · 사용 안 함</span></div><label class="settings-checkbox"><span>미완성 기능 표시</span><input id="developmentFeaturesEnabled" type="checkbox"></label></section>
+          <section class="panel" id="outputSettingsPanel"><div class="panel-head"><div><h2>출력 폴더</h2><p id="outputSettingsDescription">생성 결과를 저장할 위치를 관리한다.</p></div><span id="outputSettingsBadge" class="pill">확인 중</span></div><div class="output-settings-path-row"><code id="outputSettingsPath" title="">불러오는 중…</code><button type="button" id="openOutputFolder" class="ghost">폴더 열기</button></div><div class="actions output-settings-actions"><button type="button" id="resetOutputFolder" class="ghost">기본 위치로 복원</button><button type="button" id="selectOutputFolder" class="secondary">위치 변경</button></div></section>
           <section class="panel"><div class="panel-head"><div><h2>NovelAI 자격증명</h2><p>토큰은 운영체제 암호화 저장소로 보호된다.</p></div><span id="credentialBadge" class="pill">확인 중</span></div><form id="credentialForm"><label>Access token<input name="token" type="password" autocomplete="off" placeholder="토큰을 입력해 저장"></label><div class="actions"><button type="button" id="clearCredential" class="danger">삭제</button><button class="primary" type="submit">암호화 저장</button></div></form></section>
-          <section class="panel"><div class="panel-head"><div><h2>계정 상태</h2><p>실제 생성 없이 구독 정보만 확인한다.</p></div><button id="checkSubscription" class="secondary">조회</button></div><pre id="subscriptionData" class="data-box">조회 전</pre></section>
-          <section class="panel"><div class="panel-head"><div><h2>런타임</h2><p>Core와 Worker는 GUI 밖에서도 동일하게 실행된다.</p></div></div><pre id="runtimeData" class="data-box">불러오는 중…</pre></section>
+          <details class="panel settings-disclosure" id="accountStatusPanel">
+            <summary><span><strong>계정 상태</strong><small>구독·Anlas·V5 Opus 사용량</small></span><span class="settings-disclosure-label"><span class="when-closed">상세 보기</span><span class="when-open">접기</span></span></summary>
+            <div class="settings-disclosure-body">
+              <div class="settings-disclosure-intro"><p>실제 생성 없이 NovelAI 구독 정보만 확인합니다.</p><button id="checkSubscription" class="secondary">조회</button></div>
+              <section id="opusUsageCard" class="opus-usage-card" aria-live="polite" hidden>
+                <div class="opus-usage-head">
+                  <div><span class="opus-usage-kicker">V5 OPUS ALLOWANCE</span><strong id="opusUsagePercent">—</strong></div>
+                  <span id="opusUsageState" class="pill">확인 중</span>
+                </div>
+                <div id="opusUsageProgress" class="opus-usage-progress" role="progressbar" aria-label="V5 Opus 무료 생성 잔여량" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="opusUsageProgressFill"></span></div>
+                <div class="opus-usage-details">
+                  <span id="opusUsageImages">추정 잔여 이미지 —</span>
+                  <span id="opusUsageRefill">다음 충전 확인 중</span>
+                </div>
+              </section>
+              <pre id="subscriptionData" class="data-box">조회 전</pre>
+            </div>
+          </details>
+          <details class="panel settings-disclosure" id="runtimeStatusPanel"><summary><span><strong>런타임</strong><small>Core · Worker · 애드온 실행 정보</small></span><span class="settings-disclosure-label"><span class="when-closed">상세 보기</span><span class="when-open">접기</span></span></summary><div class="settings-disclosure-body"><p>Core와 Worker는 GUI 밖에서도 동일하게 실행됩니다.</p><pre id="runtimeData" class="data-box">불러오는 중…</pre></div></details>
         </div>
       </section>
       </main>

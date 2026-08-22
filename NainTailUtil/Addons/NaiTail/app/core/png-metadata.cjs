@@ -6,6 +6,7 @@ const { NainTailError } = require("./errors.cjs");
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const TEXT_TYPES = new Set(["tEXt", "zTXt", "iTXt"]);
+const GENERATION_METADATA_TYPES = new Set([...TEXT_TYPES, "eXIf"]);
 const MAX_CHUNK_BYTES = 16 * 1024 * 1024;
 
 const CRC_TABLE = (() => {
@@ -108,6 +109,14 @@ function withJsonMetadata(pngBuffer, keyword, metadata) {
   return Buffer.concat(output);
 }
 
+function withoutGenerationMetadata(pngBuffer) {
+  const chunks = parseChunks(pngBuffer);
+  return Buffer.concat([
+    PNG_SIGNATURE,
+    ...chunks.filter((chunk) => !GENERATION_METADATA_TYPES.has(chunk.type)).map((chunk) => chunk.raw),
+  ]);
+}
+
 function readJsonMetadataFromBuffer(pngBuffer, keyword) {
   for (const chunk of parseChunks(pngBuffer)) {
     if (!TEXT_TYPES.has(chunk.type)) continue;
@@ -133,5 +142,5 @@ module.exports = {
   readJsonMetadata,
   readJsonMetadataFromBuffer,
   withJsonMetadata,
+  withoutGenerationMetadata,
 };
-

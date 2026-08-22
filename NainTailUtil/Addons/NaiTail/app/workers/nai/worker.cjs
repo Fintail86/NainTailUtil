@@ -36,10 +36,12 @@ async function generate(params) {
   }
   const preparedRequest = await prepareVibes(params.request, token, process.cwd());
   const { payload, resolved } = createPayload(preparedRequest);
+  const body = new FormData();
+  body.append("request", new Blob([JSON.stringify(payload)], { type: "application/json" }), "request.json");
   const response = await fetch(IMAGE_ENDPOINT, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers: { Authorization: `Bearer ${token}` },
+    body,
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) {

@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const channels = require("./channels.cjs");
 const { CredentialService } = require("./credential-service.cjs");
+const { AddonOutputSettings } = require("./output-settings.cjs");
 const { NainTailApplication } = require("../app/core/application.cjs");
 const { NainTailError, asPublicError } = require("../app/core/errors.cjs");
 
@@ -20,7 +21,12 @@ function reply(fn) {
 function activate(context) {
   const { dialog, ipcMain, safeStorage, shell } = context.services;
   const dataRoot = path.resolve(context.dataRoot || context.manifest.directory);
-  const outputRoot = path.resolve(context.outputRoot || path.join(dataRoot, "outputs"));
+  const outputSettings = new AddonOutputSettings({
+    addonRoot: dataRoot,
+    standalone: context.standalone === true,
+    hostedOutputRoot: context.outputRoot,
+  });
+  let outputRoot = outputSettings.outputRoot();
   const credentials = new CredentialService(dataRoot, safeStorage);
   const core = new NainTailApplication({
     productRoot: dataRoot,
@@ -79,6 +85,34 @@ function activate(context) {
   ipcMain.handle(channels.QUEUE_CLEAR, reply(() => core.clearQueue()));
   ipcMain.handle(channels.QUEUE_STOP, reply(() => core.stopAfterCurrent()));
   ipcMain.handle(channels.QUEUE_RESUME, reply(() => core.resumeQueue()));
+  ipcMain.handle(channels.OUTPUT_SETTINGS_GET, reply(() => outputSettings.status()));
+  ipcMain.handle(channels.OUTPUT_SETTINGS_SELECT, reply(async () => {
+    if (outputSettings.status().locked) throw new Error("Hosted 모드에서는 호스트 출력 폴더를 사용합니다.");
+    const queue = core.queue.snapshot();
+    if (queue.activeJobId || queue.jobs.some((job) => ["pending", "in_flight"].includes(job.state))) {
+      throw new Error("출력 폴더는 생성 큐가 비어 있을 때 변경할 수 있습니다.");
+    }
+    const picked = await dialog.showOpenDialog(context.getWindow(), {
+      title: "NaiTail 출력 폴더 선택",
+      defaultPath: outputRoot,
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return outputSettings.status();
+    const status = outputSettings.setOutputRoot(picked.filePaths[0]);
+    outputRoot = status.outputRoot;
+    core.setOutputRoot(outputRoot);
+    return status;
+  }));
+  ipcMain.handle(channels.OUTPUT_SETTINGS_RESET, reply(() => {
+    const queue = core.queue.snapshot();
+    if (queue.activeJobId || queue.jobs.some((job) => ["pending", "in_flight"].includes(job.state))) {
+      throw new Error("출력 폴더는 생성 큐가 비어 있을 때 변경할 수 있습니다.");
+    }
+    const status = outputSettings.reset();
+    outputRoot = status.outputRoot;
+    core.setOutputRoot(outputRoot);
+    return status;
+  }));
   ipcMain.handle(channels.OUTPUTS_OPEN, reply(() => shell.openPath(outputRoot)));
   ipcMain.handle(channels.OUTPUT_REVEAL, reply((payload) => {
     shell.showItemInFolder(core.resolveOutputPath(payload?.relativePath));
@@ -96,7 +130,21 @@ function activate(context) {
     id: context.manifest.id,
     async smokeCheck(webContents) {
       return webContents.executeJavaScript(
-        "Boolean(window.nainTail && document.querySelector('#singleForm') && document.querySelector('#multiForm') && document.querySelector('#artistStudyForm') && document.querySelectorAll('[data-tab]').length === 6 && !document.querySelector('#notice.error'))",
+        `(async () => {
+          const settingsTab = document.querySelector('[data-tab="settings"]');
+          settingsTab?.click();
+          await new Promise((resolve) => setTimeout(resolve, 80));
+          const status = await window.nainTail?.getOutputSettings?.();
+          return Boolean(window.nainTail
+            && document.querySelector('#singleForm')
+            && document.querySelector('#multiForm')
+            && document.querySelector('#artistStudyForm')
+            && document.querySelectorAll('[data-tab]').length === 6
+            && status?.ok && status.result?.mode === 'hosted' && status.result?.locked === true
+            && document.querySelector('#selectOutputFolder')?.disabled
+            && document.querySelector('#resetOutputFolder')?.disabled
+            && !document.querySelector('#notice.error'));
+        })()`,
       );
     },
     close() {

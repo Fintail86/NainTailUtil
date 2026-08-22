@@ -296,6 +296,13 @@ class CensorService {
     return path.join(this.baseOutputRoot, "censored");
   }
 
+  setOutputRoot(outputRoot) {
+    if (this.isBusy()) throw new Error("자동검열 작업 중에는 출력 폴더를 변경할 수 없습니다.");
+    this.baseOutputRoot = path.resolve(outputRoot);
+    fs.mkdirSync(this.outputRoot(), { recursive: true });
+    return this.outputRoot();
+  }
+
   resolveOutput(relativePath) {
     const safePath = normalizeOutputRelativePath(String(relativePath));
     if (!safePath) return null;

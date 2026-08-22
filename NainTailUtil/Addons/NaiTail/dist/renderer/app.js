@@ -3,8 +3,29 @@
 const api = window.nainTail;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const DEVELOPMENT_FEATURES_STORAGE_KEY = "naitail.developmentFeaturesEnabled";
+const GENERATION_PANEL_WIDTH_STORAGE_KEY = "naitail.generationPanelWidths";
+const GENERATION_PANEL_DEFAULT_WIDTH = 430;
+const GENERATION_PANEL_MIN_WIDTH = 320;
+const GENERATION_PANEL_MAX_WIDTH = 620;
+function readDevelopmentFeaturesEnabled() {
+  try { return window.localStorage.getItem(DEVELOPMENT_FEATURES_STORAGE_KEY) === "true"; }
+  catch { return false; }
+}
+function readGenerationPanelWidths() {
+  const defaults = { single: GENERATION_PANEL_DEFAULT_WIDTH, multi: GENERATION_PANEL_DEFAULT_WIDTH };
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(GENERATION_PANEL_WIDTH_STORAGE_KEY) || "null");
+    if (!stored || typeof stored !== "object") return defaults;
+    return Object.fromEntries(Object.entries(defaults).map(([scope, fallback]) => {
+      const width = Number(stored[scope]);
+      return [scope, Number.isFinite(width) && width >= GENERATION_PANEL_MIN_WIDTH && width <= GENERATION_PANEL_MAX_WIDTH ? width : fallback];
+    }));
+  } catch { return defaults; }
+}
 const state = {
   tab: "single",
+  developmentFeaturesEnabled: readDevelopmentFeaturesEnabled(),
   projects: [],
   project: null,
   projectDirty: false,
@@ -33,10 +54,34 @@ const state = {
   info: null,
   live: null,
   credential: null,
+  outputSettings: null,
   subscription: null,
+  subscriptionCheckedAt: 0,
+  generationPanelWidths: readGenerationPanelWidths(),
   costs: { single: null, multi: null, artist: null, project: {} },
 };
 const titles = { single: ["GENERATION", "Single"], multi: ["VARIATION WORKSPACE", "멀티"], "artist-study": ["ARTIST LAB", "작례 연구기"], projects: ["STORY WORKSPACE", "작품 개발"], presets: ["REUSABLE LIBRARY", "프리셋"], settings: ["APPLICATION", "설정"] };
+const DEFAULT_NAI_MODEL = "nai-diffusion-4-5-full";
+const MODEL_SELECTION_STORAGE_KEY = "naitail.selectedModel";
+const NAI_MODELS = Object.freeze({
+  "nai-diffusion-5-curated": { label: "V5 Curated", defaults: { steps: 23, guidance: 7, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: false, decrisper: false, references: false, transparency: true, lightQuality: true, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
+  "nai-diffusion-5-full": { label: "V5 Full", defaults: { steps: 23, guidance: 7, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: false, decrisper: false, references: false, transparency: true, lightQuality: true, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
+  "nai-diffusion-4-5-full": { label: "V4.5 Full", defaults: { steps: 28, guidance: 5, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: true, decrisper: true, references: true, transparency: false, lightQuality: false, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
+  "nai-diffusion-4-5-curated": { label: "V4.5 Curated", defaults: { steps: 28, guidance: 5, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: true, decrisper: true, references: true, transparency: false, lightQuality: false, ucPresets: ["Heavy", "Light", "Human Focus", "None"] },
+});
+function readPreferredNaiModel() {
+  try {
+    const model = window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY);
+    return NAI_MODELS[model] ? model : DEFAULT_NAI_MODEL;
+  } catch { return DEFAULT_NAI_MODEL; }
+}
+let preferredNaiModel = readPreferredNaiModel();
+function persistPreferredNaiModel(model) {
+  if (!NAI_MODELS[model]) return;
+  preferredNaiModel = model;
+  try { window.localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, model); }
+  catch { /* localStorage가 막힌 환경에서는 현재 세션에만 적용한다. */ }
+}
 const MAX_LOCAL_BATCH = 8;
 const MAX_LOCAL_QUEUE = 20;
 const MAX_LOCAL_TASKS = 100;
@@ -227,39 +272,178 @@ document.addEventListener("keydown", (event) => {
 
 function settingsHtml(settings = {}, prefix = "settings") {
   const value = (key, fallback) => settings[key] ?? fallback;
-  const basic = `<label class="span2 setting-model">Model<select name="${prefix}.model"><option value="nai-diffusion-4-5-full" ${value("model", "nai-diffusion-4-5-full") === "nai-diffusion-4-5-full" ? "selected" : ""}>NAI Diffusion V4.5 Full</option><option value="nai-diffusion-4-5-curated" ${value("model") === "nai-diffusion-4-5-curated" ? "selected" : ""}>NAI Diffusion V4.5 Curated</option></select></label>
+  const model = NAI_MODELS[value("model", preferredNaiModel)] ? value("model", preferredNaiModel) : preferredNaiModel;
+  const definition = NAI_MODELS[model];
+  const qualityPreset = value("qualityPreset", value("qualityTags", true) === false ? "None" : "Standard");
+  const qualityOptions = definition.lightQuality ? ["Standard", "Light", "None"] : ["Standard", "None"];
+  const transparencyAvailable = definition.transparency && ["settings", "multi"].includes(prefix);
+  const transparencyMode = value("transparencyMode", value("transparentBackground", false) === true ? "transparent-background" : "none");
+  const transparencyOptions = [
+    ["none", "사용 안 함"],
+    ["transparent-background", "투명 배경"],
+    ["has-alpha", "알파 채널 활용"],
+    ["alpha-transparency", "반투명 효과"],
+  ];
+  const basic = `<input type="hidden" name="${prefix}.model" value="${esc(model)}">
     <label>Width<input name="${prefix}.width" type="number" min="64" max="2048" step="64" value="${esc(value("width", 832))}"></label>
     <label>Height<input name="${prefix}.height" type="number" min="64" max="2048" step="64" value="${esc(value("height", 1216))}"></label>
-    <label>Steps<input name="${prefix}.steps" type="number" min="1" max="50" value="${esc(value("steps", 28))}"></label>
-    <label>Guidance<input name="${prefix}.guidance" type="number" min="0" max="20" step="0.1" value="${esc(value("guidance", 5))}"></label>`;
+    <label>Steps<input name="${prefix}.steps" type="number" min="1" max="50" value="${esc(value("steps", definition.defaults.steps))}"></label>
+    <label>Guidance<input name="${prefix}.guidance" type="number" min="0" max="20" step="0.1" value="${esc(value("guidance", definition.defaults.guidance))}"></label>
+    <label class="checkbox span2 setting-metadata" title="체크를 끄면 저장 PNG에서 NovelAI 및 NainTail 생성정보를 제거합니다."><input name="${prefix}.includeMetadata" type="checkbox" ${value("includeMetadata", true) !== false ? "checked" : ""}> EXIF / 생성정보 포함</label>`;
   const advanced = `<label class="span2 setting-sampler">Sampler<select name="${prefix}.sampler"><option value="k_euler_ancestral">Euler Ancestral</option><option value="k_dpmpp_2m">DPM++ 2M</option><option value="k_euler">Euler</option><option value="k_dpm_2">DPM2</option><option value="k_dpmpp_2s_ancestral">DPM++ 2S Ancestral</option><option value="k_dpmpp_sde">DPM++ SDE</option><option value="k_dpm_fast">DPM Fast</option><option value="ddim">DDIM</option></select></label>
-    <label>Scheduler<select name="${prefix}.scheduler"><option value="karras">Karras</option><option value="native">Native</option><option value="exponential">Exponential</option><option value="polyexponential">Polyexponential</option></select></label>
+    ${definition.scheduler ? `<label>Scheduler<select name="${prefix}.scheduler"><option value="karras">Karras</option><option value="native">Native</option><option value="exponential">Exponential</option><option value="polyexponential">Polyexponential</option></select></label>` : `<input type="hidden" name="${prefix}.scheduler" value="karras">`}
     <label>Seed<input name="${prefix}.seed" type="number" min="0" placeholder="Random" value="${esc(value("seed", ""))}"></label>
     <label>Guidance Rescale<input name="${prefix}.cfgRescale" type="number" min="0" max="1" step="0.02" value="${esc(value("cfgRescale", 0))}"></label>
-    <label>UC preset<select name="${prefix}.ucPreset">${["Heavy", "Light", "Furry Focus", "Human Focus", "None"].map((x) => `<option ${value("ucPreset", "Heavy") === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
-    <label class="checkbox"><input name="${prefix}.decrisper" type="checkbox" ${value("decrisper", false) === true ? "checked" : ""}> Decrisper</label>
-    <label class="checkbox setting-quality"><input name="${prefix}.qualityTags" type="checkbox" ${value("qualityTags", true) !== false ? "checked" : ""}> Quality tags</label>`;
+    <label>UC preset<select name="${prefix}.ucPreset">${definition.ucPresets.map((x) => `<option ${value("ucPreset", "Heavy") === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+    <label>Quality preset<select name="${prefix}.qualityPreset">${qualityOptions.map((x) => `<option ${qualityPreset === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+    ${definition.decrisper ? `<label class="checkbox"><input name="${prefix}.decrisper" type="checkbox" ${value("decrisper", false) === true ? "checked" : ""}> Decrisper</label>` : `<input type="hidden" name="${prefix}.decrisper" value="false">`}
+    ${transparencyAvailable ? `<label>Transparency<select name="${prefix}.transparencyMode" title="V5 알파 채널 생성 방식">${transparencyOptions.map(([id, label]) => `<option value="${id}" ${transparencyMode === id ? "selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}`;
   if (!["settings", "study", "multi"].includes(prefix)) return `${basic}${advanced}`;
-  return `${basic}<details class="single-advanced-settings"><summary><span><strong>고급 설정</strong><small>Sampler · Scheduler · Rescale · Decrisper · Seed · UC</small></span><span class="advanced-settings-chevron" aria-hidden="true">⌄</span></summary><div class="single-advanced-grid">${advanced}</div></details>`;
+  const summary = definition.scheduler ? "Sampler · Scheduler · Rescale · Decrisper · Seed · UC" : `Sampler · Rescale · Seed · UC${transparencyAvailable ? " · 투명화" : ""}`;
+  return `${basic}<details class="single-advanced-settings"><summary><span><strong>고급 설정</strong><small>${summary}</small></span><span class="advanced-settings-chevron" aria-hidden="true">⌄</span></summary><div class="single-advanced-grid">${advanced}</div></details>`;
 }
 
 function readSettings(form, prefix = "settings") {
   const get = (name) => form.elements.namedItem(`${prefix}.${name}`);
-  return { model: get("model").value, width: Number(get("width").value), height: Number(get("height").value), steps: Number(get("steps").value), guidance: Number(get("guidance").value), sampler: get("sampler").value, scheduler: get("scheduler").value, seed: get("seed").value === "" ? null : Number(get("seed").value), cfgRescale: Number(get("cfgRescale").value), decrisper: get("decrisper").checked, ucPreset: get("ucPreset").value, qualityTags: get("qualityTags").checked };
+  const qualityPreset = get("qualityPreset")?.value || "Standard";
+  const transparencyMode = get("transparencyMode")?.value || "none";
+  return { model: get("model")?.value || DEFAULT_NAI_MODEL, width: Number(get("width").value), height: Number(get("height").value), steps: Number(get("steps").value), guidance: Number(get("guidance").value), sampler: get("sampler").value, scheduler: get("scheduler")?.value || "karras", seed: get("seed").value === "" ? null : Number(get("seed").value), cfgRescale: Number(get("cfgRescale").value), decrisper: get("decrisper")?.checked === true, includeMetadata: get("includeMetadata")?.checked !== false, ucPreset: get("ucPreset").value, qualityPreset, qualityTags: qualityPreset !== "None", transparencyMode, transparentBackground: transparencyMode !== "none" };
 }
 
 function writeSettings(form, settings = {}, prefix = "settings") {
-  for (const key of ["model", "width", "height", "steps", "guidance", "sampler", "scheduler", "seed", "cfgRescale", "ucPreset"]) {
+  for (const key of ["model", "width", "height", "steps", "guidance", "sampler", "scheduler", "seed", "cfgRescale", "ucPreset", "qualityPreset"]) {
     const field = form.elements.namedItem(`${prefix}.${key}`);
     if (field) field.value = settings[key] ?? (key === "seed" ? "" : field.value);
   }
-  const qualityTags = form.elements.namedItem(`${prefix}.qualityTags`);
-  if (qualityTags) qualityTags.checked = settings.qualityTags !== false;
   const decrisper = form.elements.namedItem(`${prefix}.decrisper`);
   if (decrisper) decrisper.checked = settings.decrisper === true;
+  const includeMetadata = form.elements.namedItem(`${prefix}.includeMetadata`);
+  if (includeMetadata) includeMetadata.checked = settings.includeMetadata !== false;
+  const transparencyMode = form.elements.namedItem(`${prefix}.transparencyMode`);
+  if (transparencyMode) transparencyMode.value = settings.transparencyMode || (settings.transparentBackground === true ? "transparent-background" : "none");
 }
 
-function switchTab(tab) { state.tab = tab; $$(".tab").forEach((el) => el.classList.toggle("active", el.dataset.tab === tab)); $$(".view").forEach((el) => el.classList.toggle("active", el.id === `view-${tab}`)); $("#mainWorkspace").classList.toggle("single-workspace-mode", tab === "single"); $("#mainWorkspace").classList.toggle("multi-workspace-mode", tab === "multi"); $("#pageEyebrow").textContent = titles[tab][0]; $("#pageTitle").textContent = titles[tab][1]; updateDirtyIndicator(); }
+function settingsContextForTab(tab = state.tab) {
+  if (tab === "single") return { form: $("#singleForm"), prefix: "settings", container: $("[data-settings-scope=single]") };
+  if (tab === "multi") return { form: $("#multiForm"), prefix: "multi", container: $("[data-settings-scope=multi]") };
+  if (tab === "artist-study" && state.artistStudy) return { form: $("#artistStudyForm"), prefix: "study", container: $("[data-settings-scope=artist-study]") };
+  if (tab === "projects" && state.project && $("#projectForm")) return { form: $("#projectForm"), prefix: "common", container: $("[data-project-settings]") };
+  return null;
+}
+
+function syncHeaderModelSelector() {
+  const context = settingsContextForTab();
+  const selector = $("#modelSelector");
+  const model = context?.form?.elements.namedItem(`${context.prefix}.model`)?.value;
+  selector.disabled = !context;
+  $("#modelSelectorWrap").classList.toggle("disabled", !context);
+  if (model && NAI_MODELS[model]) selector.value = model;
+  selector.title = context ? `${NAI_MODELS[selector.value].label} · 현재 화면의 생성 모델` : "이 화면에는 생성 모델 설정이 없다.";
+}
+
+function renderModelCapabilities(scope) {
+  const model = modelFor(scope);
+  const definition = NAI_MODELS[model] || NAI_MODELS[DEFAULT_NAI_MODEL];
+  const unavailable = $(`#${scope}ReferenceUnavailable`);
+  const block = unavailable?.closest(".precise-reference-block");
+  const body = block?.querySelector(".reference-tools-body");
+  if (unavailable) unavailable.hidden = definition.references;
+  if (body) body.hidden = !definition.references;
+  block?.classList.toggle("model-feature-unavailable", !definition.references);
+  updateReferenceSummary(scope);
+}
+
+function switchTab(tab) { state.tab = tab; $$(".tab").forEach((el) => el.classList.toggle("active", el.dataset.tab === tab)); $$(".view").forEach((el) => el.classList.toggle("active", el.id === `view-${tab}`)); $("#mainWorkspace").classList.toggle("single-workspace-mode", tab === "single"); $("#mainWorkspace").classList.toggle("multi-workspace-mode", tab === "multi"); $("#pageEyebrow").textContent = titles[tab][0]; $("#pageTitle").textContent = titles[tab][1]; if (tab === "single" || tab === "multi") renderModelCapabilities(tab); syncHeaderModelSelector(); updateDirtyIndicator(); }
+
+function renderDevelopmentFeatures() {
+  const enabled = state.developmentFeaturesEnabled;
+  $$('[data-development-feature="true"]').forEach((tab) => {
+    tab.hidden = !enabled;
+    tab.setAttribute("aria-hidden", String(!enabled));
+  });
+  $("#developmentFeaturesEnabled").checked = enabled;
+  $("#developmentFeaturesState").textContent = enabled ? "상태 · 사용" : "상태 · 사용 안 함";
+}
+
+function setDevelopmentFeaturesEnabled(enabled) {
+  state.developmentFeaturesEnabled = Boolean(enabled);
+  try { window.localStorage.setItem(DEVELOPMENT_FEATURES_STORAGE_KEY, String(state.developmentFeaturesEnabled)); }
+  catch { /* localStorage가 막힌 환경에서는 현재 세션에만 적용한다. */ }
+  if (!state.developmentFeaturesEnabled && ["artist-study", "projects"].includes(state.tab)) switchTab("single");
+  renderDevelopmentFeatures();
+}
+
+function generationPanelWorkspace(scope) {
+  return scope === "single" ? $(".single-generation-workspace") : scope === "multi" ? $(".multi-generation-workspace") : null;
+}
+
+function generationPanelWidthBounds(scope, workspace = generationPanelWorkspace(scope)) {
+  const available = workspace?.getBoundingClientRect().width || 0;
+  const reserved = scope === "single" ? 334 : 670;
+  return {
+    min: GENERATION_PANEL_MIN_WIDTH,
+    max: Math.max(GENERATION_PANEL_MIN_WIDTH, Math.min(GENERATION_PANEL_MAX_WIDTH, available ? available - reserved : GENERATION_PANEL_MAX_WIDTH)),
+  };
+}
+
+function persistGenerationPanelWidths() {
+  try { window.localStorage.setItem(GENERATION_PANEL_WIDTH_STORAGE_KEY, JSON.stringify(state.generationPanelWidths)); }
+  catch { /* localStorage가 막힌 환경에서는 현재 세션에만 적용한다. */ }
+}
+
+function setGenerationPanelWidth(scope, width, { persist = false } = {}) {
+  const workspace = generationPanelWorkspace(scope);
+  const handle = $(`[data-generation-resizer="${scope}"]`);
+  if (!workspace || !handle) return;
+  const bounds = generationPanelWidthBounds(scope, workspace);
+  const next = Math.round(Math.min(bounds.max, Math.max(bounds.min, Number(width) || GENERATION_PANEL_DEFAULT_WIDTH)));
+  state.generationPanelWidths[scope] = next;
+  workspace.style.setProperty(`--${scope}-generation-panel-width`, `${next}px`);
+  handle.setAttribute("aria-valuemin", String(bounds.min));
+  handle.setAttribute("aria-valuemax", String(bounds.max));
+  handle.setAttribute("aria-valuenow", String(next));
+  handle.title = `${next}px · 드래그해서 생성 영역 폭 조절 · 더블클릭으로 초기화`;
+  if (persist) persistGenerationPanelWidths();
+}
+
+function initGenerationPanelResizers() {
+  $$("[data-generation-resizer]").forEach((handle) => {
+    const scope = handle.dataset.generationResizer;
+    let pointerId = null;
+    const finish = (event) => {
+      if (pointerId === null || (event?.pointerId !== undefined && event.pointerId !== pointerId)) return;
+      pointerId = null;
+      handle.classList.remove("dragging");
+      document.body.classList.remove("resizing-generation-panel");
+      persistGenerationPanelWidths();
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      pointerId = event.pointerId;
+      handle.setPointerCapture(pointerId);
+      handle.classList.add("dragging");
+      document.body.classList.add("resizing-generation-panel");
+      event.preventDefault();
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (pointerId !== event.pointerId) return;
+      const workspace = generationPanelWorkspace(scope);
+      setGenerationPanelWidth(scope, event.clientX - workspace.getBoundingClientRect().left);
+      event.preventDefault();
+    });
+    handle.addEventListener("pointerup", finish);
+    handle.addEventListener("pointercancel", finish);
+    handle.addEventListener("dblclick", () => setGenerationPanelWidth(scope, GENERATION_PANEL_DEFAULT_WIDTH, { persist: true }));
+    handle.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home"].includes(event.key)) return;
+      const step = event.shiftKey ? 40 : 10;
+      const width = event.key === "Home" ? GENERATION_PANEL_DEFAULT_WIDTH : state.generationPanelWidths[scope] + (event.key === "ArrowRight" ? step : -step);
+      setGenerationPanelWidth(scope, width, { persist: true });
+      event.preventDefault();
+    });
+    setGenerationPanelWidth(scope, state.generationPanelWidths[scope]);
+  });
+}
 
 function positionGridHtml(position) {
   const selected = position || "";
@@ -301,7 +485,8 @@ function modelFor(scope) {
 function updateReferenceSummary(scope) {
   const vibes = vibesFor(scope).length;
   const precise = preciseReferencesFor(scope).length;
-  $(`#${scope}ReferenceCount`).textContent = `Vibe ${vibes} · Precise ${precise}`;
+  const definition = NAI_MODELS[modelFor(scope)] || NAI_MODELS[DEFAULT_NAI_MODEL];
+  $(`#${scope}ReferenceCount`).textContent = definition.references ? `Vibe ${vibes} · Precise ${precise}` : `V5 미지원 · ${vibes + precise}개 보존`;
 }
 
 function preciseReferenceRows(references) {
@@ -319,11 +504,12 @@ function preciseReferenceRows(references) {
 
 function renderPreciseReferences(scope) {
   const references = preciseReferencesFor(scope);
+  const supported = (NAI_MODELS[modelFor(scope)] || NAI_MODELS[DEFAULT_NAI_MODEL]).references;
   $(`#${scope}ReferenceList`).innerHTML = preciseReferenceRows(references);
   $(`#${scope}PreciseCount`).textContent = `${references.length} / 16`;
   const add = $(`#add${scope === "single" ? "Single" : "Multi"}Reference`);
-  add.disabled = references.length >= 16 || vibesFor(scope).length > 0;
-  add.title = vibesFor(scope).length ? "Vibe Transfer와 Precise Reference는 동시에 사용할 수 없다." : "";
+  add.disabled = !supported || references.length >= 16 || vibesFor(scope).length > 0;
+  add.title = !supported ? "선택한 V5 모델은 아직 Precise Reference를 지원하지 않는다." : vibesFor(scope).length ? "Vibe Transfer와 Precise Reference는 동시에 사용할 수 없다." : "";
   updateReferenceSummary(scope);
 }
 
@@ -341,12 +527,13 @@ function vibeRows(vibes) {
 
 function renderVibes(scope) {
   const vibes = vibesFor(scope);
+  const supported = (NAI_MODELS[modelFor(scope)] || NAI_MODELS[DEFAULT_NAI_MODEL]).references;
   $(`#${scope}VibeList`).innerHTML = vibeRows(vibes);
   $(`#${scope}VibeCount`).textContent = `${vibes.length} / 16`;
   $(`#${scope}NormalizeVibes`).checked = vibeNormalizationFor(scope);
   const add = $(`#add${scope === "single" ? "Single" : "Multi"}Vibe`);
-  add.disabled = vibes.length >= 16 || preciseReferencesFor(scope).length > 0;
-  add.title = preciseReferencesFor(scope).length ? "Precise Reference와 Vibe Transfer는 동시에 사용할 수 없다." : "";
+  add.disabled = !supported || vibes.length >= 16 || preciseReferencesFor(scope).length > 0;
+  add.title = !supported ? "선택한 V5 모델은 아직 Vibe Transfer를 지원하지 않는다." : preciseReferencesFor(scope).length ? "Precise Reference와 Vibe Transfer는 동시에 사용할 수 없다." : "";
   updateReferenceSummary(scope);
 }
 
@@ -385,6 +572,7 @@ async function refreshVibeCacheStatus(scope) {
 }
 
 async function addVibe(scope, trigger) {
+  if (!(NAI_MODELS[modelFor(scope)] || NAI_MODELS[DEFAULT_NAI_MODEL]).references) throw new Error("Vibe Transfer는 현재 V4.5 모델에서만 사용할 수 있습니다.");
   if (preciseReferencesFor(scope).length) throw new Error("Precise Reference를 먼저 비워야 Vibe Transfer를 사용할 수 있습니다.");
   const picked = await action(() => call(api.pickReferenceImage()), null, trigger);
   if (!picked) return;
@@ -459,6 +647,7 @@ function processPreciseReferenceImage(picked) {
 }
 
 async function addPreciseReference(scope, trigger) {
+  if (!(NAI_MODELS[modelFor(scope)] || NAI_MODELS[DEFAULT_NAI_MODEL]).references) throw new Error("Precise Reference는 현재 V4.5 모델에서만 사용할 수 있습니다.");
   if (vibesFor(scope).length) throw new Error("Vibe Transfer를 먼저 비워야 Precise Reference를 사용할 수 있습니다.");
   const picked = await action(() => call(api.pickReferenceImage()), null, trigger);
   if (!picked) return;
@@ -601,8 +790,10 @@ function renderMulti() {
   renderMultiCharacters();
   renderVibes("multi");
   renderPreciseReferences("multi");
+  renderModelCapabilities("multi");
   renderMultiSlots();
   renderMultiResults();
+  if (state.tab === "multi") syncHeaderModelSelector();
 }
 
 function artistStudyCharacterRows() {
@@ -660,6 +851,7 @@ function renderArtistStudy() {
   syncSelectValues(form, state.artistStudy.settings || {}, "study");
   $("#artistSliderList").innerHTML = artistSliderRows(state.artistStudy.artists);
   renderArtistStudyCharacters();
+  if (state.tab === "artist-study") syncHeaderModelSelector();
   updateDirtyIndicator();
 }
 
@@ -736,7 +928,7 @@ async function persistExamplePreset(input, trigger) {
 function renderProjectList() { $("#projectList").innerHTML = state.projects.length ? state.projects.map((p) => `<button class="list-item ${state.project?.id === p.id ? "active" : ""}" data-project-id="${esc(p.id)}" title="${esc(p.name)}"><strong>${esc(p.name)}</strong><small>${esc(p.updatedAt || "")}</small></button>`).join("") : `<p class="muted">작품이 없다.</p>`; }
 function renderProject() {
   renderProjectList(); const empty = $("#projectEmpty"), editor = $("#projectEditor");
-  if (!state.project) { empty.hidden = false; editor.hidden = true; return; }
+  if (!state.project) { empty.hidden = false; editor.hidden = true; if (state.tab === "projects") syncHeaderModelSelector(); return; }
   empty.hidden = true; editor.hidden = false; const p = state.project;
   editor.innerHTML = `<form id="projectForm"><div class="project-title-row"><label>작품 이름<input name="name" value="${esc(p.name)}"></label><div class="actions"><button type="button" data-generate-scope="general" data-base-label="일반 생성" class="secondary">일반 생성 · 비용 계산 중</button><button type="button" data-generate-scope="character" data-base-label="캐릭터 생성" class="secondary">캐릭터 생성 · 비용 계산 중</button><button type="button" data-generate-scope="all" data-base-label="전체 생성" class="primary">전체 생성 · 비용 계산 중</button></div></div>
     <label>공통 Prompt<textarea name="commonPrompt" rows="4">${esc(p.commonPrompt)}</textarea></label><label>공통 Undesired Content<textarea name="commonNegativePrompt" rows="2">${esc(p.commonNegativePrompt)}</textarea></label>
@@ -747,6 +939,7 @@ function renderProject() {
     <div class="actions"><button type="button" id="reloadProject" class="ghost">되돌리기</button><button class="primary">작품 저장</button></div></form>`;
   syncSelectValues(editor, p.commonSettings, "common");
   updateProjectGenerationButtons();
+  if (state.tab === "projects") syncHeaderModelSelector();
   scheduleCostEstimate("project");
 }
 
@@ -782,7 +975,13 @@ async function discardProjectChanges() {
   renderProject();
 }
 
-function renderPresetList() { const presets = presetsOfType(state.presetType); $("#presetList").innerHTML = presets.length ? presets.map((p) => `<button class="list-item ${state.preset?.id === p.id ? "active" : ""}" data-preset-id="${esc(p.id)}" title="${esc(p.name)}"><strong>${esc(p.name)}</strong><small>${p.type === "example" ? "작례" : `${p.itemCount ?? 0} items`}</small></button>`).join("") : `<p class="muted">${state.presetType === "example" ? "작례 프리셋이 없다." : "서브슬롯 프리셋이 없다."}</p>`; }
+function examplePresetSetLabel(preset) {
+  if (preset.hasPrompt && preset.hasNegativePrompt) return "Prompt + UC";
+  if (preset.hasNegativePrompt) return "UC only";
+  if (preset.hasPrompt) return "Prompt · UC 비어 있음";
+  return "빈 Prompt + UC 세트";
+}
+function renderPresetList() { const presets = presetsOfType(state.presetType); $("#presetList").innerHTML = presets.length ? presets.map((p) => `<button class="list-item ${state.preset?.id === p.id ? "active" : ""}" data-preset-id="${esc(p.id)}" title="${esc(p.name)}"><strong>${esc(p.name)}</strong><small>${p.type === "example" ? examplePresetSetLabel(p) : `${p.itemCount ?? 0} items`}</small></button>`).join("") : `<p class="muted">${state.presetType === "example" ? "작례 프리셋이 없다." : "서브슬롯 프리셋이 없다."}</p>`; }
 function renderPreset() {
   renderPresetList();
   $$("[data-preset-type]").forEach((button) => { const active = button.dataset.presetType === state.presetType; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
@@ -792,7 +991,7 @@ function renderPreset() {
   if (!state.preset) { empty.hidden = false; editor.hidden = true; return; }
   empty.hidden = true; editor.hidden = false;
   if (state.preset.type === "example") {
-    editor.innerHTML = `<form id="presetForm"><div class="project-title-row"><label>작례 프리셋 이름<input name="name" value="${esc(state.preset.name)}"></label><button type="button" id="deletePreset" class="danger">삭제</button></div><section class="section-card example-preset-editor"><header><div><h3>작례 Prompt와 UC</h3><p class="muted">싱글에서 불러온 뒤 자유롭게 수정할 수 있으며 원본 프리셋과 연결되지 않는다.</p></div></header><label>Prompt<textarea name="prompt" rows="10">${esc(state.preset.prompt)}</textarea></label><label>Undesired Content<textarea name="negativePrompt" rows="5">${esc(state.preset.negativePrompt)}</textarea></label></section><div class="actions"><button class="primary">작례 프리셋 저장</button></div></form>`;
+    editor.innerHTML = `<form id="presetForm"><div class="project-title-row"><label>작례 프리셋 이름<input name="name" value="${esc(state.preset.name)}"></label><button type="button" id="deletePreset" class="danger">삭제</button></div><section class="section-card example-preset-editor"><header><div><h3>작례 Prompt + UC 세트</h3><p class="muted">두 값을 하나의 프리셋으로 함께 저장하고, 싱글·멀티에서 함께 불러온다.</p></div></header><label>Prompt<textarea name="prompt" rows="10">${esc(state.preset.prompt)}</textarea></label><label>UC (Undesired Content)<textarea name="negativePrompt" rows="5">${esc(state.preset.negativePrompt)}</textarea></label></section><div class="actions"><button class="primary">Prompt + UC 세트 저장</button></div></form>`;
     return;
   }
   editor.innerHTML = `<form id="presetForm"><div class="project-title-row"><label>프리셋 이름<input name="name" value="${esc(state.preset.name)}"></label><button type="button" id="deletePreset" class="danger">삭제</button></div><section class="section-card"><header><div><h3>슬롯 템플릿</h3><p class="muted">Append 시 fresh slot ID로 복사되며 이후 원본 프리셋과 연결되지 않는다.</p></div><button type="button" id="addPresetItem">＋ 항목</button></header><div class="slot-list">${state.preset.items.map((item, i) => `<div class="slot-row" data-preset-index="${i}"><span></span><input data-field="name" value="${esc(item.name)}" aria-label="프리셋 항목 이름"><textarea data-field="prompt" rows="2" aria-label="프리셋 항목 프롬프트" title="${esc(item.prompt)}">${esc(item.prompt)}</textarea><textarea data-field="negativePrompt" rows="2" aria-label="프리셋 항목 Undesired Content" title="${esc(item.negativePrompt)}">${esc(item.negativePrompt)}</textarea><div class="slot-tools"><button type="button" data-preset-move="up" aria-label="${esc(item.name)} 위로 이동">↑</button><button type="button" data-preset-move="down" aria-label="${esc(item.name)} 아래로 이동">↓</button><button type="button" data-preset-item-delete class="danger" aria-label="${esc(item.name)} 삭제">×</button></div></div>`).join("") || `<p class="muted">항목이 없다.</p>`}</div></section><div class="actions"><button class="primary">서브슬롯 프리셋 저장</button></div></form>`;
@@ -801,7 +1000,7 @@ function syncPresetFromDom() { const form = $("#presetForm"); if (!form || !stat
 
 async function saveCurrentPreset(trigger = null) {
   syncPresetFromDom();
-  state.preset = await action(() => call(api.savePreset(state.preset)), "프리셋을 저장했다.", trigger);
+  state.preset = await action(() => call(api.savePreset(state.preset)), state.preset.type === "example" ? "작례 Prompt와 UC를 세트로 저장했다." : "프리셋을 저장했다.", trigger);
   markDirty("preset", false);
   await refreshLibraries();
   renderPreset();
@@ -1028,12 +1227,30 @@ function renderCredentialStatus(credential = state.credential, live = state.live
   $("#credentialBadge").textContent = credentialLabels[credentialState] || credentialLabels.missing;
   $("#credentialBadge").className = `pill ${credentialState === "ready" ? "good" : "bad"}`;
   renderAnlasBalance();
+  renderOpusUsage();
+}
+
+function renderOutputSettings(settings) {
+  if (!settings) return;
+  state.outputSettings = settings;
+  const hosted = settings.mode === "hosted";
+  const custom = settings.source === "custom";
+  $("#outputSettingsBadge").textContent = hosted ? "호스트 상속" : custom ? "사용자 지정" : "Standalone 기본값";
+  $("#outputSettingsBadge").className = `pill ${hosted ? "good" : ""}`;
+  $("#outputSettingsDescription").textContent = hosted
+    ? "NainTail 호스트의 공용 출력 위치를 상속한다. Hosted 모드에서는 변경할 수 없다."
+    : "Standalone 생성 결과를 저장할 위치다. 기본값은 NaiTail 폴더의 outputs다.";
+  $("#outputSettingsPath").textContent = settings.outputRoot;
+  $("#outputSettingsPath").title = settings.outputRoot;
+  $("#selectOutputFolder").disabled = settings.locked;
+  $("#resetOutputFolder").disabled = settings.locked || !custom;
 }
 
 async function refreshStatus() {
-  const [live, credential, info, queue] = await Promise.all([call(api.getLiveStatus()), call(api.getCredentialStatus()), call(api.getInfo()), call(api.getQueue())]);
+  const [live, credential, info, queue, outputSettings] = await Promise.all([call(api.getLiveStatus()), call(api.getCredentialStatus()), call(api.getInfo()), call(api.getQueue()), call(api.getOutputSettings())]);
   state.info = info;
   renderCredentialStatus(credential, live);
+  renderOutputSettings(outputSettings);
   $("#runtimeData").textContent = JSON.stringify(info, null, 2);
   state.queue = queue;
   renderQueue();
@@ -1042,6 +1259,171 @@ async function refreshStatus() {
 function isOpusSubscription(subscription = state.subscription) {
   const tier = subscription?.tier ?? subscription?.subscriptionTier ?? subscription?.subscription_tier;
   return Number(tier) === 3 || String(tier || "").toLowerCase() === "opus";
+}
+
+function opusUsageState(subscription = state.subscription) {
+  const usage = subscription?.usage;
+  if (!isOpusSubscription(subscription) || !usage || typeof usage !== "object") return null;
+  const rawPercent = Number(usage.percent);
+  if (!Number.isFinite(rawPercent)) return null;
+  const isNegative = usage.isNegative === true;
+  const rawRefillSeconds = Number(usage.timeUntilNextPercent);
+  const percent = isNegative ? 0 : Math.min(100, Math.max(0, rawPercent));
+  return {
+    percent,
+    isNegative,
+    approximateImages: Math.round(percent * 17.3),
+    timeUntilNextPercent: Number.isFinite(rawRefillSeconds) && rawRefillSeconds >= 0 ? rawRefillSeconds : null,
+  };
+}
+
+function formatUsagePercent(percent) {
+  return `${Number.isInteger(percent) ? percent : percent.toFixed(1)}%`;
+}
+
+function formatCountdown(totalSeconds) {
+  const seconds = Math.max(0, Math.ceil(totalSeconds));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  const clock = [hours, minutes, remainder].map((value) => String(value).padStart(2, "0")).join(":");
+  return days > 0 ? `${days}일 ${clock}` : clock;
+}
+
+function updateAnlasBadgeHoverTitle(usage = opusUsageState(), refillText = "") {
+  const badge = $("#anlasBalanceBadge");
+  if (!badge) return;
+  const anlasTitle = badge.dataset.anlasTitle || "Anlas 잔액";
+  const credentialReady = state.credential?.state === "ready" || state.credential?.configured === true;
+  const opusTitle = usage
+    ? `V5 Opus 무료 할당량 ${formatUsagePercent(usage.percent)} 남음 · 추정 ${usage.approximateImages.toLocaleString("ko-KR")}장`
+    : !credentialReady
+      ? "V5 Opus 할당량 · 토큰을 설정해야 조회 가능"
+      : isOpusSubscription()
+        ? "V5 Opus 할당량 · API 사용량 정보 없음"
+        : "V5 Opus 할당량 · Opus 계정에서 조회 가능";
+  badge.removeAttribute("title");
+  const anlasAriaLabel = badge.dataset.anlasAriaLabel || "Anlas 잔액";
+  badge.setAttribute("aria-label", [anlasAriaLabel, opusTitle, refillText].filter(Boolean).join(". "));
+}
+
+function renderOpusUsageCountdown(usage = opusUsageState()) {
+  const outputs = [$("#opusUsageRefill"), $("#headerOpusUsageRefill")].filter(Boolean);
+  if (!usage) {
+    updateAnlasBadgeHoverTitle(null);
+    return;
+  }
+  let text;
+  if (usage.percent >= 100 && !usage.isNegative) {
+    text = "할당량 완충됨";
+  } else if (usage.timeUntilNextPercent === null) {
+    text = "충전 시간 정보 없음";
+  } else {
+    const elapsed = state.subscriptionCheckedAt ? (Date.now() - state.subscriptionCheckedAt) / 1000 : 0;
+    const remaining = Math.max(0, usage.timeUntilNextPercent - elapsed);
+    const refillRate = usage.timeUntilNextPercent > 0 ? Math.round((86400 / usage.timeUntilNextPercent) * 10) / 10 : null;
+    const rateText = refillRate === null ? "" : ` · 약 ${refillRate}%/일`;
+    text = remaining > 0 ? `다음 1%까지 ${formatCountdown(remaining)}${rateText}` : `다음 1% 충전 반영 대기${rateText}`;
+  }
+  for (const output of outputs) output.textContent = text;
+  updateAnlasBadgeHoverTitle(usage, text);
+}
+
+function renderOpusUsage() {
+  const views = [
+    { card: $("#opusUsageCard"), percent: $("#opusUsagePercent"), images: $("#opusUsageImages"), state: $("#opusUsageState"), progress: $("#opusUsageProgress"), fill: $("#opusUsageProgressFill"), hideWhenUnavailable: true },
+    { card: $("#headerOpusUsageCard"), percent: $("#headerOpusUsagePercent"), images: $("#headerOpusUsageImages"), state: $("#headerOpusUsageState"), progress: $("#headerOpusUsageProgress"), fill: $("#headerOpusUsageProgressFill"), hideWhenUnavailable: false },
+  ].filter((view) => view.card);
+  if (!views.length) return;
+  const credentialReady = state.credential?.state === "ready" || state.credential?.configured === true;
+  const usage = credentialReady ? opusUsageState() : null;
+  for (const view of views) {
+    view.card.hidden = !usage && view.hideWhenUnavailable;
+    view.card.setAttribute("aria-busy", "false");
+  }
+  if (!usage) {
+    const header = views.find((view) => !view.hideWhenUnavailable);
+    if (header) {
+      const isOpus = isOpusSubscription();
+      header.card.dataset.state = "unavailable";
+      header.percent.textContent = "—";
+      header.images.textContent = !credentialReady ? "토큰을 설정해야 조회할 수 있음" : isOpus ? "API 사용량 정보 없음" : "Opus 계정에서 제공되는 정보";
+      header.state.textContent = !credentialReady ? "미연결" : isOpus ? "정보 없음" : "Opus 전용";
+      header.state.className = "pill bad";
+      header.fill.style.width = "0%";
+      header.progress.setAttribute("aria-valuenow", "0");
+      header.progress.setAttribute("aria-valuetext", header.images.textContent);
+      $("#headerOpusUsageRefill").textContent = credentialReady ? "배지를 클릭해 새로고침" : "설정에서 토큰을 저장해줘";
+    }
+    return;
+  }
+  const kind = usage.isNegative || usage.percent <= 0 ? "empty" : usage.percent < 5 ? "low" : "available";
+  const stateLabel = kind === "empty" ? "소진됨" : kind === "low" ? "잔여량 낮음" : "사용 가능";
+  for (const view of views) {
+    view.card.dataset.state = kind;
+    view.percent.textContent = formatUsagePercent(usage.percent);
+    view.images.textContent = `추정 잔여 이미지 약 ${usage.approximateImages.toLocaleString("ko-KR")}장`;
+    view.state.textContent = stateLabel;
+    view.state.className = `pill ${kind === "available" ? "good" : "bad"}`;
+    view.fill.style.width = `${usage.percent}%`;
+    view.progress.setAttribute("aria-valuenow", String(usage.percent));
+    view.progress.setAttribute("aria-valuetext", `${formatUsagePercent(usage.percent)} 남음, 추정 ${usage.approximateImages}장`);
+  }
+  renderOpusUsageCountdown(usage);
+}
+
+function initializeHeaderUsagePopover() {
+  const popover = $(".header-usage-popover");
+  const badge = $("#anlasBalanceBadge");
+  const card = $("#headerOpusUsageCard");
+  if (!popover || !badge || !card || popover.dataset.bound === "true") return;
+  document.body.append(card);
+  const position = () => {
+    const rect = badge.getBoundingClientRect();
+    const margin = 12;
+    const gap = 8;
+    const cardRect = card.getBoundingClientRect();
+    const cardWidth = Math.min(cardRect.width || 300, Math.max(0, window.innerWidth - (margin * 2)));
+    const cardHeight = cardRect.height;
+    const maxLeft = Math.max(margin, window.innerWidth - cardWidth - margin);
+    const left = Math.min(Math.max(margin, rect.right - cardWidth), maxLeft);
+    const below = rect.bottom + gap;
+    const top = below + cardHeight <= window.innerHeight - margin
+      ? below
+      : Math.max(margin, rect.top - gap - cardHeight);
+    document.documentElement.style.setProperty("--header-opus-tooltip-top", `${Math.round(top)}px`);
+    document.documentElement.style.setProperty("--header-opus-tooltip-left", `${Math.round(left)}px`);
+  };
+  const open = () => {
+    position();
+    popover.dataset.open = "true";
+    card.dataset.open = "true";
+    badge.setAttribute("aria-expanded", "true");
+  };
+  const close = () => {
+    if (popover.dataset.pinned === "true") return;
+    popover.dataset.open = "false";
+    card.dataset.open = "false";
+    badge.setAttribute("aria-expanded", "false");
+  };
+  popover.addEventListener("pointerenter", open);
+  popover.addEventListener("pointerleave", close);
+  popover.addEventListener("focusin", open);
+  popover.addEventListener("focusout", close);
+  badge.addEventListener("click", () => {
+    popover.dataset.pinned = "true";
+    open();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (popover.contains(event.target) || card.contains(event.target)) return;
+    popover.dataset.pinned = "false";
+    close();
+  });
+  window.addEventListener("resize", () => {
+    if (popover.dataset.open === "true") position();
+  });
+  popover.dataset.bound = "true";
 }
 
 function subscriptionBalance(subscription = state.subscription) {
@@ -1060,58 +1442,72 @@ function renderAnlasBalance({ loading = false, error = null } = {}) {
   const credentialReady = state.credential?.state === "ready" || state.credential?.configured === true;
   badge.disabled = !credentialReady || loading;
   badge.className = "anlas-balance muted";
+  let anlasTitle;
   if (!credentialReady) {
     value.textContent = "—";
-    badge.title = "토큰을 설정하면 현재 Anlas 잔액을 조회한다.";
+    anlasTitle = "토큰을 설정하면 현재 Anlas 잔액을 조회한다.";
   } else if (loading) {
     value.textContent = "조회 중…";
-    badge.title = "NovelAI에서 현재 Anlas 잔액을 조회하고 있다.";
+    anlasTitle = "NovelAI에서 현재 Anlas 잔액을 조회하고 있다.";
   } else if (error) {
     value.textContent = "조회 실패";
     badge.className = "anlas-balance bad";
-    badge.title = `${error.message || error} · 클릭하여 다시 조회`;
+    anlasTitle = `${error.message || error} · 클릭하여 다시 조회`;
     badge.disabled = false;
   } else {
     const balance = subscriptionBalance();
     value.textContent = balance === null ? "확인 불가" : balance.toLocaleString("ko-KR");
     badge.className = `anlas-balance ${balance === null ? "muted" : "good"}`;
-    badge.title = balance === null ? "잔액 필드가 없는 응답이다. 클릭하여 다시 조회" : `현재 ${balance.toLocaleString("ko-KR")} Anlas · 클릭하여 새로고침`;
+    anlasTitle = balance === null ? "잔액 필드가 없는 응답이다. 클릭하여 다시 조회" : `현재 ${balance.toLocaleString("ko-KR")} Anlas · 클릭하여 새로고침`;
   }
-  badge.setAttribute("aria-label", `Anlas 잔액 ${value.textContent}`);
+  badge.dataset.anlasTitle = anlasTitle;
+  badge.dataset.anlasAriaLabel = `Anlas 잔액 ${value.textContent}`;
+  badge.removeAttribute("title");
+  badge.setAttribute("aria-label", badge.dataset.anlasAriaLabel);
+  updateAnlasBadgeHoverTitle();
 }
 
 async function refreshSubscription(trigger = null) {
   const credentialReady = state.credential?.state === "ready" || state.credential?.configured === true;
   if (!credentialReady) {
     state.subscription = null;
+    state.subscriptionCheckedAt = 0;
     $("#subscriptionData").textContent = "토큰 미설정";
     renderAnlasBalance();
+    renderOpusUsage();
     return null;
   }
   renderAnlasBalance({ loading: true });
+  $("#opusUsageCard")?.setAttribute("aria-busy", "true");
   const work = () => call(api.getSubscription());
   try {
     const subscription = trigger && trigger.id !== "anlasBalanceBadge" ? await action(work, null, trigger) : await work();
     state.subscription = subscription;
+    state.subscriptionCheckedAt = Date.now();
     $("#subscriptionData").textContent = JSON.stringify(subscription, null, 2);
     renderAnlasBalance();
+    renderOpusUsage();
     return subscription;
   } catch (error) {
     state.subscription = null;
+    state.subscriptionCheckedAt = 0;
     $("#subscriptionData").textContent = `조회 실패: ${error.message}`;
     renderAnlasBalance({ error });
+    renderOpusUsage();
     throw error;
   }
 }
 
 function commonCostOptions(scope) {
+  const supportsReferences = (NAI_MODELS[modelFor(scope)] || NAI_MODELS[DEFAULT_NAI_MODEL]).references;
   const vibes = vibesFor(scope);
   return {
     subscriptionKnown: Boolean(state.subscription),
     isOpus: isOpusSubscription(),
-    preciseReferenceCount: preciseReferencesFor(scope).length,
-    vibeCount: vibes.length,
-    vibeEncodingCount: vibes.filter((vibe) => !vibe.cached).length,
+    opusUsageExhausted: opusUsageState()?.isNegative === true,
+    preciseReferenceCount: supportsReferences ? preciseReferencesFor(scope).length : 0,
+    vibeCount: supportsReferences ? vibes.length : 0,
+    vibeEncodingCount: supportsReferences ? vibes.filter((vibe) => !vibe.cached).length : 0,
   };
 }
 
@@ -1141,7 +1537,7 @@ function artistCostInput() {
   const form = $("#artistStudyForm");
   return {
     request: { settings: readSettings(form, "study") },
-    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), generationCount: 1 },
+    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: 1 },
   };
 }
 
@@ -1172,6 +1568,7 @@ function projectCostInput(scope) {
     options: {
       subscriptionKnown: Boolean(state.subscription),
       isOpus: isOpusSubscription(),
+      opusUsageExhausted: opusUsageState()?.isNegative === true,
       generationCount: settingsVariants.length,
       settingsVariants,
     },
@@ -1273,6 +1670,51 @@ async function estimateAllProjectCosts() {
 }
 
 $("#tabs").addEventListener("click", async (event) => { const tab = event.target.closest("[data-tab]")?.dataset.tab; if (tab && tab !== state.tab) await guardCurrentEditor(tab); });
+$("#developmentFeaturesEnabled").addEventListener("change", (event) => setDevelopmentFeaturesEnabled(event.currentTarget.checked));
+$("#modelSelector").addEventListener("change", async (event) => {
+  const context = settingsContextForTab();
+  if (!context) return;
+  if (state.tab === "multi") syncMultiFromDom();
+  if (state.tab === "artist-study") syncArtistStudyFromDom();
+  if (state.tab === "projects") syncProjectFromDom();
+  const model = event.currentTarget.value;
+  const definition = NAI_MODELS[model];
+  persistPreferredNaiModel(model);
+  const current = readSettings(context.form, context.prefix);
+  const next = {
+    ...current,
+    ...definition.defaults,
+    model,
+    decrisper: definition.decrisper ? current.decrisper : false,
+    transparencyMode: definition.transparency ? current.transparencyMode : "none",
+    transparentBackground: definition.transparency && current.transparencyMode !== "none",
+    qualityPreset: definition.lightQuality || current.qualityPreset !== "Light" ? current.qualityPreset : "Standard",
+    ucPreset: definition.ucPresets.includes(current.ucPreset) ? current.ucPreset : "Heavy",
+  };
+  context.container.innerHTML = settingsHtml(next, context.prefix);
+  writeSettings(context.form, next, context.prefix);
+  if (state.tab === "single" || state.tab === "multi") {
+    if (state.tab === "multi") state.multi.settings = next;
+    renderVibes(state.tab);
+    renderPreciseReferences(state.tab);
+    renderModelCapabilities(state.tab);
+    invalidateCost(state.tab);
+    scheduleCostEstimate(state.tab);
+    if (definition.references) refreshVibeCacheStatus(state.tab).catch((error) => notify(error.message, true));
+  } else if (state.tab === "artist-study") {
+    state.artistStudy.settings = next;
+    markDirty("artist-study");
+    invalidateCost("artist");
+    scheduleCostEstimate("artist");
+  } else if (state.tab === "projects") {
+    state.project.commonSettings = next;
+    markDirty("project");
+    invalidateCost("project");
+    scheduleCostEstimate("project");
+  }
+  syncHeaderModelSelector();
+  notify(`${definition.label}로 변경하고 권장 Steps·Guidance를 적용했다.`);
+});
 $("[data-settings-scope=single]").innerHTML = settingsHtml({}, "settings");
 $("[data-settings-scope=multi]").innerHTML = settingsHtml({}, "multi");
 $("[data-settings-scope=artist-study]").innerHTML = settingsHtml({}, "study");
@@ -1280,7 +1722,9 @@ $("#singleForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   syncSingleCharactersFromDom();
-  const request = { examplePrompt: form.elements.examplePrompt.value, exampleNegativePrompt: form.elements.exampleNegativePrompt.value, prompt: form.elements.prompt.value, negativePrompt: form.elements.negativePrompt.value, characters: state.singleCharacters, vibes: state.singleVibes, normalizeVibeStrengths: state.singleNormalizeVibeStrengths, preciseReferences: state.singlePreciseReferences, batchCount: Number(form.elements.batchCount.value), queueCount: Number(form.elements.queueCount.value), settings: readSettings(form) };
+  const settings = readSettings(form);
+  const referencesSupported = (NAI_MODELS[settings.model] || NAI_MODELS[DEFAULT_NAI_MODEL]).references;
+  const request = { examplePrompt: form.elements.examplePrompt.value, exampleNegativePrompt: form.elements.exampleNegativePrompt.value, prompt: form.elements.prompt.value, negativePrompt: form.elements.negativePrompt.value, characters: state.singleCharacters, vibes: referencesSupported ? state.singleVibes : [], normalizeVibeStrengths: state.singleNormalizeVibeStrengths, preciseReferences: referencesSupported ? state.singlePreciseReferences : [], batchCount: Number(form.elements.batchCount.value), queueCount: Number(form.elements.queueCount.value), settings };
   const estimate = await estimateSingle();
   if (!(await confirmAnlasUse(estimate))) return;
   const result = await action(async () => { const generated = await call(api.generateSingle(request)); state.queue = generated.queue; renderQueue(); return generated; }, null, event.submitter);
@@ -1320,7 +1764,7 @@ $("#singleCharacters").addEventListener("input", (event) => {
   }
 });
 $("#singleExamplePreset").addEventListener("change", updateExamplePresetActions);
-$("#applyExamplePreset").addEventListener("click", async (event) => { const presetId = $("#singleExamplePreset").value; if (!presetId) return; const preset = await action(() => call(api.getPreset(presetId)), null, event.currentTarget); if (preset.type !== "example") throw new Error("작례 프리셋이 아닙니다."); const form = $("#singleForm"); form.elements.examplePrompt.value = preset.prompt; form.elements.exampleNegativePrompt.value = preset.negativePrompt; updateExamplePresetActions(); notify(`작례 프리셋을 불러왔다: ${preset.name}`); });
+$("#applyExamplePreset").addEventListener("click", async (event) => { const presetId = $("#singleExamplePreset").value; if (!presetId) return; const preset = await action(() => call(api.getPreset(presetId)), null, event.currentTarget); if (preset.type !== "example") throw new Error("작례 프리셋이 아닙니다."); const form = $("#singleForm"); form.elements.examplePrompt.value = preset.prompt; form.elements.exampleNegativePrompt.value = preset.negativePrompt; updateExamplePresetActions(); notify(`작례 Prompt와 UC 세트를 불러왔다: ${preset.name}`); });
 $("#examplePresetSaveMenuButton").addEventListener("click", (event) => { event.stopPropagation(); const menu = $("#examplePresetSaveMenu"); menu.hidden = !menu.hidden; event.currentTarget.setAttribute("aria-expanded", String(!menu.hidden)); });
 $("#saveExampleAsNew").addEventListener("click", openExamplePresetNameDialog);
 $("#overwriteExamplePreset").addEventListener("click", async (event) => {
@@ -1330,7 +1774,7 @@ $("#overwriteExamplePreset").addEventListener("click", async (event) => {
   const choice = await confirmChoice({ title: "현재 프리셋을 덮어쓸까?", message: `${selected.name}의 이름과 ID는 유지하고 현재 작례 Prompt와 UC로 갱신한다.`, confirmText: "덮어쓰기", danger: false });
   if (choice !== "confirm") return;
   const saved = await persistExamplePreset({ id: selected.id, name: selected.name }, event.currentTarget);
-  notify(`작례 프리셋을 덮어썼다: ${saved.name}`);
+  notify(`작례 Prompt와 UC 세트를 덮어썼다: ${saved.name}`);
 });
 $("#examplePresetNameForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1346,7 +1790,7 @@ $("#examplePresetNameForm").addEventListener("submit", async (event) => {
   try {
     const saved = await persistExamplePreset({ id: id("example"), name }, event.submitter);
     dialog.close();
-    notify(`새 작례 프리셋으로 저장했다: ${saved.name}`);
+    notify(`새 작례 Prompt와 UC 세트로 저장했다: ${saved.name}`);
   } catch (saveError) {
     error.textContent = saveError.message;
     error.hidden = false;
@@ -1398,7 +1842,9 @@ $("#multiForm").addEventListener("submit", async (event) => {
   syncMultiFromDom();
   const estimate = await estimateMulti();
   if (!(await confirmAnlasUse(estimate))) return;
-  const result = await action(() => call(api.generateMulti(state.multi)), null, event.submitter);
+  const referencesSupported = (NAI_MODELS[state.multi.settings.model] || NAI_MODELS[DEFAULT_NAI_MODEL]).references;
+  const request = referencesSupported ? state.multi : { ...state.multi, vibes: [], preciseReferences: [] };
+  const result = await action(() => call(api.generateMulti(request)), null, event.submitter);
   state.queue = result.queue;
   renderQueue();
   notify(`멀티 로컬 작업 ${result.tasks}장을 큐에 추가했다.`);
@@ -1424,7 +1870,7 @@ $("#applyMultiExamplePreset").addEventListener("click", async (event) => {
   form.elements.examplePrompt.value = preset.prompt;
   form.elements.exampleNegativePrompt.value = preset.negativePrompt;
   syncMultiFromDom();
-  notify(`멀티 공통 작례를 불러왔다: ${preset.name}`);
+  notify(`멀티 공통 Prompt와 UC 세트를 불러왔다: ${preset.name}`);
 });
 $("#addMultiCharacter").addEventListener("click", () => {
   syncMultiFromDom();
@@ -1522,10 +1968,14 @@ $("#reuseSingleResult").addEventListener("click", () => {
   state.singlePreciseReferences = Array.isArray(result.request.preciseReferences) ? result.request.preciseReferences.map((reference) => ({ ...reference })) : [];
   state.singleCharacterOpenIds = new Set();
   renderSingleCharacters();
+  const reusedSettings = { ...(result.request.settings || {}), seed: result.seed };
+  $("[data-settings-scope=single]").innerHTML = settingsHtml(reusedSettings, "settings");
+  writeSettings(form, reusedSettings);
   renderVibes("single");
   renderPreciseReferences("single");
-  refreshVibeCacheStatus("single").catch((error) => notify(error.message, true));
-  writeSettings(form, { ...(result.request.settings || {}), seed: result.seed });
+  renderModelCapabilities("single");
+  syncHeaderModelSelector();
+  if ((NAI_MODELS[modelFor("single")] || NAI_MODELS[DEFAULT_NAI_MODEL]).references) refreshVibeCacheStatus("single").catch((error) => notify(error.message, true));
   updateExamplePresetActions();
   notify("선택 이미지의 Prompt·UC·캐릭터·Vibe·이미지 참조·생성 설정을 불러왔다.");
 });
@@ -1754,8 +2204,12 @@ $("#presetEditor").addEventListener("click", async (event) => { const el = event
 
 async function refreshAllCostEstimates() { await Promise.all([estimateSingle(), estimateMulti(), estimateArtistStudy(), estimateAllProjectCosts()]); }
 $("#credentialForm").addEventListener("submit", async (event) => { event.preventDefault(); const token = event.currentTarget.elements.token.value; const credential = await action(() => call(api.saveCredential(token)), "토큰을 암호화 저장했다.", event.submitter); renderCredentialStatus(credential); event.currentTarget.reset(); await refreshStatus(); await refreshSubscription(); await refreshAllCostEstimates(); });
-$("#clearCredential").addEventListener("click", async (event) => { const choice = await confirmChoice({ title: "저장된 토큰 삭제", message: "암호화 저장된 NovelAI 토큰을 이 제품 폴더에서 삭제할까?", confirmText: "토큰 삭제" }); if (choice !== "confirm") return; const credential = await action(() => call(api.clearCredential()), "저장된 토큰을 삭제했다.", event.currentTarget); renderCredentialStatus(credential); state.subscription = null; await refreshStatus(); await refreshAllCostEstimates(); });
+$("#clearCredential").addEventListener("click", async (event) => { const choice = await confirmChoice({ title: "저장된 토큰 삭제", message: "암호화 저장된 NovelAI 토큰을 이 제품 폴더에서 삭제할까?", confirmText: "토큰 삭제" }); if (choice !== "confirm") return; const credential = await action(() => call(api.clearCredential()), "저장된 토큰을 삭제했다.", event.currentTarget); state.subscription = null; state.subscriptionCheckedAt = 0; renderCredentialStatus(credential); await refreshStatus(); await refreshAllCostEstimates(); });
+$("#openOutputFolder").addEventListener("click", (event) => action(() => call(api.openOutputs()), null, event.currentTarget));
+$("#selectOutputFolder").addEventListener("click", async (event) => { const settings = await action(() => call(api.selectOutputFolder()), "출력 폴더를 변경했다.", event.currentTarget); renderOutputSettings(settings); await refreshStatus(); });
+$("#resetOutputFolder").addEventListener("click", async (event) => { const settings = await action(() => call(api.resetOutputFolder()), "애드온 기본 출력 폴더로 복원했다.", event.currentTarget); renderOutputSettings(settings); await refreshStatus(); });
 $("#checkSubscription").addEventListener("click", async (event) => { await refreshSubscription(event.currentTarget); await refreshAllCostEstimates(); });
+initializeHeaderUsagePopover();
 $("#anlasBalanceBadge").addEventListener("click", async (event) => { try { await refreshSubscription(event.currentTarget); await refreshAllCostEstimates(); notify("Anlas 잔액을 갱신했다."); } catch (error) { notify(`${error.code ? `${error.code}: ` : ""}${error.message}`, true); } });
 $("#clearQueue").addEventListener("click", async (event) => { const pending = state.queue.jobs?.filter((job) => job.state === "pending").length || 0; if (pending > 0) { const choice = await confirmChoice({ title: "대기열 비우기", message: `NAI에 아직 보내지 않은 ${pending}개 작업을 취소할까? 이미 전송된 한 장은 완료 후 저장돼.`, confirmText: "대기 작업 취소" }); if (choice !== "confirm") return; } const result = await action(() => call(api.clearQueue()), "NAI에 아직 보내지 않은 작업을 취소했다.", event.currentTarget); state.queue = result.queue; renderQueue(); });
 $("#stopQueue").addEventListener("click", async (event) => { const result = await action(() => call(api.stopAfterCurrent()), "현재 이미지까지 저장한 뒤 중단한다.", event.currentTarget); state.queue = result.queue; renderQueue(); });
@@ -1770,5 +2224,7 @@ api.onQueue((event) => {
 });
 api.onResult((result) => addResult(result));
 
-async function init() { try { updateSingleGenerationSummary(); await Promise.all([refreshLibraries(), refreshStatus(), refreshArtistStudy()]); try { await refreshSubscription(); } catch { state.subscription = null; } renderVibes("single"); renderPreciseReferences("single"); renderProject(); renderPreset(); renderMulti(); await Promise.all([refreshVibeCacheStatus("single"), refreshVibeCacheStatus("multi")]); await refreshAllCostEstimates(); } catch (error) { notify(error.message, true); } }
+window.setInterval(() => renderOpusUsageCountdown(), 1000);
+
+async function init() { try { initGenerationPanelResizers(); renderDevelopmentFeatures(); updateSingleGenerationSummary(); await Promise.all([refreshLibraries(), refreshStatus(), refreshArtistStudy()]); try { await refreshSubscription(); } catch { state.subscription = null; } renderVibes("single"); renderPreciseReferences("single"); renderModelCapabilities("single"); renderProject(); renderPreset(); renderMulti(); syncHeaderModelSelector(); await Promise.all([refreshVibeCacheStatus("single"), refreshVibeCacheStatus("multi")]); await refreshAllCostEstimates(); } catch (error) { notify(error.message, true); } }
 init();

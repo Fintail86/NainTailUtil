@@ -67,7 +67,6 @@ function activateAddon() {
     hostRoot: null,
     productRoot: addonRoot,
     dataRoot: addonRoot,
-    outputRoot: path.join(addonRoot, "outputs"),
     manifest,
     standalone: true,
     dependencies: {
@@ -126,6 +125,10 @@ async function createWindow() {
       }]);
       const pathlessDropReady = dropped.length === 1 && dropped[0].relativePath === 'drop-smoke/image.webp';
       await window.censorTail.clearCensorImages();
+      const settingsTab = document.querySelector('[data-addon-settings-tab]');
+      settingsTab?.click();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const outputSettings = await window.censorTail.getOutputSettings();
       return {
         ready: Boolean(window.censorTail && document.querySelector('.censor-page')),
         hostHomeVisible: Boolean(home && !home.hidden && home.getClientRects().length),
@@ -133,9 +136,14 @@ async function createWindow() {
         dependencyReady: status.dependencyReady === true,
         modelReady: status.model?.downloaded === true,
         pathlessDropReady,
+        outputSettingsReady: Boolean(outputSettings?.mode === 'standalone'
+          && outputSettings?.locked === false
+          && settingsTab?.classList.contains('active')
+          && document.querySelector('[data-addon-output-settings]')
+          && !document.querySelector('#censorOutputSelect')?.disabled),
       };
     })()`);
-    if (!state.ready || state.hostHomeVisible || !state.runtimeReady || !state.dependencyReady || !state.modelReady || !state.pathlessDropReady) {
+    if (!state.ready || state.hostHomeVisible || !state.runtimeReady || !state.dependencyReady || !state.modelReady || !state.pathlessDropReady || !state.outputSettingsReady) {
       throw new Error(`standalone CensorTail 계약이 준비되지 않았습니다: ${JSON.stringify(state)}`);
     }
     writeSmokeResult({ ok: true, addon: manifest.id, root: path.basename(addonRoot), ...state });

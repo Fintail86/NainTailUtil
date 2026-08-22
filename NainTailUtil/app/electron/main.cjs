@@ -77,7 +77,7 @@ function activateAddon(manifest) {
 
   const module = registry.load(manifest, "electron");
   if (!module || typeof module.activate !== "function") throw new Error(`Electron activate entry가 없습니다: ${manifest.id}`);
-  const outputRoot = outputSettings.resolveAddonOutputRoot(manifest.id);
+  const outputRoot = outputSettings.resolveManifestOutputRoot(manifest);
   const runtime = module.activate({
     hostRoot: productRoot,
     productRoot: manifest.directory,
@@ -94,6 +94,14 @@ function activateAddon(manifest) {
       shell,
       resolveAddonDirectory: (id) => registry.get(id)?.directory || null,
       resolveAddonOutputRoot: (id) => outputSettings.resolveAddonOutputRoot(id),
+      listPortableOutputRoots: () => registry.list()
+        .map((item) => registry.get(item.id))
+        .filter((addon) => fs.existsSync(path.join(addon.directory, "standalone-manifest.json")))
+        .map((addon) => ({
+          id: addon.id,
+          name: addon.name,
+          ...outputSettings.resolvePortableAddonOutputStatus(addon),
+        })),
     },
   });
   activeAddon = { manifest, runtime };

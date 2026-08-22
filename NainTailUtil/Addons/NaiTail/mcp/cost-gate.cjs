@@ -57,6 +57,7 @@ class McpCostGate {
     return estimateAnlasCost(firstRequest.settings, {
       subscriptionKnown: subscription.known,
       isOpus: subscription.isOpus,
+      opusUsageExhausted: subscription.subscription?.usage?.isNegative === true,
       generationCount: tasks.length,
       settingsVariants: tasks.map((task) => ({ settings: task.request.settings, count: 1 })),
       preciseReferenceCount: (firstRequest.preciseReferences || []).length,

@@ -3,10 +3,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { NainTailError } = require("./errors.cjs");
+const { DEFAULT_MODEL, requireModelDefinition } = require("./nai-models.cjs");
 const { defaultProductRoot } = require("./paths.cjs");
 
 const FALLBACK_DEFAULTS = Object.freeze({
-  model: "nai-diffusion-4-5-full",
+  model: DEFAULT_MODEL,
   width: 832,
   height: 1216,
   steps: 28,
@@ -16,9 +17,11 @@ const FALLBACK_DEFAULTS = Object.freeze({
   seed: null,
   cfgRescale: 0,
   decrisper: false,
+  includeMetadata: true,
   qualityTags: true,
   ucPreset: "Heavy",
 });
+const TRANSPARENCY_MODES = new Set(["none", "transparent-background", "has-alpha", "alpha-transparency"]);
 
 function readProfile(productRoot = defaultProductRoot()) {
   const profilePath = path.join(productRoot, "config", "generation-profile.json");
@@ -49,7 +52,22 @@ function align64(value) {
 }
 
 function normalizeGenerationSettings(settings = {}, profile = readProfile()) {
-  const merged = { ...profile.defaults, ...(settings || {}) };
+  const requested = settings || {};
+  const model = String(requested.model || profile.defaults.model || DEFAULT_MODEL);
+  const definition = requireModelDefinition(model);
+  const modelChangedFromProfile = model !== String(profile.defaults.model || DEFAULT_MODEL);
+  const modelDefault = (key) => modelChangedFromProfile && requested[key] === undefined
+    ? definition.defaults[key]
+    : profile.defaults[key];
+  const merged = {
+    ...profile.defaults,
+    ...requested,
+    model,
+    steps: requested.steps ?? modelDefault("steps"),
+    guidance: requested.guidance ?? modelDefault("guidance"),
+    sampler: requested.sampler ?? modelDefault("sampler"),
+    scheduler: requested.scheduler ?? modelDefault("scheduler"),
+  };
   const width = align64(numberInRange(merged.width, 832, 64, 2048, "width"));
   const height = align64(numberInRange(merged.height, 1216, 64, 2048, "height"));
   const steps = Math.trunc(numberInRange(merged.steps, 28, 1, 50, "steps"));
@@ -58,20 +76,31 @@ function normalizeGenerationSettings(settings = {}, profile = readProfile()) {
   const seed = merged.seed === null || merged.seed === "" || merged.seed === undefined
     ? null
     : Math.trunc(numberInRange(merged.seed, 0, 0, 0xffffffff - 1, "seed"));
+  const requestedQualityPreset = String(merged.qualityPreset || (merged.qualityTags === false ? "None" : "Standard"));
+  const allowedQualityPresets = definition.capabilities.lightQuality ? ["Standard", "Light", "None"] : ["Standard", "None"];
+  const qualityPreset = allowedQualityPresets.includes(requestedQualityPreset) ? requestedQualityPreset : "Standard";
+  const requestedTransparencyMode = String(merged.transparencyMode || (merged.transparentBackground === true ? "transparent-background" : "none"));
+  const transparencyMode = definition.capabilities.transparency && TRANSPARENCY_MODES.has(requestedTransparencyMode)
+    ? requestedTransparencyMode
+    : "none";
 
   return {
-    model: String(merged.model || profile.defaults.model),
+    model,
     width,
     height,
     steps,
     guidance,
     sampler: String(merged.sampler || profile.defaults.sampler),
-    scheduler: String(merged.scheduler || profile.defaults.scheduler),
+    scheduler: definition.capabilities.scheduler ? String(merged.scheduler || definition.defaults.scheduler) : "karras",
     seed,
     cfgRescale,
-    decrisper: merged.decrisper === true,
-    qualityTags: merged.qualityTags !== false,
+    decrisper: definition.capabilities.decrisper && merged.decrisper === true,
+    includeMetadata: merged.includeMetadata !== false,
+    qualityPreset,
+    qualityTags: qualityPreset !== "None",
     ucPreset: String(merged.ucPreset || "Heavy"),
+    transparencyMode,
+    transparentBackground: transparencyMode !== "none",
   };
 }
 

@@ -16,6 +16,7 @@ const {
   collectCensorInputFiles,
 } = require("./censor-service.cjs");
 const { RuntimeInstaller } = require("./runtime-installer.cjs");
+const { AddonOutputSettings } = require("./output-settings.cjs");
 const { webpDimensions } = require("./webp.cjs");
 
 let addonContext = null;
@@ -26,6 +27,7 @@ let resourceRoot = null;
 let runtimeRoot = null;
 let runtimeInstaller = null;
 let inputDefaultRoot = null;
+let outputSettings = null;
 
 function sendEvent(event) {
   addonContext?.broadcast(channels.EVENT, event);
@@ -140,7 +142,12 @@ function activate(context) {
     "data",
     "drop-cache",
   );
-  const outputRoot = path.resolve(context.outputRoot || path.join(context.manifest.directory, "outputs"));
+  outputSettings = new AddonOutputSettings({
+    addonRoot: context.manifest.directory,
+    standalone: context.standalone === true,
+    hostedOutputRoot: context.outputRoot,
+  });
+  let outputRoot = outputSettings.outputRoot();
   inputDefaultRoot = !context.standalone && typeof context.services.resolveAddonOutputRoot === "function"
     ? context.services.resolveAddonOutputRoot("animatail")
     : outputRoot;
@@ -199,6 +206,30 @@ function activate(context) {
   ipcMain.handle(channels.PREVIEW, (_event, request) => censorService.preview(request));
   ipcMain.handle(channels.SCAN, (_event, request) => censorService.scan(request));
   ipcMain.handle(channels.SAVE, async (_event, request) => publicSaveResult(await censorService.save(request)));
+  ipcMain.handle(channels.OUTPUT_SETTINGS_GET, () => outputSettings.status());
+  ipcMain.handle(channels.OUTPUT_SETTINGS_SELECT, async () => {
+    if (outputSettings.status().locked) throw new Error("Hosted 모드에서는 호스트 출력 폴더를 사용합니다.");
+    if (censorService.isBusy()) throw new Error("자동검열 작업 중에는 출력 폴더를 변경할 수 없습니다.");
+    const picked = await dialog.showOpenDialog(context.getWindow(), {
+      title: "CensorTail 출력 폴더 선택",
+      defaultPath: outputRoot,
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return outputSettings.status();
+    const status = outputSettings.setOutputRoot(picked.filePaths[0]);
+    outputRoot = status.outputRoot;
+    censorService.setOutputRoot(outputRoot);
+    inputDefaultRoot = outputRoot;
+    return status;
+  });
+  ipcMain.handle(channels.OUTPUT_SETTINGS_RESET, () => {
+    if (censorService.isBusy()) throw new Error("자동검열 작업 중에는 출력 폴더를 변경할 수 없습니다.");
+    const status = outputSettings.reset();
+    outputRoot = status.outputRoot;
+    censorService.setOutputRoot(outputRoot);
+    inputDefaultRoot = outputRoot;
+    return status;
+  });
   ipcMain.handle(channels.OPEN_OUTPUT_FOLDER, () => {
     const root = censorService.outputRoot();
     fs.mkdirSync(root, { recursive: true });
@@ -213,9 +244,22 @@ function activate(context) {
 
   return {
     id: context.manifest.id,
-    smokeCheck(webContents) {
+    async smokeCheck(webContents) {
       return webContents.executeJavaScript(
-        "Boolean(window.censorTail && document.querySelector('.censor-page') && document.querySelector('#hostHomeButton'))",
+        `(async () => {
+          const settingsTab = document.querySelector('[data-addon-settings-tab]');
+          settingsTab?.click();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          const status = await window.censorTail?.getOutputSettings?.();
+          return Boolean(window.censorTail
+            && document.querySelector('.censor-page')
+            && document.querySelector('#hostHomeButton')
+            && settingsTab?.classList.contains('active')
+            && status?.mode === 'hosted' && status?.locked === true
+            && document.querySelector('[data-addon-output-settings]')
+            && document.querySelector('#censorOutputSelect')?.disabled
+            && document.querySelector('#censorOutputReset')?.disabled);
+        })()`,
       );
     },
     close() {
@@ -231,6 +275,7 @@ function activate(context) {
       resourceRoot = null;
       runtimeRoot = null;
       inputDefaultRoot = null;
+      outputSettings = null;
       addonContext = null;
     },
   };

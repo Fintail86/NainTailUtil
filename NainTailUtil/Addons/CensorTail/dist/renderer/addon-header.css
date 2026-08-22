@@ -1,2 +1,26 @@
 @import "./tail-header-tokens.css";
 @import "./tail-header.css";
+
+.addon-settings-page { background: var(--surface-deep); display: none; inset: 64px 0 0; overflow: auto; padding: 0 20px 28px; position: fixed; z-index: 8; }
+body.addon-settings-active > .addon-settings-page { display: block; }
+.tab-nav .tab-item[role="button"] { cursor: pointer; }
+.addon-output-settings { padding: 20px; }
+.addon-output-heading,
+.addon-output-heading > div,
+.addon-output-path-row,
+.addon-output-actions { display: flex; }
+.addon-output-heading { align-items: flex-start; justify-content: space-between; gap: 16px; }
+.addon-output-heading > div { flex-direction: column; gap: 4px; }
+.addon-output-heading strong { font-size: var(--font-size-heading); }
+.addon-output-heading span { color: var(--text-secondary); }
+.addon-output-badge { border: 1px solid var(--line); border-radius: 999px; color: var(--text-secondary); padding: 5px 9px; white-space: nowrap; }
+.addon-output-badge.hosted { border-color: rgba(var(--success-bg-rgb), .35); color: var(--success-text); background: rgba(var(--success-bg-rgb), .08); }
+.addon-output-path-row { align-items: center; gap: 8px; margin-top: 18px; }
+.addon-output-path-row code { background: var(--surface-input); border: 1px solid var(--line); border-radius: 9px; color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; padding: 10px 12px; text-overflow: ellipsis; white-space: nowrap; }
+.addon-output-path-row button,
+.addon-output-actions button { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 9px; min-height: 38px; padding: 0 14px; }
+.addon-output-actions { justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.addon-output-actions .primary { background: rgba(var(--accent-bg-rgb), .2); border-color: rgba(var(--accent-border-rgb), .5); }
+.addon-output-settings button:disabled { cursor: not-allowed; opacity: .35; }
+.addon-output-status { color: var(--success-text); margin: 12px 0 0; }
+.addon-output-status.error { color: var(--danger); }

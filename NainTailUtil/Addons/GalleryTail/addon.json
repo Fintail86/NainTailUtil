@@ -3,11 +3,12 @@
   "id": "gallerytail",
   "name": "GalleryTail",
   "version": "0.1.0",
-  "description": "Built-in gallery addon for AnimaTail outputs",
+  "description": "Built-in browser for the configured NainTail output root",
   "builtIn": true,
   "default": false,
   "order": 3,
-  "requires": ["animatail"],
+  "requires": [],
+  "outputRootScope": "host",
   "entries": {
     "electron": "electron/main.cjs",
     "preload": "electron/preload.cjs",
@@ -24,5 +25,5 @@
       }
     }
   ],
-  "capabilities": ["gallery", "browse", "metadata", "reuse-settings"]
+  "capabilities": ["gallery", "browse", "metadata"]
 }

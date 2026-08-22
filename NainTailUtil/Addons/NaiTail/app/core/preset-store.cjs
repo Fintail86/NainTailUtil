@@ -34,6 +34,10 @@ class PresetStore {
             name: preset.name,
             type,
             itemCount: type === "sub-slot" ? preset.items?.length || 0 : 1,
+            ...(type === "example" ? {
+              hasPrompt: Boolean(String(preset.prompt || "").trim()),
+              hasNegativePrompt: Boolean(String(preset.negativePrompt || "").trim()),
+            } : {}),
             fileName: entry.name,
           };
         } catch (error) {
