@@ -7,7 +7,7 @@
   "estimatedDownloadBytes": 2920186028,
   "expandedBytes": 4888292334,
   "entrypoint": "python.exe",
-  "requirementsPath": "config/python-runtime-requirements.lock.txt",
+  "requirementsPath": "python-runtime-requirements.lock.txt",
   "assets": [
     {
       "id": "python",
