@@ -1,4 +1,5 @@
 # AnimaTail-only hosted layer. The Python/PyTorch/CUDA base is requested separately.
+torchvision @ https://download-r2.pytorch.org/whl/cu128/torchvision-0.26.0%2Bcu128-cp312-cp312-win_amd64.whl#sha256=8c0d1c4fbb2c9a4d5d41d0aaa87da20e525bcb2a154ce405725b0be59456804b
 accelerate==1.14.0
 aiohappyeyeballs==2.7.1
 aiohttp==3.14.1

@@ -175,6 +175,10 @@ Standalone에서 각 애드온 사본을 사용한다. Hosted에서는 각 애�
 NainTail runtime 캐시에 같은 ID·무결성이 있으면 그 항목만 재사용한다. 호스트는 창 전환,
 manifest entry 로딩, runtime 캐시 root 주입과 명시적 handoff만 제공하고 갤러리나 검열 의미를 알지 않는다.
 
+현재 Hosted 캐시는 Python·PyTorch·CUDA 호환 조합별 기반 환경을 물리적 최소 단위로 사용한다.
+향후 CUDA 13.0 등 비호환 조합이 늘어나 기반 환경 중복이 실제 용량·업데이트 문제가 되면,
+개별 component 폴더와 실행 시점 resolver 구조를 별도 단계로 설계한다. 현 MVP에는 포함하지 않는다.
+
 ### 3.4 Interface adapters
 
 - GUI: NaiTail은 빌드 단계 없는 renderer, Anima 계열 세 애드온은 분리된 React 빌드 결과와

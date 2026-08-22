@@ -110,6 +110,28 @@ Python, PyTorch, CUDA, ONNX Runtime 또는 그 밖의 실제 실행 의존성 �
 의존성 구성이 달라지는 첫 업데이트에서 누락되기 쉬운 호환성 경계를 미리 고정하기 위한
 주의사항이다.
 
+### 2.5 물리적 컴포넌트 저장소 도입 검토 조건
+
+현재 Hosted 런타임 캐시는 Python·PyTorch·CUDA/cuDNN의 호환 조합을 하나의 기반 환경 폴더로
+저장한다. DiffSynth와 ONNX Runtime 같은 애드온 계층은 별도 component ID와 설치 마커를 갖지만,
+실제 Python 패키지는 선택한 기반 환경에 추가된다. 따라서 논리적 component ID와 물리적 폴더는
+현재 1:1 관계가 아니다.
+
+새 애드온이 CUDA 13.0처럼 기존 기반과 호환되지 않는 조합을 요구하면 새 기반 `runtimeId`와
+별도 환경 폴더를 생성한다. 이 방식은 ABI와 DLL 충돌을 격리하는 대신 같은 Python 파일과 일부
+패키지가 환경별로 중복될 수 있다.
+
+다음 조건 중 하나가 현실화되면 Python, PyTorch, CUDA와 애드온 계층을 물리적으로 분리한
+component 저장소 및 실행 시점 runtime resolver 도입을 별도 설계 항목으로 검토한다.
+
+- 서로 호환되지 않는 PyTorch/CUDA 기반 조합을 두 종류 이상 지속적으로 지원한다.
+- 기반 환경 중복이 배포 용량, 로컬 저장 공간 또는 보안 업데이트 비용에 실질적인 문제가 된다.
+- 하나의 component를 여러 기반 환경에서 독립적인 생명주기와 버전으로 재사용해야 한다.
+
+물리적 component 구조를 도입할 때는 `PATH`·`PYTHONPATH`와 Windows DLL 검색 순서, Python ABI,
+PyTorch/CUDA 호환 행렬, 무결성 검증, 원자적 설치·롤백 및 Standalone 완결성을 함께 해결해야 한다.
+이는 현재 구현된 기능이나 공개 호환성 약속이 아니라 향후 확장 주의사항이다.
+
 ## 3. 루트와 데이터 소유권
 
 `application root`, `data root`, `dependency root`, `output root`는 서로 다른 개념이며 하나의 전역변수로

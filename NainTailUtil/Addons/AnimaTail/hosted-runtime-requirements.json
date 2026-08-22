@@ -5,8 +5,8 @@
   "environmentManifest": "hosted-runtime-base.json",
   "components": [
     {
-      "id": "animatail-diffsynth-fb337f-py312-r1",
-      "integrity": "6b35bf5dafad8bb0510df1cc459f18b8361520548f76d58d6fb9b4321c656d50",
+      "id": "animatail-diffsynth-fb337f-py312-r2",
+      "integrity": "66b5b35c479e47d552ae2bba9c3c77c51a05535d4687bce7b10a8d226179b268",
       "requirementsPath": "config/hosted-runtime-addon.lock.txt",
       "estimatedDownloadBytes": 240000000,
       "expandedBytes": 1000000000,
@@ -20,13 +20,18 @@
           "sha256": "ae63294210509a0f108ae99507a26f5e86bc627703efdc239a94e3c69872817d"
         }
       ],
-      "imports": ["torch", "diffsynth"],
+      "imports": ["torch", "torchvision", "diffsynth"],
       "requireTorchCuda": true,
       "files": [
         {
           "path": "Lib/site-packages/diffsynth/__init__.py",
           "bytes": 20,
           "sha256": "2b490dcb6e959ba03ed55e65493de2972eb256c34b51b8aa93a0190c59b69c92"
+        },
+        {
+          "path": "Lib/site-packages/torchvision/_C.pyd",
+          "bytes": 7340544,
+          "sha256": "622626980eaf0c2de35f7f1f3e4fd36cc254c6997f42813d4c01a6e6a718c854"
         },
         {
           "path": "Lib/site-packages/transformers/__init__.py",

@@ -206,6 +206,7 @@ class ComponentRuntimeInstaller {
         await this.installComponent(component);
       }
     }
+    this.sendEvent({ event: "install", stage: "complete", progress: 100 });
   }
 
   async installComponent(component) {
@@ -222,7 +223,7 @@ class ComponentRuntimeInstaller {
       });
       this.sendEvent({
         event: "install",
-        stage: "installing-component",
+        stage: "starting",
         progress: 0,
         runtimeId: component.id,
       });
@@ -262,7 +263,7 @@ class ComponentRuntimeInstaller {
           {
             cwd: this.appRoot,
             env: this.baseInstaller.bootstrapEnvironment(environmentRoot, downloadRoot),
-            stage: "installing-component-packages",
+            stage: "installing-packages",
             progress: 70,
           },
         );
@@ -270,6 +271,14 @@ class ComponentRuntimeInstaller {
           await this.installDiffSynth(assetPaths.get("diffsynth"), environmentRoot, workRoot);
         }
         await this.probeComponent(component, pythonExe, downloadRoot);
+        this.sendEvent({
+          event: "install",
+          stage: "verifying",
+          progress: 95,
+          runtimeId: component.id,
+          fileIndex: 0,
+          fileCount: component.files.length,
+        });
         for (const file of component.files) {
           if (!await verifyFile(path.join(environmentRoot, file.path), file.bytes, file.sha256)) {
             throw new Error(`runtime component verification failed: ${component.id}/${file.path}`);
@@ -282,7 +291,16 @@ class ComponentRuntimeInstaller {
       } finally {
         await fs.promises.rm(workRoot, { recursive: true, force: true }).catch(() => {});
       }
-      this.sendEvent({ event: "install", stage: "component-complete", progress: 100, runtimeId: component.id });
+    } catch (error) {
+      const cancelled = error?.code === "RUNTIME_INSTALL_CANCELLED" || this.cancelRequested;
+      this.sendEvent({
+        event: "install",
+        stage: cancelled ? "cancelled" : "error",
+        progress: 0,
+        runtimeId: component.id,
+        message: cancelled ? "런타임 설치가 취소되었습니다." : error.message,
+      });
+      throw error;
     } finally {
       this.baseInstaller.abortController = null;
       if (releaseLock) await releaseLock();
@@ -328,7 +346,7 @@ class ComponentRuntimeInstaller {
       {
         cwd: this.appRoot,
         env: this.baseInstaller.bootstrapEnvironment(this.environmentRoot(), downloadRoot),
-        stage: "probing-component",
+        stage: "probing",
         progress: 92,
       },
     );
@@ -336,4 +354,3 @@ class ComponentRuntimeInstaller {
 }
 
 module.exports = { ComponentRuntimeInstaller, componentMarkerReady, loadRequirementsPlan };
-

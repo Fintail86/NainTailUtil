@@ -1,6 +1,6 @@
 {
   "schema": "naintail.official-addons/v1",
-  "catalogVersion": 7,
+  "catalogVersion": 9,
   "repository": "Fintail86/NainTailUtil",
   "addons": [
     {
@@ -36,8 +36,8 @@
       "version": "0.1.1",
       "releaseTag": "animatail-v0.1.1",
       "assetName": "AnimaTail-v0.1.1-win-x64.zip",
-      "bytes": 6852877,
-      "sha256": "fb15780c477019149ce82855aaffbafb586bf01bf3b2bfa40e3f8f13a95d4e3b",
+      "bytes": 6853198,
+      "sha256": "acb516b76658e81ac5623ef31fdd3fc8c422794155e590a12cb6ec5f2b21e37a",
       "preservePaths": [
         "Models",
         "Presets",
@@ -70,8 +70,8 @@
       "version": "0.1.1",
       "releaseTag": "censortail-v0.1.1",
       "assetName": "CensorTail-v0.1.1-win-x64.zip",
-      "bytes": 2315519,
-      "sha256": "148ae7fec54f8f952dcc3cf162e302cdca7b1ca1f6db5474772096451cf7db63",
+      "bytes": 2315624,
+      "sha256": "1f74ebc811fcc8582f075b59a8c9c2f221ffd00a01f05399302e0cb0cb73e82c",
       "preservePaths": [
         "Models",
         "data",
