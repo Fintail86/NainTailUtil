@@ -5,11 +5,15 @@ const os = require("node:os");
 const path = require("node:path");
 const { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, shell } = require("electron");
 const { AddonRegistry } = require("../host/addon-registry.cjs");
+const { OfficialAddonInstaller } = require("../host/official-addon-installer.cjs");
 const { HostOutputSettings } = require("../host/output-settings.cjs");
 const { hostedRuntimeDependencies } = require("../host/runtime-dependencies.cjs");
 
 const HOST_ADDON_LIST = "host:addons:list";
 const HOST_ADDON_OPEN = "host:addons:open";
+const HOST_ADDON_CATALOG = "host:addons:catalog";
+const HOST_ADDON_INSTALL = "host:addons:install";
+const HOST_RESTART = "host:restart";
 const HOST_HOME = "host:navigate-home";
 const HOST_ADDON_HANDOFF = "host:addons:handoff";
 const HOST_OUTPUT_GET = "host:outputs:get";
@@ -25,6 +29,9 @@ const smokeResultPath = process.argv.find((value) => value.startsWith("--smoke-r
 const smokeCaptureDirectory = process.argv.find((value) => value.startsWith("--smoke-capture-dir="))?.slice("--smoke-capture-dir=".length) || "";
 if (smokeMode) app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "naintail-addon-smoke-")));
 const registry = new AddonRegistry(productRoot);
+const officialAddonInstaller = new OfficialAddonInstaller(productRoot, smokeMode ? {
+  fetchRelease: async () => { throw new Error("smoke mode uses the bundled official addon catalog"); },
+} : {});
 const outputSettings = new HostOutputSettings(productRoot);
 registry.discover();
 const addonProtocols = registry.protocols();
@@ -203,6 +210,11 @@ async function openAddon(id, handoff = null) {
   return { view: "addon", id: manifest.id, name: manifest.name };
 }
 
+function installedAddonState() {
+  registry.discover();
+  return registry.list().map((item) => ({ ...item, directory: registry.get(item.id).directory }));
+}
+
 function registerHostIpc() {
   ipcMain.handle(HOST_ADDON_LIST, reply(() => {
     registry.discover();
@@ -211,6 +223,23 @@ function registerHostIpc() {
   ipcMain.handle(HOST_ADDON_OPEN, reply((_event, payload) => (
     openAddon(String(payload?.id || ""), payload?.handoff || null)
   )));
+  ipcMain.handle(HOST_ADDON_CATALOG, reply(async () => {
+    return officialAddonInstaller.catalog(installedAddonState());
+  }));
+  ipcMain.handle(HOST_ADDON_INSTALL, reply(async (_event, payload) => {
+    const installed = installedAddonState();
+    closeActiveAddon();
+    const result = await officialAddonInstaller.install(String(payload?.id || ""), installed);
+    registry.discover();
+    return result;
+  }));
+  ipcMain.handle(HOST_RESTART, reply(() => {
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 180);
+    return { restarting: true };
+  }));
   ipcMain.handle(HOST_HOME, reply(() => openHome()));
   ipcMain.handle(HOST_OUTPUT_GET, reply(() => outputSettings.status()));
   ipcMain.handle(HOST_OUTPUT_SELECT, reply(() => {
@@ -315,6 +344,32 @@ async function runSmoke() {
     fs.mkdirSync(smokeCaptureDirectory, { recursive: true });
     const capture = await host.webContents.capturePage();
     fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-home.png"), capture.toPNG());
+    {
+      const installerButton = registry.list().length ? "#openAddonInstaller" : "#emptyAddonInstall";
+      const installerButtonReady = await host.webContents.executeJavaScript(
+        `(() => {
+          const button = document.querySelector('${installerButton}');
+          const rect = button?.getBoundingClientRect();
+          if (!button || button.hidden || !rect
+            || rect.width < ${registry.list().length ? 30 : 80}
+            || rect.height < ${registry.list().length ? 30 : 80}) return false;
+          button.click();
+          return true;
+        })()`,
+      );
+      if (!installerButtonReady) throw new Error("host addon installer button missing");
+      let catalogCount = 0;
+      for (let attempt = 0; attempt < 100 && catalogCount === 0; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        catalogCount = await host.webContents.executeJavaScript(
+          "document.querySelectorAll('.official-addon-card').length",
+        );
+      }
+      if (catalogCount !== 4) throw new Error(`official addon catalog missing: ${catalogCount}`);
+      const installerCapture = await host.webContents.capturePage();
+      fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-installer.png"), installerCapture.toPNG());
+      await host.webContents.executeJavaScript("document.querySelector('#installerDialog').close()");
+    }
     await host.webContents.executeJavaScript("document.documentElement.classList.remove('smoke-static')");
     const fixedEdgeState = await host.webContents.executeJavaScript(
       `Object.fromEntries(Array.from(document.querySelectorAll('[data-fixed-edge]'), (edge) => {
@@ -371,11 +426,12 @@ async function runSmoke() {
         throw new Error(`host Gallery transition shifted: ${JSON.stringify(transitionSamples)}`);
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    const penultimateCapture = await host.webContents.capturePage();
-    fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-penultimate.png"), penultimateCapture.toPNG());
-    const penultimateState = await host.webContents.executeJavaScript(
-      `(() => {
+    if (registry.list().length) {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const penultimateCapture = await host.webContents.capturePage();
+      fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-penultimate.png"), penultimateCapture.toPNG());
+      const penultimateState = await host.webContents.executeJavaScript(
+        `(() => {
         const rect = document.querySelector('[data-addon-slot="${Math.max(0, registry.list().length - 1)}"]')?.getBoundingClientRect();
         return rect ? {
           left: rect.left,
@@ -387,14 +443,14 @@ async function runSmoke() {
             - document.querySelector('#deckViewport').clientWidth
             - window.innerHeight * Math.tan(10 * Math.PI / 180) / 2),
         } : null;
-      })()`,
-    );
-    if (registry.list().length > 1) {
-      await host.webContents.executeJavaScript("document.querySelector('#nextAddon').click()");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    const lastCardState = await host.webContents.executeJavaScript(
-      `(() => {
+        })()`,
+      );
+      if (registry.list().length > 1) {
+        await host.webContents.executeJavaScript("document.querySelector('#nextAddon').click()");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      const lastCardState = await host.webContents.executeJavaScript(
+        `(() => {
         const last = document.querySelector('[data-addon-slot="${Math.max(0, registry.list().length - 1)}"]')?.getBoundingClientRect();
         const leftEdge = document.querySelector('[data-fixed-edge="left"]')?.getBoundingClientRect();
         const rightEdge = document.querySelector('[data-fixed-edge="right"]')?.getBoundingClientRect();
@@ -433,15 +489,16 @@ async function runSmoke() {
           },
           active: document.querySelector('.addon-panel.active')?.dataset.addonSlot || null,
         };
-      })()`,
-    );
-    if (!lastCardState.ready) throw new Error(`host last-card expansion failed: ${JSON.stringify(lastCardState)}`);
-    const lastCapture = await host.webContents.capturePage();
-    fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-last.png"), lastCapture.toPNG());
-    await host.webContents.executeJavaScript(
-      `Array.from({ length: ${registry.list().length} }, () => document.querySelector('#previousAddon').click())`,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 450));
+        })()`,
+      );
+      if (!lastCardState.ready) throw new Error(`host last-card expansion failed: ${JSON.stringify(lastCardState)}`);
+      const lastCapture = await host.webContents.capturePage();
+      fs.writeFileSync(path.join(smokeCaptureDirectory, "gui-host-last.png"), lastCapture.toPNG());
+      await host.webContents.executeJavaScript(
+        `Array.from({ length: ${registry.list().length} }, () => document.querySelector('#previousAddon').click())`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
   }
   for (const manifest of manifests) await runAddonRoundTrip(manifest);
 }
@@ -459,12 +516,13 @@ else {
     try {
       registry.discover();
       registerHostIpc();
+      if (!smokeMode) officialAddonInstaller.refreshCatalog();
       if (smokeMode) {
         smokeTimer = setTimeout(() => {
           writeSmokeResult({ ok: false, error: "timeout" });
           process.exitCode = 1;
           app.quit();
-        }, 15000);
+        }, smokeAddonId === "all" ? 60000 : 30000);
         await runSmoke();
         clearTimeout(smokeTimer);
         smokeTimer = null;

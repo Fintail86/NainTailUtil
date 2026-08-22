@@ -16,6 +16,12 @@ const outputPath = document.querySelector("#outputPath");
 const openOutputFolder = document.querySelector("#openOutputFolder");
 const selectOutputFolder = document.querySelector("#selectOutputFolder");
 const resetOutputFolder = document.querySelector("#resetOutputFolder");
+const deckFooter = document.querySelector(".deck-footer");
+const installerDialog = document.querySelector("#installerDialog");
+const emptyAddonInstall = document.querySelector("#emptyAddonInstall");
+const openAddonInstaller = document.querySelector("#openAddonInstaller");
+const installerLoading = document.querySelector("#installerLoading");
+const officialAddonList = document.querySelector("#officialAddonList");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 const addonRoles = Object.freeze({
@@ -33,6 +39,8 @@ let noticeTimer = 0;
 let wheelAccumulator = 0;
 let wheelResetTimer = 0;
 let wheelLocked = false;
+let installerBusy = false;
+let installerRestartPending = false;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -166,7 +174,7 @@ function centerSelected(focus, animate = true) {
 function selectAddon(index, focus = false) {
   if (!addons.length) {
     selected = 0;
-    indexLabel.textContent = "+";
+    indexLabel.textContent = "—";
     previous.disabled = true;
     next.disabled = true;
     return;
@@ -274,8 +282,90 @@ function renderAddons(rawAddons, preferredId = null) {
   const installedIds = new Set(rawAddons.map((addon) => addon.id));
   addons = rawAddons.map((addon, index) => addonViewModel(addon, index, installedIds));
   track.replaceChildren(...addons.map(renderAddon));
+  emptyAddonInstall.hidden = addons.length !== 0;
+  deckFooter.classList.toggle("empty", addons.length === 0);
   const preferredIndex = addons.findIndex((addon) => addon.id === preferredId);
   selectAddon(preferredIndex >= 0 ? preferredIndex : Math.min(selected, Math.max(0, addons.length - 1)));
+}
+
+function renderOfficialAddon(addon) {
+  const card = el("article", "official-addon-card");
+  const mark = el("span", "official-addon-mark", String(addon.name || "?").slice(0, 1));
+  const copy = el("div", "official-addon-copy");
+  copy.append(
+    el("strong", "", addon.name),
+    el("p", "", addon.description),
+    el("small", "", addon.state === "update"
+      ? `v${addon.localVersion} → v${addon.version} · ${addon.sizeLabel}`
+      : `v${addon.version} · ${addon.sizeLabel}`),
+  );
+  const labels = {
+    missing: "설치",
+    update: "업데이트",
+    current: "설치됨",
+    "local-newer": "로컬 최신",
+    unknown: "확인 필요",
+  };
+  const button = el("button", "official-addon-install", labels[addon.state] || "확인 필요");
+  button.type = "button";
+  button.dataset.installable = String(Boolean(addon.action));
+  button.disabled = !addon.action;
+  button.addEventListener("click", async () => {
+    if (installerBusy || !host?.installOfficialAddon) return;
+    installerBusy = true;
+    officialAddonList.querySelectorAll("button").forEach((item) => { item.disabled = true; });
+    installerDialog.querySelectorAll("[data-close-dialog]").forEach((item) => { item.disabled = true; });
+    button.textContent = addon.action === "update" ? "업데이트 중…" : "다운로드 중…";
+    try {
+      const response = await host.installOfficialAddon(addon.id);
+      if (!response?.ok) throw new Error(response?.error?.message || "애드온을 설치하지 못했다.");
+      await refreshAddons();
+      button.dataset.installable = "false";
+      button.textContent = response.result.action === "update" ? "업데이트됨" : "설치됨";
+      installerRestartPending ||= response.result.requiresHostRestart;
+      if (installerRestartPending) {
+        installerLoading.hidden = false;
+        installerLoading.textContent = "설치 적용을 위해 이 창을 닫으면 호스트가 다시 시작된다.";
+      }
+      showNotice(`${response.result.name} v${response.result.version} ${response.result.action === "update" ? "업데이트" : "설치"} 완료`);
+      officialAddonList.querySelectorAll("button").forEach((item) => {
+        item.disabled = item.dataset.installable !== "true";
+      });
+    } catch (error) {
+      button.textContent = labels[addon.state] || "다시 시도";
+      showNotice(error.message, true);
+      officialAddonList.querySelectorAll("button").forEach((item) => {
+        item.disabled = item.dataset.installable !== "true";
+      });
+    } finally {
+      installerBusy = false;
+      installerDialog.querySelectorAll("[data-close-dialog]").forEach((item) => { item.disabled = false; });
+    }
+  });
+  card.append(mark, copy, button);
+  return card;
+}
+
+async function openOfficialAddonInstaller() {
+  if (installerBusy) return;
+  installerDialog.showModal();
+  installerRestartPending = false;
+  installerLoading.hidden = false;
+  installerLoading.classList.remove("error");
+  installerLoading.textContent = "공식 릴리즈를 확인하는 중…";
+  officialAddonList.replaceChildren();
+  try {
+    const response = await host.listOfficialAddons();
+    if (!response?.ok) throw new Error(response?.error?.message || "공식 애드온 목록을 읽지 못했다.");
+    const catalog = response.result?.addons || [];
+    if (!catalog.length) throw new Error("설치 가능한 공식 애드온이 없다.");
+    installerLoading.hidden = response.result?.source === "remote";
+    if (!installerLoading.hidden) installerLoading.textContent = "내장 또는 마지막 정상 카탈로그를 사용 중이다.";
+    officialAddonList.replaceChildren(...catalog.map(renderOfficialAddon));
+  } catch (error) {
+    installerLoading.classList.add("error");
+    installerLoading.textContent = error.message;
+  }
 }
 
 async function refreshAddons() {
@@ -300,6 +390,11 @@ async function refreshAddons() {
 
 previous.addEventListener("click", () => selectAddon(selected - 1, true));
 next.addEventListener("click", () => selectAddon(selected + 1, true));
+emptyAddonInstall.addEventListener("click", openOfficialAddonInstaller);
+openAddonInstaller.addEventListener("click", openOfficialAddonInstaller);
+installerDialog.addEventListener("close", () => {
+  if (installerRestartPending) host.restartHost();
+});
 document.querySelector("#openSettings").addEventListener("click", async () => {
   settingsDialog.showModal();
   try {
@@ -315,8 +410,12 @@ document.querySelectorAll("[data-close-dialog]").forEach((button) => {
 
 document.querySelectorAll("dialog").forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close();
+    if (event.target === dialog && !(dialog === installerDialog && installerBusy)) dialog.close();
   });
+});
+
+installerDialog.addEventListener("cancel", (event) => {
+  if (installerBusy) event.preventDefault();
 });
 
 openOutputFolder.addEventListener("click", () => runOutputAction(() => host.openOutputFolder(), "공용 출력 폴더를 열었다."));

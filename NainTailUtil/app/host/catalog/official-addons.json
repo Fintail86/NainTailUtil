@@ -1,0 +1,86 @@
+{
+  "schema": "naintail.official-addons/v1",
+  "catalogVersion": 1,
+  "repository": "Fintail86/NainTailUtil",
+  "addons": [
+    {
+      "id": "naitail",
+      "name": "NaiTail",
+      "description": "NovelAI 이미지 생성 애드온",
+      "order": 1,
+      "version": "0.1.0",
+      "releaseTag": "v0.1.0",
+      "assetName": "NaiTail-v0.1.0-win-x64.zip",
+      "bytes": 2222061,
+      "sha256": "f1ee13dac596365d96cca9e4173413eceb0697720d495c3f6e8d909830c2b1bf",
+      "preservePaths": [
+        "Presets",
+        "Projects",
+        "References",
+        "cache",
+        "logs",
+        "outputs",
+        "runtime",
+        "config/artist-study.json",
+        "config/credentials.json",
+        "config/electron-profile",
+        "config/output-settings.json",
+        "config/settings.local.json"
+      ]
+    },
+    {
+      "id": "animatail",
+      "name": "AnimaTail",
+      "description": "로컬 이미지 생성 스튜디오",
+      "order": 2,
+      "version": "0.1.0",
+      "releaseTag": "v0.1.0",
+      "assetName": "AnimaTail-v0.1.0-win-x64.zip",
+      "bytes": 6843823,
+      "sha256": "f62662de2a02865570cce0a8449b2847db4b3db394b9dd87e96caffcfd25dd33",
+      "preservePaths": [
+        "Models",
+        "Presets",
+        "outputs",
+        "runtime",
+        "runtime-manifest.local.json",
+        "config/electron-profile",
+        "config/output-settings.json"
+      ]
+    },
+    {
+      "id": "gallerytail",
+      "name": "GalleryTail",
+      "description": "공용·포터블 출력 탐색기",
+      "order": 3,
+      "version": "0.1.0",
+      "releaseTag": "v0.1.0",
+      "assetName": "GalleryTail-v0.1.0-win-x64.zip",
+      "bytes": 2237601,
+      "sha256": "966237240f8956ffd020751a385a470240b779eda2f0c89ca9554843787e27b4",
+      "preservePaths": [
+        "config/output-settings.json"
+      ]
+    },
+    {
+      "id": "censortail",
+      "name": "CensorTail",
+      "description": "로컬 이미지 검열 도구",
+      "order": 4,
+      "version": "0.1.0",
+      "releaseTag": "v0.1.0",
+      "assetName": "CensorTail-v0.1.0-win-x64.zip",
+      "bytes": 2308584,
+      "sha256": "3fd8ab2b7cef41a9887d6d6011c28a8f0e0214acd0e9166273da90cb3fff3315",
+      "preservePaths": [
+        "Models",
+        "data",
+        "outputs",
+        "runtime",
+        "runtime-manifest.local.json",
+        "config/electron-profile",
+        "config/output-settings.json"
+      ]
+    }
+  ]
+}

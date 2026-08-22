@@ -100,7 +100,7 @@ button:focus-visible {
   box-shadow: 0 8px 28px rgba(255, 100, 69, .27);
 }
 
-.host-settings-button {
+.host-settings-button, .host-addon-button {
   display: grid;
   width: 32px;
   height: 32px;
@@ -116,12 +116,14 @@ button:focus-visible {
   backdrop-filter: blur(8px);
 }
 
-.host-settings-button:hover {
+.host-settings-button:hover, .host-addon-button:hover {
   border-color: color-mix(in srgb, var(--host) 48%, var(--line));
   color: var(--text);
 }
 
 .host-settings-button svg { width: 16px; height: 16px; }
+.host-addon-button { font: 300 22px/1 var(--sans); }
+.host-action-stack { display: grid; gap: 8px; }
 
 .deck-viewport {
   position: absolute;
@@ -333,13 +335,35 @@ button:focus-visible {
 .deck-arrow.prev { left: calc(var(--host-safe) - 18px); }
 .deck-arrow.next { right: calc(var(--tool-safe) - 18px); }
 
+.empty-addon-install {
+  position: fixed;
+  z-index: 30;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 92px;
+  height: 92px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 50%;
+  background: rgba(20, 16, 25, .82);
+  color: rgba(255, 255, 255, .88);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, .5), 0 0 0 12px rgba(255, 118, 87, .045);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(12px);
+}
+.empty-addon-install[hidden] { display: none; }
+.empty-addon-install span { margin-top: -7px; font: 250 62px/1 var(--sans); }
+.empty-addon-install:hover { border-color: var(--host); background: rgba(40, 25, 31, .92); color: white; }
+
 .deck-footer {
   position: fixed;
   z-index: 80;
   right: 20px;
   bottom: 20px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
 }
 
@@ -355,6 +379,8 @@ button:focus-visible {
 .deck-index { min-width: 58px; padding: 8px 10px; color: white; text-align: center; }
 .key-hints { padding: 8px 13px; }
 .key-hints b { color: white; font-weight: 650; }
+.deck-footer.empty .deck-index, .deck-footer.empty .key-hints { display: none; }
+.deck-footer.empty .host-addon-button { display: none; }
 
 dialog {
   width: min(520px, calc(100vw - 32px));
@@ -373,7 +399,7 @@ dialog::backdrop { background: rgba(5, 4, 7, .72); backdrop-filter: blur(5px); }
 .dialog-head p { margin: 5px 0 0; color: var(--dim); font-size: 12px; }
 .dialog-close { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--dim); }
 
-.settings-section, .installer-pending {
+.settings-section, .installer-content {
   margin-top: 20px;
   padding: 16px;
   border: 1px solid var(--line);
@@ -381,10 +407,29 @@ dialog::backdrop { background: rgba(5, 4, 7, .72); backdrop-filter: blur(5px); }
   background: rgba(255, 255, 255, .025);
 }
 
-.settings-section h3, .installer-pending strong { margin: 0 0 5px; font-size: 14px; }
-.settings-section > p, .installer-pending p { margin: 0 0 13px; color: var(--dim); font-size: 12px; line-height: 1.55; }
-.installer-pending p { margin: 8px 0 0; }
-.installer-pending code { color: #ddd6e2; font-family: var(--mono); }
+.settings-section h3 { margin: 0 0 5px; font-size: 14px; }
+.settings-section > p { margin: 0 0 13px; color: var(--dim); font-size: 12px; line-height: 1.55; }
+.installer-loading { padding: 18px 8px; color: var(--dim); text-align: center; }
+.installer-loading.error { color: #ffaaa2; }
+.official-addon-list { display: grid; gap: 8px; }
+.official-addon-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0f0c13;
+}
+.official-addon-mark { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid #44394e; border-radius: 12px; background: #211a27; font-weight: 800; }
+.official-addon-copy { min-width: 0; }
+.official-addon-copy strong { display: block; font-size: 13px; }
+.official-addon-copy p { margin: 3px 0 0; overflow: hidden; color: var(--dim); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.official-addon-copy small { display: block; margin-top: 5px; color: var(--faint); font: 10px/1 var(--mono); }
+.official-addon-install { min-width: 68px; padding: 8px 10px; border: 1px solid #594155; border-radius: 8px; background: #2a1d29; color: #f5eaf3; }
+.official-addon-install:hover:not(:disabled) { border-color: var(--host); }
+.official-addon-install:disabled { cursor: default; opacity: .5; }
 .path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .path-display { min-width: 0; padding: 9px 10px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #0d0a10; color: #c4bccb; font: 11px/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

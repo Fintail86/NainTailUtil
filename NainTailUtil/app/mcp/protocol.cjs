@@ -15,7 +15,7 @@ class McpStdioServer {
     this.output = options.output || process.stdout;
     this.log = options.log || ((message) => process.stderr.write(`[NainTail MCP] ${message}\n`));
     this.name = options.name || "naintail";
-    this.version = options.version || "0.1.0";
+    this.version = options.version || "0.1.1";
     this.instructions = options.instructions || "";
     this.tools = options.tools;
     this.callTool = options.callTool;

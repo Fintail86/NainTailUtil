@@ -18,15 +18,22 @@
       </div>
       <button id="nextAddon" class="deck-arrow next" type="button" aria-label="다음 애드온">›</button>
 
+      <button id="emptyAddonInstall" class="empty-addon-install" type="button" aria-label="공식 애드온 추가" hidden>
+        <span aria-hidden="true">+</span>
+      </button>
+
       <footer class="deck-footer">
         <span id="deckIndex" class="deck-index">—</span>
         <span class="key-hints"><b>←→ · 휠</b></span>
-        <button id="openSettings" class="host-settings-button" type="button" aria-label="호스트 설정" title="호스트 설정">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
-            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.57 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.57h.01A1.7 1.7 0 0 0 10 3.01V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 19.8 7l-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.99 10H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/>
-          </svg>
-        </button>
+        <span class="host-action-stack">
+          <button id="openAddonInstaller" class="host-addon-button" type="button" aria-label="공식 애드온 추가" title="공식 애드온 추가">+</button>
+          <button id="openSettings" class="host-settings-button" type="button" aria-label="호스트 설정" title="호스트 설정">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.57 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.57h.01A1.7 1.7 0 0 0 10 3.01V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 19.8 7l-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.99 10H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/>
+            </svg>
+          </button>
+        </span>
       </footer>
     </section>
   </main>
@@ -65,13 +72,13 @@
       <header class="dialog-head">
         <div>
           <h2 id="installerTitle">애드온 추가</h2>
-          <p>포터블 애드온을 NainTail 홈에 연결하는 자리다.</p>
+          <p>공식 최신 릴리즈에서 설치할 애드온을 선택한다.</p>
         </div>
         <button class="dialog-close" type="button" data-close-dialog aria-label="닫기">×</button>
       </header>
-      <section class="installer-pending">
-        <strong>연결 방식 준비 중</strong>
-        <p>현재 빌드는 <code>Addons</code> 폴더에서 애드온을 자동 탐색한다. 폴더 선택·패키지 설치는 설치 계약이 확정된 뒤 이 버튼에 연결한다.</p>
+      <section class="installer-content" aria-live="polite">
+        <div id="installerLoading" class="installer-loading">공식 릴리즈를 확인하는 중…</div>
+        <div id="officialAddonList" class="official-addon-list"></div>
       </section>
     </div>
   </dialog>

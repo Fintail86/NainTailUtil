@@ -70,7 +70,7 @@ function startFederation(registry, options = {}) {
     output: options.output,
     log: options.log,
     name: "naintail",
-    version: "0.1.0",
+    version: "0.1.1",
     tools,
     callTool: callFederationTool,
     instructions: [
