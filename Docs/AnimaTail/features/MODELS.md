@@ -17,6 +17,10 @@ Models/
    └─ t5_v1_1_xxl/    # T5 tokenizer 파일 묶음
 ```
 
+초기 0.1.0 배포 도구가 생성한 `Models/checkpoints/`는 레거시 호환 경로로 함께 검색한다.
+어느 경로에서 발견하더라도 카탈로그 ID는 `diffusion_models:<relativePath>`로 유지하며,
+새 배포본은 `Models/diffusion_models/`를 기본 폴더로 생성한다.
+
 ## 관리 경계
 
 - `Models/` 아래의 모든 파일은 사용자 소유다.

@@ -44,6 +44,13 @@ function locateRuntime(appRoot, options = {}) {
   const runtimeRoot = path.resolve(options.runtimeRoot || path.join(appRoot, "runtime"));
   const injectedSource = runtimeRoot === path.resolve(appRoot, "runtime") ? null : "host";
 
+  if (options.runtimeManifestPath) {
+    const hostManifest = path.resolve(options.runtimeManifestPath);
+    return fs.existsSync(hostManifest)
+      ? readManifestRuntime(appRoot, hostManifest, runtimeRoot, "host")
+      : { state: "manifest-missing", runtimeId: null, pythonPath: null, source: "host" };
+  }
+
   const product = fs.existsSync(productManifest)
     ? readManifestRuntime(appRoot, productManifest, runtimeRoot, injectedSource || "product")
     : null;

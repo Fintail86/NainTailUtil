@@ -18,7 +18,8 @@ Gate B 당시 검증한 사설 런타임의 버전과 핵심 파일 계약은 �
 - 그 외 패키지: `config/runtime-requirements.lock.txt`의 고정 버전
 
 공개 자산은 HTTPS, 크기, SHA-256을 확인한다. 설치 후에는 기존 Gate B와 같은 핵심 파일
-검증과 CUDA/BF16/ONNX Runtime probe를 통과한 staging만 활성화한다. 이 후속 구현도
+검증과 CUDA/BF16/DiffSynth probe를 통과한 staging만 활성화한다. ONNX Runtime은
+CensorTail 전용 런타임 계약으로 분리했으며, 이 후속 구현도
 시스템 Python 폴백과 시스템 CUDA 환경 변수 사용을 허용하지 않는다. 아래 본문은 당시
 완성 ZIP 방식으로 수행한 Gate B 검증 기록으로 보존한다. DiffSynth는 긴 Windows 임시
 wheel 빌드 경로를 피하기 위해 검증된 source archive의 순수 Python package directory를

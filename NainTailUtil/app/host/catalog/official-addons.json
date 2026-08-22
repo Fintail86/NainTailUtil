@@ -1,6 +1,6 @@
 {
   "schema": "naintail.official-addons/v1",
-  "catalogVersion": 1,
+  "catalogVersion": 5,
   "repository": "Fintail86/NainTailUtil",
   "addons": [
     {
@@ -33,11 +33,11 @@
       "name": "AnimaTail",
       "description": "로컬 이미지 생성 스튜디오",
       "order": 2,
-      "version": "0.1.0",
-      "releaseTag": "v0.1.0",
-      "assetName": "AnimaTail-v0.1.0-win-x64.zip",
-      "bytes": 6843823,
-      "sha256": "f62662de2a02865570cce0a8449b2847db4b3db394b9dd87e96caffcfd25dd33",
+      "version": "0.1.1",
+      "releaseTag": "animatail-v0.1.1",
+      "assetName": "AnimaTail-v0.1.1-win-x64.zip",
+      "bytes": 6844822,
+      "sha256": "0d8b37efd69dcbd07bd7a94865992e0db899dfe8dbde5d96dca050ee2a4b6884",
       "preservePaths": [
         "Models",
         "Presets",
@@ -67,11 +67,11 @@
       "name": "CensorTail",
       "description": "로컬 이미지 검열 도구",
       "order": 4,
-      "version": "0.1.0",
-      "releaseTag": "v0.1.0",
-      "assetName": "CensorTail-v0.1.0-win-x64.zip",
-      "bytes": 2308584,
-      "sha256": "3fd8ab2b7cef41a9887d6d6011c28a8f0e0214acd0e9166273da90cb3fff3315",
+      "version": "0.1.1",
+      "releaseTag": "censortail-v0.1.1",
+      "assetName": "CensorTail-v0.1.1-win-x64.zip",
+      "bytes": 2308189,
+      "sha256": "d9e5dc5198b0fa0ad93d68b4a8e60fbe8386a68582f09bbb21242072660be2bd",
       "preservePaths": [
         "Models",
         "data",

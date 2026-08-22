@@ -63,13 +63,18 @@ async function writeModelDiagnostics(appRoot, diagnostics) {
   return diagnostics;
 }
 
-function diagnoseModels(appRoot) {
-  const runtime = locateRuntime(appRoot);
+function diagnoseModels(appRoot, options = {}) {
+  const runtimeLocator = options.runtimeLocator || locateRuntime;
+  const executor = options.executor || execFile;
+  const runtime = runtimeLocator(appRoot, {
+    runtimeRoot: options.runtimeRoot,
+    runtimeManifestPath: options.runtimeManifestPath,
+  });
   if (runtime.state !== "ready" || !runtime.pythonPath) {
     return Promise.reject(new Error("모델 진단에 사용할 사설 Python 런타임이 없습니다."));
   }
   return new Promise((resolve, reject) => {
-    execFile(
+    executor(
       runtime.pythonPath,
       [path.join(appRoot, "app", "model_diagnostics.py"), "--app-root", appRoot],
       {

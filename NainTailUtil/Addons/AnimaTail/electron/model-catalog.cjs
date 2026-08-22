@@ -8,30 +8,41 @@ const CATEGORIES = Object.freeze({
   loras: "loras",
 });
 
-function scanSafetensors(root, category) {
-  const categoryRoot = path.join(root, "Models", category);
-  if (!fs.existsSync(categoryRoot)) return [];
+const CATEGORY_DIRECTORY_ALIASES = Object.freeze({
+  diffusion_models: Object.freeze(["checkpoints"]),
+});
 
+function scanSafetensors(root, category) {
   const files = [];
-  const pending = [categoryRoot];
-  while (pending.length > 0) {
-    const current = pending.pop();
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const absolutePath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        pending.push(absolutePath);
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".safetensors")) {
-        const stat = fs.statSync(absolutePath);
-        const relativePath = path.relative(categoryRoot, absolutePath).split(path.sep).join("/");
-        files.push({
-          id: `${category}:${relativePath}`,
-          name: path.basename(entry.name, path.extname(entry.name)),
-          fileName: entry.name,
-          relativePath,
-          bytes: stat.size,
-          modifiedAt: stat.mtime.toISOString(),
-          absolutePath,
-        });
+  const seen = new Set();
+  const directories = [category, ...(CATEGORY_DIRECTORY_ALIASES[category] || [])];
+  for (const directory of directories) {
+    const categoryRoot = path.join(root, "Models", directory);
+    if (!fs.existsSync(categoryRoot)) continue;
+
+    const pending = [categoryRoot];
+    while (pending.length > 0) {
+      const current = pending.pop();
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        const absolutePath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(absolutePath);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".safetensors")) {
+          const stat = fs.statSync(absolutePath);
+          const relativePath = path.relative(categoryRoot, absolutePath).split(path.sep).join("/");
+          const id = `${category}:${relativePath}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          files.push({
+            id,
+            name: path.basename(entry.name, path.extname(entry.name)),
+            fileName: entry.name,
+            relativePath,
+            bytes: stat.size,
+            modifiedAt: stat.mtime.toISOString(),
+            absolutePath,
+          });
+        }
       }
     }
   }
@@ -50,4 +61,10 @@ function resolveCatalogEntry(catalog, id, category) {
   return entry;
 }
 
-module.exports = { listModels, resolveCatalogEntry, scanSafetensors };
+module.exports = {
+  CATEGORIES,
+  CATEGORY_DIRECTORY_ALIASES,
+  listModels,
+  resolveCatalogEntry,
+  scanSafetensors,
+};

@@ -2,7 +2,7 @@
   "schema": "naintail.addon/v1",
   "id": "animatail",
   "name": "AnimaTail",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Built-in local Anima generation addon",
   "builtIn": true,
   "default": false,

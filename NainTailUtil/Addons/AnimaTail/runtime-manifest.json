@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
-  "runtimeId": "anima-py31213-torch2110-cu128-win-x64-r3",
+  "runtimeId": "anima-py31213-torch2110-cu128-win-x64-r4",
   "platform": "win-x64",
   "installMode": "bootstrap",
-  "integrity": "042b0b5213d76777b209745047d942f497447807443eb96c46b054e817959d4a",
-  "estimatedDownloadBytes": 2920186028,
-  "expandedBytes": 4888292334,
+  "integrity": "c5b9815d8664c5ca1ea21ec49f22035561834778587aae0fe88d73145e638ec5",
+  "estimatedDownloadBytes": 2720000000,
+  "expandedBytes": 4508603846,
   "entrypoint": "python.exe",
   "requirementsPath": "config/runtime-requirements.lock.txt",
   "assets": [
@@ -74,11 +74,6 @@
       "path": "Lib/site-packages/diffsynth/__init__.py",
       "bytes": 20,
       "sha256": "2b490dcb6e959ba03ed55e65493de2972eb256c34b51b8aa93a0190c59b69c92"
-    },
-    {
-      "path": "Lib/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.pyd",
-      "bytes": 17581368,
-      "sha256": "74f13885e61803aa7cca971c8a967438e7e6ca1ece8c43f97feaf360d6ceb2e0"
     }
   ]
 }

@@ -50,6 +50,9 @@ class InferenceService {
   constructor(appRoot, sendEvent = () => {}, options = {}) {
     this.appRoot = path.resolve(appRoot);
     this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.appRoot, "runtime"));
+    this.runtimeManifestPath = options.runtimeManifestPath
+      ? path.resolve(options.runtimeManifestPath)
+      : null;
     this.outputRoot = path.resolve(options.outputRoot || path.join(this.appRoot, "outputs"));
     this.sendEvent = sendEvent;
     this.workerStartTimeoutMs = Number.isFinite(options.workerStartTimeoutMs)
@@ -67,7 +70,10 @@ class InferenceService {
 
   ensureWorker() {
     if (this.child && this.readyPromise) return this.readyPromise;
-    const runtime = this.runtimeLocator(this.appRoot, { runtimeRoot: this.runtimeRoot });
+    const runtime = this.runtimeLocator(this.appRoot, {
+      runtimeRoot: this.runtimeRoot,
+      runtimeManifestPath: this.runtimeManifestPath,
+    });
     if (runtime.state !== "ready" || !runtime.pythonPath) {
       return Promise.reject(new Error("사설 Python/CUDA 런타임이 준비되지 않았습니다."));
     }

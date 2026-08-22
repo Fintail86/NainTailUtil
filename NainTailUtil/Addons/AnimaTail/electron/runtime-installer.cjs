@@ -182,7 +182,7 @@ function normalizeRuntimeManifest(raw, options = {}) {
 
 function loadRuntimeManifest(appRoot, options = {}) {
   const root = path.resolve(appRoot);
-  const manifestPath = path.join(root, "runtime-manifest.json");
+  const manifestPath = path.resolve(options.runtimeManifestPath || path.join(root, "runtime-manifest.json"));
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -229,6 +229,12 @@ class RuntimeInstaller {
   constructor(appRoot, sendEvent = () => {}, options = {}) {
     this.appRoot = path.resolve(appRoot);
     this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.appRoot, "runtime"));
+    this.runtimeManifestPath = options.runtimeManifestPath
+      ? path.resolve(options.runtimeManifestPath)
+      : null;
+    this.runtimeManifestRoot = path.dirname(
+      this.runtimeManifestPath || path.join(this.appRoot, "runtime-manifest.json"),
+    );
     this.sendEvent = sendEvent;
     this.fetch = options.fetch || globalThis.fetch;
     this.extract = options.extract || null;
@@ -246,12 +252,18 @@ class RuntimeInstaller {
     let manifest = null;
     let manifestError = null;
     try {
-      manifest = loadRuntimeManifest(this.appRoot, { allowFileUrls: this.allowFileUrls });
+      manifest = loadRuntimeManifest(this.appRoot, {
+        allowFileUrls: this.allowFileUrls,
+        runtimeManifestPath: this.runtimeManifestPath,
+      });
     } catch (error) {
       manifestError = error.message;
     }
     return {
-      ...readRuntimeStatus(this.appRoot, { runtimeRoot: this.runtimeRoot }),
+      ...readRuntimeStatus(this.appRoot, {
+        runtimeRoot: this.runtimeRoot,
+        runtimeManifestPath: this.runtimeManifestPath,
+      }),
       installing: Boolean(this.installing),
       installMode: manifest?.installMode || null,
       archiveBytes: manifest?.downloadBytes || null,
@@ -314,7 +326,10 @@ class RuntimeInstaller {
   async installRuntime() {
     let releaseLock = null;
     try {
-      const manifest = loadRuntimeManifest(this.appRoot, { allowFileUrls: this.allowFileUrls });
+      const manifest = loadRuntimeManifest(this.appRoot, {
+        allowFileUrls: this.allowFileUrls,
+        runtimeManifestPath: this.runtimeManifestPath,
+      });
       const runtimeRoot = this.runtimeRoot;
       const versionsRoot = path.join(runtimeRoot, "versions");
       const finalRoot = path.join(versionsRoot, manifest.runtimeId);
@@ -456,8 +471,8 @@ class RuntimeInstaller {
       );
       if (!uvExe) throw new Error("uv archive does not contain uv.exe.");
 
-      const requirementsPath = path.resolve(this.appRoot, manifest.requirementsPath);
-      const requirementsBoundary = `${this.appRoot}${path.sep}`;
+      const requirementsPath = path.resolve(this.runtimeManifestRoot, manifest.requirementsPath);
+      const requirementsBoundary = `${this.runtimeManifestRoot}${path.sep}`;
       if (!requirementsPath.startsWith(requirementsBoundary) || !fs.existsSync(requirementsPath)) {
         throw new Error("runtime requirements lock is missing or outside the app root.");
       }
@@ -503,15 +518,20 @@ class RuntimeInstaller {
       }
 
       this.sendEvent({ event: "install", stage: "probing", progress: 92 });
+      const probeOnnxRuntime = manifest.files.some((file) => (
+        file.path.replaceAll("\\", "/").includes("/onnxruntime/")
+      ));
       await this.executeCommand(
         pythonExe,
         [
           "-I",
           "-c",
           [
-            "import torch, onnxruntime, diffsynth",
+            probeOnnxRuntime ? "import torch, onnxruntime, diffsynth" : "import torch, diffsynth",
             "assert torch.cuda.is_available(), 'PyTorch CUDA is unavailable'",
-            "assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'ONNX CUDA provider is unavailable'",
+            ...(probeOnnxRuntime
+              ? ["assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'ONNX CUDA provider is unavailable'"]
+              : []),
             "x=torch.ones((64,64), device='cuda', dtype=torch.bfloat16)",
             "assert bool(torch.isfinite(x @ x).all())",
             "print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))",

@@ -11,6 +11,7 @@ async function start(options = {}) {
     hosted: options.hosted === true,
     manifest: options.manifest,
     runtimeRoot: options.runtimeRoot || options.dependencies?.runtimeRoot,
+    runtimeManifestPath: options.runtimeManifestPath || options.dependencies?.runtimeManifestPath,
     outputRoot: options.outputRoot,
   });
 }

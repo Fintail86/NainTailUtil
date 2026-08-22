@@ -326,10 +326,13 @@ export function createAdapter(options = {}) {
     throw new Error("Hosted AnimaTail MCP에 NainTail runtimeRoot가 주입되지 않았습니다.");
   }
   const runtimeRoot = options.runtimeRoot || options.dependencies?.runtimeRoot;
+  const runtimeManifestPath = options.runtimeManifestPath
+    || options.dependencies?.runtimeManifestPath;
   const outputRoot = path.resolve(options.outputRoot || path.join(appRoot, "outputs"));
   const manager = options.manager || new McpGenerationJobManager({
     appRoot,
     runtimeRoot,
+    runtimeManifestPath,
     outputRoot,
     appVersion: packageInfo.version,
     electronVersion: process.versions.electron || null,
@@ -337,6 +340,7 @@ export function createAdapter(options = {}) {
   const discovery = options.discovery || new McpDiscoveryService({
     appRoot,
     runtimeRoot,
+    runtimeManifestPath,
     appVersion: packageInfo.version,
   });
   const gpuReader = options.gpuReader || queryGpuMemory;
@@ -445,6 +449,7 @@ export async function start(options = {}) {
     const bundle = createMcpServer({
       appRoot: options.appRoot || APP_ROOT,
       runtimeRoot: options.runtimeRoot,
+      runtimeManifestPath: options.runtimeManifestPath,
       outputRoot: options.outputRoot,
       dependencies: options.dependencies,
       hosted: options.hosted === true,

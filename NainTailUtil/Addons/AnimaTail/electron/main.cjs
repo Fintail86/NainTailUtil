@@ -32,6 +32,7 @@ let refineInputService;
 let supportAssetService;
 let runtimeInstaller;
 let runtimeRoot;
+let runtimeManifestPath;
 let outputRoot;
 let outputSettings;
 let addonContext;
@@ -151,7 +152,10 @@ function registerIpcHandlers() {
   ipcMain.handle(channels.RUNTIME_CANCEL_INSTALL, () => runtimeInstaller.cancel());
   ipcMain.handle(channels.MODELS_LIST, () => publicCatalog(listModels(getAppRoot())));
   ipcMain.handle(channels.MODELS_GET_DIAGNOSTICS, () => readModelDiagnostics(getAppRoot()));
-  ipcMain.handle(channels.MODELS_DIAGNOSE, () => diagnoseModels(getAppRoot()));
+  ipcMain.handle(channels.MODELS_DIAGNOSE, () => diagnoseModels(getAppRoot(), {
+    runtimeRoot,
+    runtimeManifestPath,
+  }));
   ipcMain.handle(channels.MODELS_OPEN_FOLDER, () => shell.openPath(path.join(getAppRoot(), "Models")));
   ipcMain.handle(channels.OUTPUT_SETTINGS_GET, () => outputSettings.status());
   ipcMain.handle(channels.OUTPUT_SETTINGS_SELECT, async () => {
@@ -267,6 +271,9 @@ function activate(context) {
     throw new Error("Hosted AnimaTail에 NainTail runtimeRoot가 주입되지 않았습니다.");
   }
   runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(getAppRoot(), "runtime"));
+  runtimeManifestPath = context.dependencies?.runtimeManifestPath
+    ? path.resolve(context.dependencies.runtimeManifestPath)
+    : null;
   outputSettings = new AddonOutputSettings({
     addonRoot: getAppRoot(),
     standalone: context.standalone === true,
@@ -275,11 +282,11 @@ function activate(context) {
   outputRoot = outputSettings.outputRoot();
   runtimeInstaller = new RuntimeInstaller(getAppRoot(), (event) => (
     sendToAll(channels.RUNTIME_EVENT, event)
-  ), { allowFileUrls: !app.isPackaged, runtimeRoot });
+  ), { allowFileUrls: !app.isPackaged, runtimeRoot, runtimeManifestPath });
   inferenceService = new InferenceService(getAppRoot(), (event) => {
     jobQueue?.handleWorkerEvent(event);
     sendToAll(channels.GENERATION_EVENT, event);
-  }, { runtimeRoot, outputRoot });
+  }, { runtimeRoot, runtimeManifestPath, outputRoot });
   supportAssetService = new SupportAssetService(getAppRoot(), (event) => (
     sendToAll(channels.SUPPORT_ASSETS_EVENT, event)
   ));
@@ -326,6 +333,7 @@ function activate(context) {
       supportAssetService = null;
       runtimeInstaller = null;
       runtimeRoot = null;
+      runtimeManifestPath = null;
       outputRoot = null;
       outputSettings = null;
       addonContext = null;

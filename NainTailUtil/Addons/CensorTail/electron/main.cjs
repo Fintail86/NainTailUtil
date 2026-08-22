@@ -25,6 +25,7 @@ let dropCacheRoot = null;
 let modelRoot = null;
 let resourceRoot = null;
 let runtimeRoot = null;
+let runtimeManifestPath = null;
 let runtimeInstaller = null;
 let inputDefaultRoot = null;
 let outputSettings = null;
@@ -136,6 +137,9 @@ function activate(context) {
     || context.manifest.directory;
   if (!resourceRoot) throw new Error("CensorTail에 필요한 Python/CUDA runtime과 검열 모델을 찾을 수 없습니다.");
   runtimeRoot = path.resolve(context.dependencies?.runtimeRoot || path.join(resourceRoot, "runtime"));
+  runtimeManifestPath = context.dependencies?.runtimeManifestPath
+    ? path.resolve(context.dependencies.runtimeManifestPath)
+    : null;
   modelRoot = path.resolve(context.dependencies?.modelRoot || path.join(resourceRoot, "Models", "censor"));
   dropCacheRoot = path.join(
     path.resolve(context.dataRoot || context.manifest.directory),
@@ -155,10 +159,14 @@ function activate(context) {
   censorService = new CensorService(context.manifest.directory, sendEvent, {
     resourceRoot,
     runtimeRoot,
+    runtimeManifestPath,
     modelRoot,
     outputRoot,
   });
-  runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent, { runtimeRoot });
+  runtimeInstaller = new RuntimeInstaller(resourceRoot, sendRuntimeEvent, {
+    runtimeRoot,
+    runtimeManifestPath,
+  });
   const validateDroppedPath = (event, candidate) => {
     event.returnValue = usableDroppedPath(candidate);
   };
@@ -274,6 +282,7 @@ function activate(context) {
       modelRoot = null;
       resourceRoot = null;
       runtimeRoot = null;
+      runtimeManifestPath = null;
       inputDefaultRoot = null;
       outputSettings = null;
       addonContext = null;

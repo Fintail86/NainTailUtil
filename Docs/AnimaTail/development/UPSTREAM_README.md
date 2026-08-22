@@ -200,13 +200,13 @@ CLI 생성은 명령 하나가 끝나면 해당 CLI 프로세스와 생성 모�
 - `Presets/` — 사용자 프롬프트·생성 환경 프리셋
 - `outputs/` — 생성 이미지와 자동검열 결과
 
-`runtime/`, `Models/`, `Presets/`, `outputs/`는 앱 폴더를 옮겨도 함께 따라가는 로컬 자산입니다. 시스템에 설치된 Python이나 CUDA Toolkit, 사용자 `PATH`는 추론 worker 선택에 관여하지 않습니다.
+`runtime/`, `Models/`, `Presets/`, `outputs/`는 앱 폴더를 옮겨도 함께 따라가는 로컬 자산입니다. 시스템에 설치된 Python이나 CUDA Toolkit, 사용자 `PATH`는 추론 worker 선택에 관여하지 않습니다. AnimaTail 런타임은 PyTorch와 DiffSynth 생성 의존성만 소유하며 ONNX Runtime은 CensorTail이 소유합니다.
 
 ## 런타임 설치
 
 앱 루트의 `runtime-manifest.json`이 공개 배포용 런타임 계약입니다. 최초 실행 시 런타임이 없으면 설정 화면으로 이동해 설치가 자동으로 시작됩니다. 설치 중 취소할 수 있고, 실패하면 같은 화면에서 재시도하면 됩니다.
 
-저장소에는 조립된 Python/CUDA 런타임을 싣지 않습니다. 대신 manifest에 고정된 공개 원본에서 Python standalone, `uv`, DiffSynth 소스를 받아 고정 버전 PyTorch CUDA 12.8과 Python 패키지를 `runtime/versions/<runtimeId>/`에 직접 설치합니다. 공개 원본 파일과 설치 후 핵심 파일은 크기와 SHA-256을 검증하고, CUDA·BF16·ONNX Runtime 점검까지 통과한 staging 디렉터리만 원자적으로 활성화합니다.
+저장소에는 조립된 Python/CUDA 런타임을 싣지 않습니다. 대신 manifest에 고정된 공개 원본에서 Python standalone, `uv`, DiffSynth 소스를 받아 고정 버전 PyTorch CUDA 12.8과 Python 패키지를 `runtime/versions/<runtimeId>/`에 직접 설치합니다. 공개 원본 파일과 설치 후 핵심 파일은 크기와 SHA-256을 검증하고, CUDA·BF16·DiffSynth 점검까지 통과한 staging 디렉터리만 원자적으로 활성화합니다.
 
 시스템 Python으로 폴백하거나 시스템 CUDA 환경 변수를 사용하는 일은 없습니다. DiffSynth는 Windows의 긴 wheel 빌드 경로를 만들지 않도록 검증된 commit의 순수 Python 패키지를 직접 설치합니다. 실패한 설치의 앱 내부 패키지 캐시는 재시도에 재사용하고, 설치가 성공하면 정리합니다. 개발 PC 전용 경로가 필요하면 Git에서 제외되는 `runtime-manifest.local.json`으로 덮어쓸 수 있습니다.
 

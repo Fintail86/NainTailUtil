@@ -186,7 +186,10 @@ async function runReadCommand(positionals, flags, appRoot = APP_ROOT, options = 
   }
   if (command === "status") {
     assertCommandShape(positionals, flags, 1, new Set());
-    const runtime = readRuntimeStatus(appRoot, { runtimeRoot: options.runtimeRoot });
+    const runtime = readRuntimeStatus(appRoot, {
+      runtimeRoot: options.runtimeRoot,
+      runtimeManifestPath: options.runtimeManifestPath,
+    });
     const catalog = listModels(appRoot);
     const presets = listPresets(appRoot);
     return {
@@ -279,6 +282,7 @@ async function runGeneration(mode, positionals, flags, reporter, requestId, appR
   activeApplication = new GenerationApplication({
     appRoot,
     runtimeRoot: options.runtimeRoot,
+    runtimeManifestPath: options.runtimeManifestPath,
     outputRoot: options.outputRoot,
     appVersion: packageInfo.version,
     electronVersion: process.versions.electron || null,
@@ -363,6 +367,7 @@ async function run(options = {}) {
   const appRoot = path.resolve(options.productRoot || options.dataRoot || APP_ROOT);
   const exitCode = await main(options.argv || [], appRoot, {
     runtimeRoot: options.runtimeRoot || options.dependencies?.runtimeRoot,
+    runtimeManifestPath: options.runtimeManifestPath || options.dependencies?.runtimeManifestPath,
     outputRoot: options.outputRoot,
   });
   if (exitCode) process.exitCode = exitCode;

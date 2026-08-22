@@ -53,11 +53,15 @@ class McpDiscoveryService {
   constructor(options) {
     this.appRoot = options.appRoot;
     this.runtimeRoot = options.runtimeRoot;
+    this.runtimeManifestPath = options.runtimeManifestPath;
     this.appVersion = options.appVersion || "0.0.0";
   }
 
   status() {
-    const runtime = readRuntimeStatus(this.appRoot, { runtimeRoot: this.runtimeRoot });
+    const runtime = readRuntimeStatus(this.appRoot, {
+      runtimeRoot: this.runtimeRoot,
+      runtimeManifestPath: this.runtimeManifestPath,
+    });
     const catalog = listModels(this.appRoot);
     const presets = listPresets(this.appRoot);
     return {

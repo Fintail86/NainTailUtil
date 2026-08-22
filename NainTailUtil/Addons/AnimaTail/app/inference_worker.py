@@ -87,13 +87,19 @@ class InferenceWorker:
         self.pipeline_load_count = 0
         self.lora_swap_count = 0
 
+    def user_asset_relative_path(self, path: Path, category: str) -> Path:
+        directories = (category, "checkpoints") if category == "diffusion_models" else (category,)
+        for directory in directories:
+            allowed_root = (self.app_root / "Models" / directory).resolve()
+            try:
+                return path.relative_to(allowed_root)
+            except ValueError:
+                continue
+        raise WorkerError(f"허용되지 않은 모델 경로입니다: {path}")
+
     def assert_user_asset(self, raw_path: str, category: str) -> Path:
         path = Path(raw_path).resolve()
-        allowed_root = (self.app_root / "Models" / category).resolve()
-        try:
-            path.relative_to(allowed_root)
-        except ValueError as error:
-            raise WorkerError(f"허용되지 않은 모델 경로입니다: {path}") from error
+        self.user_asset_relative_path(path, category)
         return require_file(path, category)
 
     def support_paths(self) -> dict[str, Path]:
@@ -360,8 +366,8 @@ class InferenceWorker:
                     "model",
                     {
                         "fileName": model_path.name,
-                        "relativePath": model_path.relative_to(
-                            self.app_root / "Models" / "diffusion_models"
+                        "relativePath": self.user_asset_relative_path(
+                            model_path, "diffusion_models"
                         ).as_posix(),
                     },
                 ),

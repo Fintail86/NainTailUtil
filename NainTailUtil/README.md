@@ -8,8 +8,8 @@ NainTail 애드온 호스트를 담은 포터블 Windows 제품 폴더다. 공�
 NovelAI 기능 전체는 공식 애드온 `NaiTail`, 로컬 Anima 생성은 `AnimaTail`로
 제공된다. 생성 결과 탐색과 설정 재사용은 `GalleryTail`, 로컬 자동검열은 `CensorTail`이 각각
 소유한다. NainTail 호스트는 각 manifest를 발견하고 지원하는 Electron·CLI·MCP 진입점을
-실행한다. Hosted AnimaTail과 CensorTail의 Python/CUDA는 NainTail의 `runtime/`에서 통합
-관리하며, 생성 모델·LoRA·검열 모델은 각 애드온 폴더가 소유한다.
+실행한다. Hosted AnimaTail과 CensorTail의 Python/CUDA는 NainTail의 `runtime/` root에서
+하나의 공용 `runtimeId`로 관리하며, 생성 모델·LoRA·검열 모델은 각 애드온 폴더가 소유한다.
 
 이 폴더가 실제 제품 루트다. 실행 중 필요한 프로젝트, 프리셋, 출력, 캐시와 로그는 모두
 이 폴더 아래에 저장되며 부모 개발 워크스페이스에 의존하지 않는다. Hosted 최종 출력은
@@ -54,7 +54,7 @@ Tags를 저장·복원하고 같은 값으로 API payload를 만든다. 구형 �
 - AnimaTail manifest: `Addons/AnimaTail/addon.json`
 - AnimaTail Electron adapter/GUI: `Addons/AnimaTail/electron/`, `Addons/AnimaTail/dist/renderer/`
 - AnimaTail Python/CUDA Worker: `Addons/AnimaTail/app/`
-- Hosted Python/CUDA runtime: `runtime/`
+- Hosted Python/CUDA runtime root: `runtime/` (AnimaTail·CensorTail 공용 `runtimeId` 한 벌)
 - AnimaTail Standalone runtime/model/data: `Addons/AnimaTail/runtime/`, `Models/`, `Presets/`, `outputs/`
 - GalleryTail manifest/UI/service: `Addons/GalleryTail/`
 - CensorTail manifest/UI/Worker/output: `Addons/CensorTail/`
@@ -106,8 +106,9 @@ MCP adapter는 포함되어 있으며 축약 discovery, 비동기 job wait/statu
 상한을 제공한다.
 
 AnimaTail과 CensorTail의 Standalone 폴더에는 각각 포터블 Python 3.12/CUDA 런타임이 포함된다.
-Hosted에서는 두 애드온 모두 NainTail `runtime/`을 사용한다. AnimaTail은 생성 모델·LoRA를,
-CensorTail은 검열 Worker·`Models/censor`와 출력을 독립적으로 소유한다.
+Hosted에서는 두 애드온 모두 NainTail `runtime/` root의 동일한 공용 `runtimeId`를 재사용한다.
+Standalone에서는 AnimaTail이 생성용 PyTorch·DiffSynth와 생성 모델·LoRA를, CensorTail이
+ONNX Runtime·그 CUDA 실행 의존성과 검열 Worker·`Models/censor`·출력을 독립적으로 소유한다.
 GalleryTail은 현재 GUI 전용이다. CensorTail은 Hosted/Standalone MCP에서 검출·저장·작업 대기와
 모델 언로드를 제공하며 AnimaTail artifactRef를 직접 입력으로 받는다.
 

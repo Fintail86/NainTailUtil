@@ -142,8 +142,11 @@ Standalone에서는 기본적으로 네 루트가 모두 애드온 폴더 안을
 - GalleryTail은 특정 생성 애드온에 종속되지 않으며 `requires`를 비워 둔다. Hosted에서는
   `outputRootScope: "host"`로 주입된 공용 출력 루트와 호스트가 명시적으로 공개한 Standalone
   애드온별 포터블 출력 경로를 탐색한다.
-- Hosted AnimaTail과 CensorTail은 NainTail이 `runtimeRoot`로 주입한 공용 Python/CUDA runtime을
-  사용하며 애드온 로컬 runtime으로 fallback하지 않는다. 생성 모델·LoRA·검열 모델은 각 애드온이
+- Hosted AnimaTail과 CensorTail은 NainTail이 `runtimeRoot`와 `runtimeManifestPath`로 주입한
+  동일한 호스트 공용 `runtimeId`를 선택한다. 애드온 로컬 runtime으로 fallback하지 않으며,
+  호스트 공용 런타임은 두 애드온이 함께 쓰는 Python·PyTorch·CUDA/cuDNN·DiffSynth·ONNX Runtime을
+  한 벌만 설치한다. Standalone에서는 AnimaTail이 생성용 PyTorch·DiffSynth, CensorTail이
+  ONNX Runtime과 그 CUDA 실행 의존성을 각자 소유한다. 생성 모델·LoRA·검열 모델도 각 애드온이
   계속 소유한다.
 - CensorTail이 AnimaTail 결과를 받는 기능은 선택적 artifact 연동이며
   `artifactProviders: ["animatail"]`로 선언한다.

@@ -14,32 +14,43 @@ os.environ.setdefault("DIFFSYNTH_SKIP_DOWNLOAD", "true")
 from anima_adapter import validate_checkpoint_structure, validate_lora_structure  # noqa: E402
 
 
-def diagnose_files(root: Path, category: str, validator) -> list[dict[str, object]]:
+def diagnose_files(
+    root: Path,
+    category: str,
+    validator,
+    directory_aliases: tuple[str, ...] = (),
+) -> list[dict[str, object]]:
     results = []
-    category_root = root / "Models" / category
-    for path in sorted(category_root.rglob("*.safetensors")):
-        relative_path = path.relative_to(category_root).as_posix()
-        try:
-            detail = validator(path)
-            warning_count = int(detail.get("extra_keys", 0)) + int(
-                detail.get("ignored_unmatched_targets", 0)
-            )
-            status = "warning" if warning_count > 0 else "compatible"
-            results.append(
-                {
-                    "id": f"{category}:{relative_path}",
-                    "status": status,
-                    "detail": detail,
-                }
-            )
-        except Exception as error:
-            results.append(
-                {
-                    "id": f"{category}:{relative_path}",
-                    "status": "incompatible",
-                    "error": str(error),
-                }
-            )
+    seen_ids: set[str] = set()
+    for directory in (category, *directory_aliases):
+        category_root = root / "Models" / directory
+        for path in sorted(category_root.rglob("*.safetensors")):
+            relative_path = path.relative_to(category_root).as_posix()
+            item_id = f"{category}:{relative_path}"
+            if item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+            try:
+                detail = validator(path)
+                warning_count = int(detail.get("extra_keys", 0)) + int(
+                    detail.get("ignored_unmatched_targets", 0)
+                )
+                status = "warning" if warning_count > 0 else "compatible"
+                results.append(
+                    {
+                        "id": item_id,
+                        "status": status,
+                        "detail": detail,
+                    }
+                )
+            except Exception as error:
+                results.append(
+                    {
+                        "id": item_id,
+                        "status": "incompatible",
+                        "error": str(error),
+                    }
+                )
     return results
 
 
@@ -73,7 +84,10 @@ def main() -> int:
         "schemaVersion": 1,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "models": diagnose_files(
-            root, "diffusion_models", validate_checkpoint_structure
+            root,
+            "diffusion_models",
+            validate_checkpoint_structure,
+            directory_aliases=("checkpoints",),
         ),
         "loras": diagnose_files(root, "loras", validate_lora_structure),
         "supportAssets": support_assets(root),

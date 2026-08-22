@@ -100,6 +100,9 @@ function createAdapter(options = {}) {
     || options.dependencies?.runtimeRoot
     || standaloneAssets?.runtimeRoot
     || path.join(resourceRoot, "runtime"));
+  const runtimeManifestPath = options.runtimeManifestPath
+    || options.dependencies?.runtimeManifestPath
+    || null;
   const modelRoot = path.resolve(options.modelRoot
     || standaloneAssets?.modelRoot
     || path.join(resourceRoot, "Models", "censor"));
@@ -108,6 +111,7 @@ function createAdapter(options = {}) {
   const service = options.service || new CensorService(appRoot, (event) => manager?.handleEvent(event), {
     resourceRoot,
     runtimeRoot,
+    runtimeManifestPath,
     modelRoot,
     outputRoot,
   });

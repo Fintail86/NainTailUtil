@@ -39,6 +39,7 @@ class McpGenerationJobManager {
   constructor(options) {
     this.appRoot = options.appRoot;
     this.runtimeRoot = options.runtimeRoot;
+    this.runtimeManifestPath = options.runtimeManifestPath;
     this.outputRoot = options.outputRoot || path.join(this.appRoot, "outputs");
     this.appVersion = options.appVersion || "0.0.0";
     this.electronVersion = options.electronVersion || process.versions.electron || null;
@@ -57,6 +58,7 @@ class McpGenerationJobManager {
     this.application = applicationFactory({
       appRoot: this.appRoot,
       runtimeRoot: this.runtimeRoot,
+      runtimeManifestPath: this.runtimeManifestPath,
       outputRoot: this.outputRoot,
       appVersion: this.appVersion,
       electronVersion: this.electronVersion,

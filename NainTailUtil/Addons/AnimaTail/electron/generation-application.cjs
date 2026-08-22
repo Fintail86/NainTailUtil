@@ -69,6 +69,7 @@ class GenerationApplication {
   constructor(options) {
     this.appRoot = options.appRoot;
     this.runtimeRoot = options.runtimeRoot;
+    this.runtimeManifestPath = options.runtimeManifestPath;
     this.outputRoot = options.outputRoot;
     this.appVersion = options.appVersion || "0.0.0";
     this.electronVersion = options.electronVersion || process.versions.electron || null;
@@ -76,14 +77,18 @@ class GenerationApplication {
     this.preflight = options.preflight !== false;
     this.runtimeStatusReader = options.runtimeStatusReader || ((appRoot) => readRuntimeStatus(
       appRoot,
-      { runtimeRoot: this.runtimeRoot },
+      { runtimeRoot: this.runtimeRoot, runtimeManifestPath: this.runtimeManifestPath },
     ));
     this.normalizer = options.normalizer || normalizeGenerationRequest;
     this.waiters = new Map();
     this.activeRequestId = null;
     this.executor = options.executor || new InferenceService(this.appRoot, (event) => (
       this.handleWorkerEvent(event)
-    ), { runtimeRoot: this.runtimeRoot, outputRoot: this.outputRoot });
+    ), {
+      runtimeRoot: this.runtimeRoot,
+      runtimeManifestPath: this.runtimeManifestPath,
+      outputRoot: this.outputRoot,
+    });
     this.queue = new JobQueue(this.executor, (state) => this.handleQueueState(state));
   }
 

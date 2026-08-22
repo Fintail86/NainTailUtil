@@ -275,6 +275,9 @@ class CensorService {
     this.appRoot = path.resolve(appRoot);
     this.resourceRoot = path.resolve(options.resourceRoot || appRoot);
     this.runtimeRoot = path.resolve(options.runtimeRoot || path.join(this.resourceRoot, "runtime"));
+    this.runtimeManifestPath = options.runtimeManifestPath
+      ? path.resolve(options.runtimeManifestPath)
+      : null;
     this.modelRoot = path.resolve(options.modelRoot || path.join(this.resourceRoot, "Models", "censor"));
     this.baseOutputRoot = path.resolve(options.outputRoot || path.join(this.appRoot, "outputs"));
     this.sendEvent = sendEvent;
@@ -314,7 +317,10 @@ class CensorService {
   }
 
   async status() {
-    const runtime = locateRuntime(this.resourceRoot, { runtimeRoot: this.runtimeRoot });
+    const runtime = locateRuntime(this.resourceRoot, {
+      runtimeRoot: this.runtimeRoot,
+      runtimeManifestPath: this.runtimeManifestPath,
+    });
     const dependencyPath = runtime.pythonPath
       ? path.join(path.dirname(runtime.pythonPath), "Lib", "site-packages", "onnxruntime", "__init__.py")
       : null;
@@ -477,7 +483,10 @@ class CensorService {
 
   ensureWorker() {
     if (this.child && this.readyPromise) return this.readyPromise;
-    const runtime = locateRuntime(this.resourceRoot, { runtimeRoot: this.runtimeRoot });
+    const runtime = locateRuntime(this.resourceRoot, {
+      runtimeRoot: this.runtimeRoot,
+      runtimeManifestPath: this.runtimeManifestPath,
+    });
     if (runtime.state !== "ready" || !runtime.pythonPath) {
       return Promise.reject(new Error("사설 Python 런타임이 준비되지 않았습니다."));
     }
