@@ -1,10 +1,11 @@
-# NainTailUtil 포터블 제품
+# NainTailUtil 포터블 호스트
 
-NainTail 애드온 호스트와 내장 애드온을 함께 담은 포터블 Windows 제품 폴더다. NainTail은
+NainTail 애드온 호스트를 담은 포터블 Windows 제품 폴더다. 공식 애드온은 홈의 `+`에서
+각자 독립된 버전으로 설치·업데이트한다. NainTail은
 애드온을 발견해 홈에 표시하고 GUI·CLI·MCP entry를 실행하는 관리 계층이며, 이미지 생성이나
 검열 같은 도메인 기능은 직접 소유하지 않는다.
 
-NovelAI 기능 전체는 기본 내장 애드온 `NaiTail`, 로컬 Anima 생성은 `AnimaTail`로
+NovelAI 기능 전체는 공식 애드온 `NaiTail`, 로컬 Anima 생성은 `AnimaTail`로
 제공된다. 생성 결과 탐색과 설정 재사용은 `GalleryTail`, 로컬 자동검열은 `CensorTail`이 각각
 소유한다. NainTail 호스트는 각 manifest를 발견하고 지원하는 Electron·CLI·MCP 진입점을
 실행한다. Hosted AnimaTail과 CensorTail의 Python/CUDA는 NainTail의 `runtime/`에서 통합

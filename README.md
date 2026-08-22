@@ -1,7 +1,7 @@
 # NainTailUtil
 
-NainTailUtil은 **NainTail 애드온 호스트**와 내장 애드온을 함께 배포하는 포터블 Windows
-플랫폼이다. NainTail 자체는 이미지 생성기가 아니다. 애드온을 발견해 홈에 표시하고,
+NainTailUtil은 **NainTail 애드온 호스트**와 독립 버전으로 배포되는 공식 애드온을 관리하는
+포터블 Windows 플랫폼이다. NainTail 자체는 이미지 생성기가 아니다. 애드온을 발견해 홈에 표시하고,
 필요한 실행 환경을 연결한 뒤 GUI·CLI·MCP 진입점으로 여는 관리 계층이다.
 
 ## 이름과 책임
@@ -10,7 +10,7 @@ NainTailUtil은 **NainTail 애드온 호스트**와 내장 애드온을 함께 �
 |---|---|
 | **NainTail** | 애드온 홈, registry, 실행·전환·의존성 확인을 소유하는 호스트 |
 | **NaiTail** | NovelAI 이미지 생성 기능을 소유하는 내장 애드온 |
-| **NainTailUtil** | NainTail 호스트와 내장 애드온을 함께 담은 저장소·포터블 배포본 |
+| **NainTailUtil** | NainTail 호스트와 공식 애드온의 소스·독립 릴리즈를 관리하는 저장소 |
 
 생성, 갤러리, 검열 같은 도메인 기능은 NainTail이 아니라 각 애드온이 소유한다. 호스트는
 애드온 내부의 Core, Worker, 데이터 schema를 해석하거나 대신 구현하지 않는다.
@@ -29,11 +29,14 @@ NainTailUtil은 **NainTail 애드온 호스트**와 내장 애드온을 함께 �
   service를 애드온 entry에 주입한다.
 - Python/CUDA capability가 있는 Hosted 애드온에 NainTail의 공용 `runtimeRoot`를 주입한다.
 - Hosted 최종 출력에 `outputs/<addonId>/` namespace를 할당하고 output root resolver를 제공한다.
+- 내장 또는 마지막 정상 `official-addons.json`을 기준으로 공식 애드온의 누락·현재·업데이트
+  상태를 판정하고, GitHub 공식 릴리즈 ZIP의 크기와 SHA-256을 검증해 설치·업데이트한다.
 - CLI는 선택한 애드온 entry로 전달하고, MCP는 기본 federation routing 또는 명시적인 호환
   selector로 애드온 entry를 실행한다.
 
-현재 의미의 관리는 **로컬 manifest 발견, 상태 확인, 실행과 전환**까지다. 온라인 마켓,
-다운로드, 설치·업데이트·제거, 활성/비활성 토글, 버전 자동 해결은 아직 구현하지 않았다.
+현재 의미의 관리는 **공식 카탈로그 조회, 설치·업데이트, 로컬 manifest 발견, 상태 확인,
+실행과 전환**까지다. 임의의 제3자 마켓, 제거, 활성/비활성 토글과 dependency 범위 자동 해결은
+아직 구현하지 않았다.
 따라서 홈에 카드가 보인다는 사실만으로 모든 runtime·모델의 호환성까지 보장하지는 않는다.
 
 호스트의 상세 계약은 [NainTail 호스트 문서](Docs/NainTail/README.md), 애드온의 독립 실행과
@@ -84,8 +87,9 @@ NainTailUtil/Addons/<AddonName>/
 └─ addon.json
 ```
 
-호스트는 시작과 목록 조회 시 manifest를 다시 발견한다. 현재는 파일을 홈에서 설치하는 기능이
-없으므로, 애드온 폴더의 배치와 제거는 앱을 종료한 상태에서 배포·관리한다.
+호스트는 시작과 목록 조회 시 manifest를 다시 발견한다. 홈 중앙 또는 우측 하단의 `+`에서
+공식 애드온을 설치·업데이트할 수 있다. 공식 카탈로그 밖의 로컬 애드온 배치와 제거는 앱을
+종료한 상태에서 관리한다.
 
 Standalone 지원을 선언한 NaiTail, AnimaTail과 CensorTail은 각 폴더만 복사해 직접 실행할 수 있다.
 

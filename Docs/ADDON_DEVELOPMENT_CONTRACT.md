@@ -160,6 +160,25 @@ Standalone 지원 애드온은 애드온 루트의 `VERSION`, `addon.json`, `pac
 기록하고 독립적으로 변경한다. NaiTail, AnimaTail과 CensorTail의 초기 공개 기준 버전은 모두
 `0.1.0`이다. 한 애드온의 버전 변경이 다른 애드온의 버전 변경을 강제해서는 안 된다.
 
+### 독립 릴리즈 계약
+
+NainTail 호스트와 각 애드온은 다음 태그 namespace로 별도 릴리즈한다.
+
+- `host-vX.Y.Z`
+- `naitail-vX.Y.Z`
+- `animatail-vX.Y.Z`
+- `gallerytail-vX.Y.Z`
+- `censortail-vX.Y.Z`
+
+한 릴리즈에는 해당 컴포넌트 ZIP과 그 시점의 전체 `official-addons.json`만 필수 자산으로 둔다.
+다른 컴포넌트의 ZIP을 다시 만들거나 같은 버전으로 올리지 않는다. ZIP 파일명은
+`<ComponentName>-vX.Y.Z-win-x64.zip`이며 카탈로그에는 각 애드온의 실제 `releaseTag`, 파일명,
+크기와 SHA-256을 기록한다. 호스트 버전은 애드온 카탈로그 버전을 변경하지 않는다.
+
+애드온 릴리즈를 준비할 때는 그 애드온 항목만 새 메타데이터로 바꾸고 `catalogVersion`을
+증가시킨다. 나머지 항목은 마지막 공개 릴리즈를 그대로 가리킨다. 카탈로그 변경은 실제 자산
+게시와 함께 승격해야 하며 아직 게시하지 않은 태그를 내장 기본 카탈로그에 먼저 확정하지 않는다.
+
 MCP entry를 선언하는 애드온은 추가로
 [`ADDON_MCP_PROFILE.md`](ADDON_MCP_PROFILE.md)를 따라야 한다. 상태·discovery·비동기 job·결과
 형식은 공통 Profile에 맞추고, Prompt·생성·갤러리·검열 같은 도메인 입력은 애드온 확장 schema로
