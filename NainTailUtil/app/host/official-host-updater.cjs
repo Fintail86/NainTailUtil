@@ -186,6 +186,8 @@ class OfficialHostUpdater {
     this.fetchRelease = options.fetchRelease || (() => fetchLatestRelease(this.fetchImpl));
     this.download = options.download || ((asset, destination) => downloadFile(asset, destination, this.fetchImpl));
     this.extract = options.extract || ((archive, destination) => runExtractor(this.extractScript, archive, destination));
+    this.spawn = options.spawnImpl || spawn;
+    this.launchReadyTimeoutMs = Number(options.launchReadyTimeoutMs || 10000);
     this.snapshot = this.readCachedManifest();
     this.source = this.snapshot ? "cache" : "none";
     this.lastRefreshError = null;
@@ -309,15 +311,61 @@ class OfficialHostUpdater {
 
   launch(transactionPath, waitForPid = process.pid) {
     if (!fs.existsSync(this.applyScript)) throw new Error("호스트 업데이트 적용 스크립트가 없습니다.");
-    const child = spawn("powershell.exe", [
-      "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-      "-File", this.applyScript,
-      "-TransactionPath", path.resolve(transactionPath),
-      "-WaitForPid", String(waitForPid),
-      "-Restart",
-    ], { detached: true, windowsHide: true, stdio: "ignore" });
-    child.unref();
-    return { launched: true, targetVersion: this.snapshot?.version || null };
+    const resolvedTransactionPath = path.resolve(transactionPath);
+    const transaction = JSON.parse(fs.readFileSync(resolvedTransactionPath, "utf8"));
+    const workRoot = path.resolve(String(transaction.workRoot || ""));
+    if (!workRoot || !fs.existsSync(workRoot) || path.dirname(workRoot) !== this.productParent) {
+      throw new Error("호스트 업데이트 작업 폴더가 올바르지 않습니다.");
+    }
+    const readyPath = path.join(workRoot, `.apply-ready-${process.pid}`);
+    fs.rmSync(readyPath, { force: true });
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let readyTimer = null;
+      let timeoutTimer = null;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        if (readyTimer) clearInterval(readyTimer);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        callback(value);
+      };
+      const child = this.spawn("powershell.exe", [
+        "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+        "-File", this.applyScript,
+      ], {
+        detached: false,
+        windowsHide: true,
+        stdio: "ignore",
+        env: {
+          ...process.env,
+          NAINTAIL_HOST_UPDATE_TRANSACTION: resolvedTransactionPath,
+          NAINTAIL_HOST_UPDATE_WAIT_PID: String(waitForPid),
+          NAINTAIL_HOST_UPDATE_READY: readyPath,
+          NAINTAIL_HOST_UPDATE_RESTART: "1",
+        },
+      });
+      child.once("error", (error) => finish(reject, error));
+      child.once("exit", (code) => finish(
+        reject,
+        new Error(`호스트 업데이트 적용기가 준비 전에 종료되었습니다. (code ${code ?? "unknown"})`),
+      ));
+      child.once("spawn", () => {
+        readyTimer = setInterval(() => {
+          if (!fs.existsSync(readyPath)) return;
+          fs.rmSync(readyPath, { force: true });
+          finish(resolve, {
+            launched: true,
+            targetVersion: this.snapshot?.version || null,
+          });
+        }, 25);
+        timeoutTimer = setTimeout(() => finish(
+          reject,
+          new Error("호스트 업데이트 적용기 준비 확인 시간이 초과되었습니다."),
+        ), this.launchReadyTimeoutMs);
+      });
+      child.unref();
+    });
   }
 }
 

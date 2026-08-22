@@ -3,12 +3,27 @@ param(
   [string]$TransactionPath = "",
   [string]$ProductRoot = "",
   [int]$WaitForPid = 0,
+  [string]$ReadyPath = "",
   [switch]$Restart,
   [switch]$ResumeOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($TransactionPath)) {
+  $TransactionPath = $env:NAINTAIL_HOST_UPDATE_TRANSACTION
+}
+if ($WaitForPid -le 0 -and $env:NAINTAIL_HOST_UPDATE_WAIT_PID -match '^\d+$') {
+  $WaitForPid = [int]$env:NAINTAIL_HOST_UPDATE_WAIT_PID
+}
+if ([string]::IsNullOrWhiteSpace($ReadyPath)) {
+  $ReadyPath = $env:NAINTAIL_HOST_UPDATE_READY
+}
+if ($env:NAINTAIL_HOST_UPDATE_RESTART -eq "1") {
+  $Restart = $true
+}
+
 $requestedProductRoot = $ProductRoot
 
 function Resolve-FullPath([string]$Value) {
@@ -32,15 +47,6 @@ function Assert-Inside([string]$Parent, [string]$Candidate, [string]$Label) {
   $prefix = $Parent + [System.IO.Path]::DirectorySeparatorChar
   if (-not $Candidate.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "$Label is outside the approved update boundary."
-  }
-}
-
-if ($WaitForPid -gt 0) {
-  try {
-    $process = Get-Process -Id $WaitForPid -ErrorAction Stop
-    $process.WaitForExit()
-  } catch {
-    # The host may already have exited before the updater reached this point.
   }
 }
 
@@ -100,6 +106,28 @@ if ($targetVersion -notmatch '^\d+\.\d+\.\d+$') {
 $launcher = [string]$transaction.launcher
 if ($launcher -ne "NainTailUtil.bat") {
   throw "Host update launcher is invalid."
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ReadyPath)) {
+  $resolvedReadyPath = Resolve-FullPath $ReadyPath
+  Assert-Inside $workRoot $resolvedReadyPath "Updater ready marker"
+  "ready" | Set-Content -LiteralPath $resolvedReadyPath -Encoding ASCII
+  $readyDeadline = [DateTime]::UtcNow.AddSeconds(15)
+  while (Test-Path -LiteralPath $resolvedReadyPath) {
+    if ([DateTime]::UtcNow -ge $readyDeadline) {
+      throw "Host update handoff acknowledgement timed out."
+    }
+    Start-Sleep -Milliseconds 25
+  }
+}
+
+if ($WaitForPid -gt 0) {
+  try {
+    $process = Get-Process -Id $WaitForPid -ErrorAction Stop
+    $process.WaitForExit()
+  } catch {
+    # The host may already have exited before the updater reached this point.
+  }
 }
 
 function Restore-PreviousHost {

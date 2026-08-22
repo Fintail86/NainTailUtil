@@ -295,7 +295,7 @@ function registerHostIpc() {
     hostUpdateBusy = true;
     try {
       const prepared = await officialHostUpdater.prepare(status.availableVersion);
-      officialHostUpdater.launch(prepared.transactionPath, process.pid);
+      await officialHostUpdater.launch(prepared.transactionPath, process.pid);
       isQuitting = true;
       setTimeout(() => app.exit(0), 250);
       return { ...prepared, applying: true };
