@@ -26,7 +26,21 @@ class OutputStore {
   }
 
   directoryForTask(task) {
-    if (task.source.type === "artist-study") return resolveInside(this.directory, "artist-study");
+    if (task.source.type === "artist-study") {
+      const mode = String(task.source.studyMode || "").toLowerCase();
+      if (["searching", "mixing"].includes(mode)) return resolveInside(this.directory, "artist-study", mode);
+      if (mode === "pounding") {
+        const roundFolder = safeFileStem(task.source.roundId || task.source.trialId, "legacy-round");
+        return resolveInside(this.directory, "artist-study", "pounding", roundFolder);
+      }
+      if (mode === "finalize") {
+        const roundId = safeFileStem(task.source.roundId, "round");
+        const jsonName = path.basename(String(task.source.roundFileName || ""), path.extname(String(task.source.roundFileName || "")));
+        const jsonFolder = jsonName ? `${safeFileStem(jsonName, "round")}_${roundId.slice(-8)}` : roundId;
+        return resolveInside(this.directory, "artist-study", "finalize", jsonFolder);
+      }
+      return resolveInside(this.directory, "artist-study");
+    }
     if (task.source.type === "multi") return resolveInside(this.directory, "multi");
     if (!task.projectId) return resolveInside(this.directory, "single");
     const projectFolder = `${safeFileStem(task.projectName, "project")}_${task.projectId.slice(-8)}`;
@@ -42,7 +56,7 @@ class OutputStore {
     const outputDirectory = this.directoryForTask(task);
     fs.mkdirSync(outputDirectory, { recursive: true });
     const sourcePrefix = ["single", "artist-study"].includes(task.source.type)
-      ? task.source.type
+      ? (task.source.type === "artist-study" ? String(task.source.studyMode || "artist-study") : task.source.type)
       : `${String(task.source.slotIndex || 1).padStart(3, "0")}_${safeFileStem(task.source.slotName, "slot")}`;
     const fileName = `${sourcePrefix}_${compactTimestamp()}_${createId("img").slice(-8)}.png`;
     const absolutePath = resolveInside(outputDirectory, fileName);

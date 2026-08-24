@@ -1,6 +1,6 @@
 {
   "schema": "naintail.official-addons/v1",
-  "catalogVersion": 9,
+  "catalogVersion": 10,
   "repository": "Fintail86/NainTailUtil",
   "addons": [
     {
@@ -21,6 +21,7 @@
         "logs",
         "outputs",
         "runtime",
+        "Favorites",
         "config/artist-study.json",
         "config/credentials.json",
         "config/electron-profile",

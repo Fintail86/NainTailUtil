@@ -18,6 +18,10 @@ function reply(fn) {
   };
 }
 
+function roundFileStamp(date = new Date()) {
+  return date.toISOString().replace(/[-:]/gu, "").replace(/\.\d{3}Z$/u, "Z").replace("T", "_");
+}
+
 function activate(context) {
   const { dialog, ipcMain, safeStorage, shell } = context.services;
   const dataRoot = path.resolve(context.dataRoot || context.manifest.directory);
@@ -72,11 +76,50 @@ function activate(context) {
   ipcMain.handle(channels.GENERATION_SINGLE, reply((payload) => core.enqueueSingle(payload)));
   ipcMain.handle(channels.GENERATION_MULTI, reply((payload) => core.enqueueMulti(payload)));
   ipcMain.handle(channels.GENERATION_ARTIST_STUDY, reply((payload) => core.enqueueArtistStudy(payload)));
+  ipcMain.handle(channels.GENERATION_ARTIST_SEARCH, reply((payload) => core.enqueueArtistSearch(payload)));
+  ipcMain.handle(channels.GENERATION_ARTIST_MIXING, reply((payload) => core.enqueueArtistMixing(payload)));
+  ipcMain.handle(channels.GENERATION_ARTIST_POUNDING, reply((payload) => core.enqueueArtistPounding(payload)));
+  ipcMain.handle(channels.GENERATION_ARTIST_FINALIZE, reply((payload) => core.enqueueArtistFinalize(payload)));
   ipcMain.handle(channels.GENERATION_PROJECT, reply((payload) => core.enqueueProject(payload?.projectId, payload?.options || {})));
   ipcMain.handle(channels.ARTIST_STUDY_GET, reply(() => core.getArtistStudy()));
   ipcMain.handle(channels.ARTIST_STUDY_SAVE, reply((payload) => core.saveArtistStudy(payload)));
   ipcMain.handle(channels.ARTIST_STUDY_RANDOMIZE, reply((payload) => core.randomizeArtistStudy(payload)));
   ipcMain.handle(channels.ARTIST_STUDY_EXAMPLE_SAVE, reply((payload) => core.saveArtistStudyExample(payload?.study, payload?.name)));
+  ipcMain.handle(channels.ARTIST_FAVORITE_SAVE, reply((payload) => core.saveArtistFavorite(payload)));
+  ipcMain.handle(channels.ARTIST_FAVORITE_LIST, reply(() => core.listArtistFavorites()));
+  ipcMain.handle(channels.ARTIST_FAVORITE_DETAILS, reply(() => core.listArtistFavoriteDetails()));
+  ipcMain.handle(channels.ARTIST_FAVORITE_IMAGE_REMOVE, reply((payload) => core.removeArtistFavoriteImage(payload)));
+  ipcMain.handle(channels.ARTIST_FAVORITE_REMOVE, reply((payload) => core.removeArtistFavorite(payload)));
+  ipcMain.handle(channels.ARTIST_FAVORITE_CLEAR, reply(() => core.clearArtistFavorites()));
+  ipcMain.handle(channels.ARTIST_MIXING_RANDOMIZE, reply((payload) => core.randomizeArtistMixing(payload)));
+  ipcMain.handle(channels.ARTIST_POUNDING_GET, reply(() => core.getArtistPounding()));
+  ipcMain.handle(channels.ARTIST_POUNDING_RATE, reply((payload) => core.rateArtistPounding(payload)));
+  ipcMain.handle(channels.ARTIST_POUNDING_ROUND_FINISH, reply(async () => {
+    const preference = core.getArtistPounding();
+    if (!preference.trials.length && !preference.artists.length) {
+      throw new NainTailError("EMPTY_ARTIST_POUNDING_ROUND", "저장할 파운딩 라운드 데이터가 없습니다.");
+    }
+    const picked = await dialog.showSaveDialog(context.getWindow(), {
+      title: "파운딩 라운드 JSON 저장",
+      defaultPath: path.join(dataRoot, "Favorites", "Pounding", `NaiTail_Pounding_Round_${roundFileStamp()}.json`),
+      filters: [{ name: "NaiTail Pounding round", extensions: ["json"] }],
+    });
+    if (picked.canceled || !picked.filePath) return { canceled: true, preference };
+    return core.finishArtistPoundingRound(picked.filePath);
+  }));
+  ipcMain.handle(channels.ARTIST_POUNDING_ROUND_LOAD, reply(async () => {
+    const picked = await dialog.showOpenDialog(context.getWindow(), {
+      title: "파운딩 라운드 JSON 불러오기",
+      defaultPath: path.join(dataRoot, "Favorites", "Pounding"),
+      properties: ["openFile"],
+      filters: [{ name: "NaiTail Pounding round", extensions: ["json"] }],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return { canceled: true, preference: core.getArtistPounding() };
+    return core.loadArtistPoundingRound(picked.filePaths[0]);
+  }));
+  ipcMain.handle(channels.ARTIST_POUNDING_ROUND_RESET, reply(() => core.resetArtistPoundingRound()));
+  ipcMain.handle(channels.ARTIST_POUNDING_ROUND_LIST, reply(() => core.listArtistPoundingRounds()));
+  ipcMain.handle(channels.ARTIST_POUNDING_ROUND_GET, reply((payload) => core.getArtistPoundingRound(payload?.roundId, payload?.topCount, payload?.finalizeSettings)));
   ipcMain.handle(channels.REFERENCE_IMAGE_PICK, reply(() => pickReferenceImage()));
   ipcMain.handle(channels.REFERENCE_IMAGE_SAVE, reply((payload) => core.saveReferenceImage(payload)));
   ipcMain.handle(channels.VIBE_IMAGE_SAVE, reply((payload) => core.saveVibeImage(payload)));

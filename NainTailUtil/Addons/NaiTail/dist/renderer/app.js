@@ -34,18 +34,40 @@ const state = {
   presetType: "sub-slot",
   presetDirty: false,
   artistStudy: null,
+  artistStudyMode: "searching",
   artistStudyDirty: false,
   queue: { jobs: [], state: "idle" },
   results: [],
   singleResultIndex: 0,
   singlePreview: { mode: "fit", zoom: 1, pan: { x: 0, y: 0 }, imageSize: { width: 1, height: 1 }, drag: null },
+  imagePreview: { result: null, mode: "fit", zoom: 1, pan: { x: 0, y: 0 }, imageSize: { width: 1, height: 1 }, drag: null },
   multi: { schema: "naintail.multi/v1", examplePrompt: "", exampleNegativePrompt: "", prompt: "", negativePrompt: "", characters: [], vibes: [], normalizeVibeStrengths: true, preciseReferences: [], settings: {}, slots: [], batchCount: 1, queueCount: 1 },
   multiCharacterOpenIds: new Set(),
   multiSlotOpenIds: new Set(),
   multiResults: [],
   multiSelectedResultId: null,
   artistStudyResults: [],
+  artistSearchResults: [],
+  artistMixingResults: [],
+  artistPoundingResults: [],
+  artistFinalizeResults: [],
+  artistFavorites: [],
+  artistFavoriteDetails: [],
+  artistFavoritePreviewResults: [],
+  artistPounding: null,
+  artistPoundingRounds: [],
+  artistFinalizeRoundId: null,
+  artistFinalizeRound: null,
+  artistFinalizeTopCount: 4,
+  artistFinalizeMinScore: 0,
+  artistFinalizeMaxScore: 20000,
+  artistFinalizeMinWeight: 0.4,
+  artistFinalizeMaxWeight: 1.6,
   artistStudyCharacterOpenIds: new Set(),
+  artistSearchCharacterOpenIds: new Set(),
+  artistMixingCharacterOpenIds: new Set(),
+  artistPoundingCharacterOpenIds: new Set(),
+  artistFinalizeCharacterOpenIds: new Set(),
   singleCharacters: [],
   singlePreciseReferences: [],
   singleVibes: [],
@@ -58,7 +80,7 @@ const state = {
   subscription: null,
   subscriptionCheckedAt: 0,
   generationPanelWidths: readGenerationPanelWidths(),
-  costs: { single: null, multi: null, artist: null, project: {} },
+  costs: { single: null, multi: null, artist: null, artistSearch: null, artistMixing: null, artistPounding: null, artistFinalize: null, project: {} },
 };
 const titles = { single: ["GENERATION", "Single"], multi: ["VARIATION WORKSPACE", "멀티"], "artist-study": ["ARTIST LAB", "작례 연구기"], projects: ["STORY WORKSPACE", "작품 개발"], presets: ["REUSABLE LIBRARY", "프리셋"], settings: ["APPLICATION", "설정"] };
 const DEFAULT_NAI_MODEL = "nai-diffusion-4-5-full";
@@ -85,7 +107,7 @@ function persistPreferredNaiModel(model) {
 const MAX_LOCAL_BATCH = 8;
 const MAX_LOCAL_QUEUE = 20;
 const MAX_LOCAL_TASKS = 100;
-const costEstimateTimers = { single: null, multi: null, artist: null, project: null };
+const costEstimateTimers = { single: null, multi: null, artist: null, artistSearch: null, artistMixing: null, artistPounding: null, artistFinalize: null, project: null };
 
 function esc(value) { return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function id(prefix) { return `${prefix}_${crypto.randomUUID()}`; }
@@ -98,6 +120,22 @@ function localRepeatSummary(form, variationCount) {
   const queueCount = localCount(form, "queueCount", MAX_LOCAL_QUEUE);
   const totalTasks = variationCount * batchCount * queueCount;
   return { batchCount, queueCount, totalTasks, valid: batchCount > 0 && queueCount > 0 && totalTasks > 0 && totalTasks <= MAX_LOCAL_TASKS };
+}
+function renderArtistRepeat(form) {
+  if (!form || !state.artistStudy) return;
+  form.elements.batchCount.value = state.artistStudy.batchCount || 1;
+  form.elements.queueCount.value = state.artistStudy.queueCount || 1;
+}
+function syncArtistRepeat(form) {
+  if (!form || !state.artistStudy) return;
+  state.artistStudy.batchCount = Number(form.elements.batchCount.value);
+  state.artistStudy.queueCount = Number(form.elements.queueCount.value);
+}
+function artistRepeatSummary(form, variationCount, totalSelector) {
+  const summary = localRepeatSummary(form, variationCount);
+  const total = $(totalSelector);
+  if (total) total.textContent = summary.totalTasks > MAX_LOCAL_TASKS ? `최대 ${MAX_LOCAL_TASKS}장` : `총 ${summary.totalTasks || "—"}장`;
+  return summary;
 }
 function updateSingleGenerationSummary() {
   const summary = localRepeatSummary($("#singleForm"), 1);
@@ -130,6 +168,10 @@ function invalidateCost(scope) {
   if (scope === "single") updateSingleGenerationSummary();
   else if (scope === "multi") updateMultiGenerationSummary();
   else if (scope === "artist") updateArtistGenerationButtons();
+  else if (scope === "artistSearch") updateArtistSearchButton();
+  else if (scope === "artistMixing") updateArtistMixingButtons();
+  else if (scope === "artistPounding") updateArtistPoundingButton();
+  else if (scope === "artistFinalize") updateArtistFinalizeButton();
   else updateProjectGenerationButtons();
 }
 
@@ -139,7 +181,11 @@ function scheduleCostEstimate(scope) {
     const work = scope === "single" ? estimateSingle()
       : scope === "multi" ? estimateMulti()
         : scope === "artist" ? estimateArtistStudy()
-          : estimateAllProjectCosts();
+          : scope === "artistSearch" ? estimateArtistSearch()
+            : scope === "artistMixing" ? estimateArtistMixing()
+              : scope === "artistPounding" ? estimateArtistPounding()
+                : scope === "artistFinalize" ? estimateArtistFinalize()
+                : estimateAllProjectCosts();
     work.catch(() => {});
   }, 180);
 }
@@ -263,6 +309,10 @@ $("#artistExampleNameDialog").addEventListener("cancel", (event) => {
   if (event.currentTarget.dataset.busy === "true") event.preventDefault();
 });
 $("#artistExampleNameCancel").addEventListener("click", closeArtistExampleNameDialog);
+$("#artistFavoritePickerDialog").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.close();
+});
+$("#artistFavoritePickerClose").addEventListener("click", () => $("#artistFavoritePickerDialog").close());
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".inline-preset-save")) closeExamplePresetSaveMenu();
 });
@@ -298,7 +348,7 @@ function settingsHtml(settings = {}, prefix = "settings") {
     <label>Quality preset<select name="${prefix}.qualityPreset">${qualityOptions.map((x) => `<option ${qualityPreset === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
     ${definition.decrisper ? `<label class="checkbox"><input name="${prefix}.decrisper" type="checkbox" ${value("decrisper", false) === true ? "checked" : ""}> Decrisper</label>` : `<input type="hidden" name="${prefix}.decrisper" value="false">`}
     ${transparencyAvailable ? `<label>Transparency<select name="${prefix}.transparencyMode" title="V5 알파 채널 생성 방식">${transparencyOptions.map(([id, label]) => `<option value="${id}" ${transparencyMode === id ? "selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}`;
-  if (!["settings", "study", "multi"].includes(prefix)) return `${basic}${advanced}`;
+  if (!["settings", "study", "search", "mixing", "pounding", "finalize", "multi"].includes(prefix)) return `${basic}${advanced}`;
   const summary = definition.scheduler ? "Sampler · Scheduler · Rescale · Decrisper · Seed · UC" : `Sampler · Rescale · Seed · UC${transparencyAvailable ? " · 투명화" : ""}`;
   return `${basic}<details class="single-advanced-settings"><summary><span><strong>고급 설정</strong><small>${summary}</small></span><span class="advanced-settings-chevron" aria-hidden="true">⌄</span></summary><div class="single-advanced-grid">${advanced}</div></details>`;
 }
@@ -326,7 +376,14 @@ function writeSettings(form, settings = {}, prefix = "settings") {
 function settingsContextForTab(tab = state.tab) {
   if (tab === "single") return { form: $("#singleForm"), prefix: "settings", container: $("[data-settings-scope=single]") };
   if (tab === "multi") return { form: $("#multiForm"), prefix: "multi", container: $("[data-settings-scope=multi]") };
-  if (tab === "artist-study" && state.artistStudy) return { form: $("#artistStudyForm"), prefix: "study", container: $("[data-settings-scope=artist-study]") };
+  if (tab === "artist-study" && state.artistStudy) {
+    if (state.artistStudyMode === "favorites") return null;
+    if (state.artistStudyMode === "searching") return { form: $("#artistSearchForm"), prefix: "search", container: $("[data-settings-scope=artist-search]") };
+    if (state.artistStudyMode === "mixing") return { form: $("#artistMixingForm"), prefix: "mixing", container: $("[data-settings-scope=artist-mixing]") };
+    if (state.artistStudyMode === "pounding") return { form: $("#artistPoundingForm"), prefix: "pounding", container: $("[data-settings-scope=artist-pounding]") };
+    if (state.artistStudyMode === "finalize") return { form: $("#artistFinalizeForm"), prefix: "finalize", container: $("[data-settings-scope=artist-finalize]") };
+    return { form: $("#artistStudyForm"), prefix: "study", container: $("[data-settings-scope=artist-study]") };
+  }
   if (tab === "projects" && state.project && $("#projectForm")) return { form: $("#projectForm"), prefix: "common", container: $("[data-project-settings]") };
   return null;
 }
@@ -796,32 +853,70 @@ function renderMulti() {
   if (state.tab === "multi") syncHeaderModelSelector();
 }
 
-function artistStudyCharacterRows() {
+function artistCharacterRows(scope) {
   const characters = state.artistStudy?.characters || [];
-  if (!characters.length) return `<div class="single-character-empty"><span>캐릭터 없음</span><small>일반 작례 연구</small></div>`;
-  return characters.map((character, index) => `<details class="single-character-card" data-study-character-index="${index}" data-study-character-id="${esc(character.id)}" ${state.artistStudyCharacterOpenIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-study-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-study-character-action="up" aria-label="위로 이동">↑</button><button type="button" data-study-character-action="down" aria-label="아래로 이동">↓</button><button type="button" data-study-character-action="delete" class="danger" aria-label="삭제">×</button></div></header><label>이름<input data-study-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<input data-study-character-field="prompt" value="${esc(character.prompt)}" placeholder="girl, black hair, source#hug"></label><label>Character UC<input data-study-character-field="negativePrompt" value="${esc(character.negativePrompt)}" placeholder="원하지 않는 캐릭터 속성"></label></div>${positionGridHtml(character.position)}</div></details>`).join("");
+  const openIds = scope === "search" ? state.artistSearchCharacterOpenIds : scope === "mixing" ? state.artistMixingCharacterOpenIds : scope === "pounding" ? state.artistPoundingCharacterOpenIds : scope === "finalize" ? state.artistFinalizeCharacterOpenIds : state.artistStudyCharacterOpenIds;
+  const emptyLabel = scope === "search" ? "일반 작가 비교" : scope === "mixing" ? "일반 작가 믹싱" : scope === "pounding" ? "일반 파운딩 탐색" : scope === "finalize" ? "일반 파이널라이즈" : "일반 작례 연구";
+  if (!characters.length) return `<div class="single-character-empty"><span>캐릭터 없음</span><small>${emptyLabel}</small></div>`;
+  return characters.map((character, index) => `<details class="single-character-card" data-${scope}-character-index="${index}" data-${scope}-character-id="${esc(character.id)}" ${openIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-${scope}-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-${scope}-character-action="up" aria-label="위로 이동">↑</button><button type="button" data-${scope}-character-action="down" aria-label="아래로 이동">↓</button><button type="button" data-${scope}-character-action="delete" class="danger" aria-label="삭제">×</button></div></header><label>이름<input data-${scope}-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<input data-${scope}-character-field="prompt" value="${esc(character.prompt)}" placeholder="girl, black hair, source#hug"></label><label>Character UC<input data-${scope}-character-field="negativePrompt" value="${esc(character.negativePrompt)}" placeholder="원하지 않는 캐릭터 속성"></label></div>${positionGridHtml(character.position)}</div></details>`).join("");
 }
 
 function renderArtistStudyCharacters() {
   const characters = state.artistStudy?.characters || [];
-  $("#artistStudyCharacters").innerHTML = artistStudyCharacterRows();
+  $("#artistStudyCharacters").innerHTML = artistCharacterRows("study");
   $("#artistStudyCharacterCount").textContent = `${characters.length} / 6`;
   $("#addArtistStudyCharacter").disabled = characters.length >= 6;
 }
 
-function syncArtistStudyCharactersFromDom() {
+function renderArtistSearchCharacters() {
+  const characters = state.artistStudy?.characters || [];
+  $("#artistSearchCharacters").innerHTML = artistCharacterRows("search");
+  $("#artistSearchCharacterCount").textContent = `${characters.length} / 6`;
+  $("#addArtistSearchCharacter").disabled = characters.length >= 6;
+}
+
+function renderArtistMixingCharacters() {
+  const characters = state.artistStudy?.characters || [];
+  $("#artistMixingCharacters").innerHTML = artistCharacterRows("mixing");
+  $("#artistMixingCharacterCount").textContent = `${characters.length} / 6`;
+  $("#addArtistMixingCharacter").disabled = characters.length >= 6;
+}
+
+function renderArtistPoundingCharacters() {
+  const characters = state.artistStudy?.characters || [];
+  $("#artistPoundingCharacters").innerHTML = artistCharacterRows("pounding");
+  $("#artistPoundingCharacterCount").textContent = `${characters.length} / 6`;
+  $("#addArtistPoundingCharacter").disabled = characters.length >= 6;
+}
+
+function renderArtistFinalizeCharacters() {
+  const characters = state.artistStudy?.characters || [];
+  $("#artistFinalizeCharacters").innerHTML = artistCharacterRows("finalize");
+  $("#artistFinalizeCharacterCount").textContent = `${characters.length} / 6`;
+  $("#addArtistFinalizeCharacter").disabled = characters.length >= 6;
+}
+
+function syncArtistCharactersFromDom(scope) {
   if (!state.artistStudy) return;
-  $$('[data-study-character-index]', $("#artistStudyCharacters")).forEach((card) => {
-    const character = state.artistStudy.characters[Number(card.dataset.studyCharacterIndex)];
+  const root = scope === "search" ? $("#artistSearchCharacters") : scope === "mixing" ? $("#artistMixingCharacters") : scope === "pounding" ? $("#artistPoundingCharacters") : scope === "finalize" ? $("#artistFinalizeCharacters") : $("#artistStudyCharacters");
+  const openIds = scope === "search" ? state.artistSearchCharacterOpenIds : scope === "mixing" ? state.artistMixingCharacterOpenIds : scope === "pounding" ? state.artistPoundingCharacterOpenIds : scope === "finalize" ? state.artistFinalizeCharacterOpenIds : state.artistStudyCharacterOpenIds;
+  $$(`[data-${scope}-character-index]`, root).forEach((card) => {
+    const character = state.artistStudy.characters[Number(card.dataset[`${scope}CharacterIndex`])];
     if (!character) return;
-    if (card.open) state.artistStudyCharacterOpenIds.add(character.id);
-    else state.artistStudyCharacterOpenIds.delete(character.id);
-    character.enabled = $("[data-study-character-field=enabled]", card).checked;
-    character.name = $("[data-study-character-field=name]", card).value;
-    character.prompt = $("[data-study-character-field=prompt]", card).value;
-    character.negativePrompt = $("[data-study-character-field=negativePrompt]", card).value;
+    if (card.open) openIds.add(character.id);
+    else openIds.delete(character.id);
+    character.enabled = $(`[data-${scope}-character-field=enabled]`, card).checked;
+    character.name = $(`[data-${scope}-character-field=name]`, card).value;
+    character.prompt = $(`[data-${scope}-character-field=prompt]`, card).value;
+    character.negativePrompt = $(`[data-${scope}-character-field=negativePrompt]`, card).value;
   });
 }
+
+function syncArtistStudyCharactersFromDom() { syncArtistCharactersFromDom("study"); }
+function syncArtistSearchCharactersFromDom() { syncArtistCharactersFromDom("search"); }
+function syncArtistMixingCharactersFromDom() { syncArtistCharactersFromDom("mixing"); }
+function syncArtistPoundingCharactersFromDom() { syncArtistCharactersFromDom("pounding"); }
+function syncArtistFinalizeCharactersFromDom() { syncArtistCharactersFromDom("finalize"); }
 
 function artistSliderRows(artists = []) {
   if (!artists.length) return `<p class="muted">등록된 작가가 없다. 작가를 추가한 뒤 슬라이더로 가중치를 조절해.</p>`;
@@ -838,6 +933,240 @@ function artistSliderRows(artists = []) {
   }).join("");
 }
 
+function artistSearchRows(artists = []) {
+  if (!artists.length) return `<p class="muted">등록된 작가가 없다. 작가를 추가하고 비교할 항목을 체크해.</p>`;
+  return artists.map((artist, index) => {
+    const name = artist.name || `작가 ${index + 1}`;
+    return `<div class="artist-search-row" data-search-artist-index="${index}">
+      <label class="checkbox artist-enabled" title="이 작가 비교"><input data-search-artist-field="enabled" type="checkbox" aria-label="${esc(name)} 사용" ${artist.enabled !== false ? "checked" : ""}></label>
+      <span class="artist-search-index" aria-label="등록 순서 ${index + 1}">${index + 1}</span>
+      <input data-search-artist-field="name" value="${esc(artist.name)}" placeholder="작가 이름" aria-label="작가 이름">
+    </div>`;
+  }).join("");
+}
+
+function artistMixingRows(artists = []) {
+  if (!artists.length) return `<p class="muted">등록된 작가가 없다. ＋ 작가에서 Favorites 작가를 추가해.</p>`;
+  return artists.map((artist, index) => {
+    const name = artist.name || `작가 ${index + 1}`;
+    const weight = Number(artist.weight ?? 1).toFixed(2);
+    return `<div class="artist-slider-row artist-mixing-row" data-mixing-artist-index="${index}">
+      <input class="artist-sort-number" data-mixing-artist-field="sort" type="number" min="1" max="${artists.length}" step="1" value="${index + 1}" aria-label="${esc(name)} 정렬 번호" title="번호를 바꾸면 해당 순서로 이동한다">
+      <label class="checkbox artist-enabled" title="이 작가 사용"><input data-mixing-artist-field="enabled" type="checkbox" aria-label="${esc(name)} 사용" ${artist.enabled !== false ? "checked" : ""}></label>
+      <span class="artist-mixing-name" title="${esc(name)}">${esc(name)}</span>
+      <div class="artist-weight-control"><input data-mixing-artist-field="weight" type="range" min="0" max="2" step="0.05" value="${esc(weight)}" aria-label="${esc(name)} 가중치"><output>${esc(weight)}</output></div>
+      <div class="slot-tools"><button type="button" data-mixing-artist-action="up" title="위로 이동" aria-label="${esc(name)} 위로 이동">↑</button><button type="button" data-mixing-artist-action="down" title="아래로 이동" aria-label="${esc(name)} 아래로 이동">↓</button><button type="button" data-mixing-artist-action="delete" class="danger" title="삭제" aria-label="${esc(name)} 삭제">×</button></div>
+    </div>`;
+  }).join("");
+}
+
+function renderArtistFavoritePicker() {
+  const grid = $("#artistFavoritePickerGrid");
+  const selected = new Set((state.artistStudy?.mixingArtists || []).map((artist) => artist.favoriteKey));
+  grid.innerHTML = state.artistFavorites.length ? state.artistFavorites.map((artist) => {
+    const added = selected.has(artist.key);
+    const preview = artist.preview?.file ? `<img src="${esc(productFileUrl(artist.preview.file))}" alt="${esc(artist.name)} 대표 이미지">` : `<span class="artist-favorite-picker-empty">이미지 없음</span>`;
+    return `<button type="button" class="artist-favorite-picker-card" data-add-favorite-key="${esc(artist.key)}" ${added ? "disabled" : ""}>${preview}<span><strong>${esc(artist.name)}</strong><small>${added ? "믹싱에 추가됨" : `${artist.imageCount}장 · 첫 이미지`}</small></span></button>`;
+  }).join("") : `<p class="muted">아직 좋아요로 저장한 작가가 없다. Searching 결과의 ☆ 버튼으로 먼저 등록해.</p>`;
+}
+
+function renderArtistFavoritesViewer() {
+  const viewer = $("#artistFavoritesViewer");
+  const totalImages = state.artistFavoriteDetails.reduce((sum, artist) => sum + artist.images.length, 0);
+  $("#artistFavoritesSummary").textContent = `${state.artistFavoriteDetails.length}명 · ${totalImages}장`;
+  $("#clearArtistFavorites").disabled = state.artistFavoriteDetails.length === 0;
+  state.artistFavoritePreviewResults = [];
+  viewer.innerHTML = state.artistFavoriteDetails.length ? state.artistFavoriteDetails.map((artist, artistIndex) => {
+    const samples = artist.images.map((image, imageIndex) => {
+      const previewIndex = state.artistFavoritePreviewResults.push({
+        id: image.id,
+        relativePath: image.file,
+        outputUrl: productFileUrl(image.file),
+        seed: image.seed,
+        createdAt: image.createdAt,
+        source: { type: "artist-favorite", studyMode: "favorite", slotName: artist.name, favoriteKey: artist.key, imageId: image.id },
+      }) - 1;
+      return `<article class="artist-favorite-sample"><img src="${esc(productFileUrl(image.file))}" alt="${esc(artist.name)} 선호 샘플 ${imageIndex + 1}" data-image-preview-scope="artist-favorite" data-image-preview-index="${previewIndex}" tabindex="0" role="button" aria-label="${esc(artist.name)} 선호 샘플 ${imageIndex + 1} 크게 보기"><button type="button" class="artist-favorite-sample-remove danger" data-remove-favorite-image="${imageIndex}" aria-label="${esc(artist.name)} 샘플 ${imageIndex + 1} 삭제" title="이 샘플 삭제">×</button><small>${imageIndex + 1}</small></article>`;
+    }).join("");
+    return `<article class="artist-favorite-viewer-row" data-favorite-artist-index="${artistIndex}"><div class="artist-favorite-identity"><span class="artist-favorite-mark" aria-hidden="true">★</span><span><strong title="${esc(artist.name)}">${esc(artist.name)}</strong><small>${artist.images.length} / 10장</small></span></div><div class="artist-favorite-samples">${samples}</div><button type="button" class="artist-favorite-artist-remove danger" data-remove-favorite-artist aria-label="${esc(artist.name)} 작가와 모든 샘플 삭제">작가 제거</button></article>`;
+  }).join("") : `<div class="artist-favorites-empty"><span>☆</span><strong>저장된 선호 작가가 없다.</strong><p>Searching 결과에서 별표를 누르면 여기에 작가와 샘플이 쌓인다.</p></div>`;
+}
+
+function renderArtistMixingResults() {
+  const gallery = $("#artistMixingGallery");
+  gallery.classList.toggle("empty", !state.artistMixingResults.length);
+  $("#clearArtistMixingResults").disabled = state.artistMixingResults.length === 0;
+  gallery.innerHTML = state.artistMixingResults.length ? state.artistMixingResults.map((result, index) => {
+    const artists = result.source?.artists?.map((artist) => `${artist.name} ${Number(artist.weight).toFixed(2)}`).join(" · ") || "작가 없음";
+    return `<article class="result-card"><img src="${esc(result.outputUrl)}" alt="믹싱 생성 결과" data-image-preview-scope="artist-mixing" data-image-preview-index="${index}" tabindex="0" role="button" aria-label="믹싱 생성 결과 크게 보기"><div class="result-card-meta"><span><strong>Artist Mixing</strong><small>${esc(artists)}</small></span></div></article>`;
+  }).join("") : `<p>아직 생성된 믹싱 이미지가 없다.</p>`;
+}
+
+function poundingFeedbackLabel(feedback) {
+  return feedback === "like" ? "좋아요" : feedback === "dislike" ? "싫어요" : feedback === "skip" ? "건너뛰기" : "미평가";
+}
+
+function renderArtistPoundingScores() {
+  const preference = state.artistPounding || { settings: {}, artists: [], trials: [] };
+  const rated = preference.trials.filter((trial) => trial.feedback).length;
+  const pending = preference.trials.filter((trial) => !trial.feedback).length;
+  $("#artistPoundingFavoriteCount").textContent = `${state.artistFavorites.length}명 후보`;
+  $("#artistPoundingTrialCount").textContent = `${rated}회 평가`;
+  $("#artistPoundingPendingCount").textContent = `${pending}회 미평가`;
+  const emptyRound = preference.trials.length === 0 && preference.artists.length === 0;
+  $("#finishArtistPoundingRound").disabled = emptyRound;
+  $("#resetArtistPoundingRound").disabled = emptyRound;
+  $("#artistPoundingScores").innerHTML = preference.artists.length ? preference.artists.map((artist) => `<article class="artist-pounding-score-card"><strong title="${esc(artist.name)}">${esc(artist.name)}</strong><output title="누적 순점수 · 좋아요 배분점수 - 싫어요 배분점수">${Number(artist.score) >= 0 ? "+" : ""}${esc(artist.score)}</output><small>${esc(artist.feedbackCount)}회 · 탐색 ${Number(artist.rangeMin).toFixed(2)}~${Number(artist.rangeMax).toFixed(2)} · 좋아요 ${esc(artist.positivePoints)} / 싫어요 ${esc(artist.negativePoints)}</small></article>`).join("") : `<p class="muted">평가 데이터가 없다. 첫 이미지를 생성하고 좋아요 또는 싫어요를 눌러.</p>`;
+}
+
+function poundingResultsFromPreference(preference) {
+  return (preference?.trials || []).filter((trial) => trial.resultId && trial.relativePath).map((trial) => ({
+    id: trial.resultId,
+    relativePath: trial.relativePath,
+    outputUrl: outputFileUrl(trial.relativePath),
+    createdAt: trial.completedAt,
+    poundingFeedback: trial.feedback || null,
+    source: { type: "artist-study", studyMode: "pounding", trialId: trial.id, artists: trial.artists || [] },
+  }));
+}
+
+function syncArtistPoundingCountInputs(form) {
+  const maxValue = Number(form.elements.poundingMaxArtists.value);
+  const minValue = Number(form.elements.poundingMinArtists.value);
+  const maxArtists = Number.isFinite(maxValue) ? Math.max(1, Math.trunc(maxValue)) : 4;
+  const minArtists = Math.min(maxArtists, Number.isFinite(minValue) ? Math.max(1, Math.trunc(minValue)) : 2);
+  form.elements.poundingMaxArtists.value = maxArtists;
+  form.elements.poundingMinArtists.max = String(maxArtists);
+  form.elements.poundingMinArtists.value = minArtists;
+  return { minArtists, maxArtists };
+}
+
+function normalizedPoundingWeight(value, fallback) {
+  const number = Number(value);
+  const clamped = Number.isFinite(number) ? Math.min(2, Math.max(0, number)) : fallback;
+  return Number((Math.round(clamped / 0.05) * 0.05).toFixed(2));
+}
+
+function syncArtistPoundingWeightInputs(form, writeFields = false) {
+  const maxWeight = normalizedPoundingWeight(form.elements.poundingMaxWeight.value, 1.6);
+  const requestedMinWeight = normalizedPoundingWeight(form.elements.poundingMinWeight.value, 0.4);
+  const minWeight = Math.min(requestedMinWeight, maxWeight);
+  if (writeFields) {
+    form.elements.poundingMinWeight.max = maxWeight.toFixed(2);
+    form.elements.poundingMinWeight.value = minWeight.toFixed(2);
+    form.elements.poundingMaxWeight.value = maxWeight.toFixed(2);
+  }
+  $("#artistPoundingWeightRangeSummary").textContent = `사용자 범위 ${minWeight.toFixed(2)}~${maxWeight.toFixed(2)} · 기본 탐색률 20% · 평가 3회부터 범위 조정`;
+  return { globalMinWeight: minWeight, globalMaxWeight: maxWeight };
+}
+
+function normalizedFinalizeScore(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number) : fallback;
+}
+
+function renderArtistFinalizeRangeSummary() {
+  $("#artistFinalizeScoreRangeSummary").textContent = `${state.artistFinalizeMinScore.toLocaleString("ko-KR")}점 → ${state.artistFinalizeMinWeight.toFixed(2)} · 10,000점 → 1.00 · ${state.artistFinalizeMaxScore.toLocaleString("ko-KR")}점 → ${state.artistFinalizeMaxWeight.toFixed(2)}`;
+}
+
+function syncArtistFinalizeScoreInputs(form, writeFields = false) {
+  const minScore = Math.min(9999, normalizedFinalizeScore(form.elements.finalizeMinScore.value, 0));
+  const maxScore = Math.max(10001, normalizedFinalizeScore(form.elements.finalizeMaxScore.value, 20000));
+  if (writeFields) {
+    form.elements.finalizeMinScore.value = minScore;
+    form.elements.finalizeMaxScore.value = maxScore;
+  }
+  state.artistFinalizeMinScore = minScore;
+  state.artistFinalizeMaxScore = maxScore;
+  renderArtistFinalizeRangeSummary();
+  return { minScore, maxScore };
+}
+
+function syncArtistFinalizeWeightInputs(form, writeFields = false) {
+  const minWeight = Math.min(1, normalizedPoundingWeight(form.elements.finalizeMinWeight.value, 0.4));
+  const maxWeight = Math.max(1, normalizedPoundingWeight(form.elements.finalizeMaxWeight.value, 1.6));
+  if (writeFields) {
+    form.elements.finalizeMinWeight.value = minWeight.toFixed(2);
+    form.elements.finalizeMaxWeight.value = maxWeight.toFixed(2);
+  }
+  state.artistFinalizeMinWeight = minWeight;
+  state.artistFinalizeMaxWeight = maxWeight;
+  renderArtistFinalizeRangeSummary();
+  return { minWeight, maxWeight };
+}
+
+function artistFinalizeSettings() {
+  return {
+    minScore: state.artistFinalizeMinScore,
+    maxScore: state.artistFinalizeMaxScore,
+    minWeight: state.artistFinalizeMinWeight,
+    maxWeight: state.artistFinalizeMaxWeight,
+  };
+}
+
+function renderArtistPoundingResults() {
+  const gallery = $("#artistPoundingGallery");
+  gallery.classList.toggle("empty", !state.artistPoundingResults.length);
+  gallery.innerHTML = state.artistPoundingResults.length ? state.artistPoundingResults.map((result, index) => {
+    const trial = state.artistPounding?.trials?.find((item) => item.id === result.source?.trialId);
+    const feedback = result.poundingFeedback || trial?.feedback || null;
+    const artists = result.source?.artists || [];
+    const combination = artists.map((artist) => `${artist.name} ${Number(artist.weight).toFixed(2)} · ${Number(artist.allocatedPoints || 0).toLocaleString()}점`).join(" / ");
+    const scoreInfoId = `pounding-score-info-${index}`;
+    return `<article class="result-card artist-pounding-result-card"><img src="${esc(result.outputUrl)}" alt="파운딩 생성 결과" data-image-preview-scope="artist-pounding" data-image-preview-index="${index}" tabindex="0" role="button" aria-label="파운딩 생성 결과 크게 보기"><div class="artist-pounding-score-info"><button type="button" class="artist-pounding-score-trigger" aria-label="작가 가중치와 배분 점수 보기" aria-describedby="${scoreInfoId}">!</button><div id="${scoreInfoId}" class="artist-pounding-score-tooltip" role="tooltip"><strong>가중치 · 배분 점수</strong><small>${esc(combination)}</small></div></div><div class="result-card-meta"><strong>파운딩 · ${esc(poundingFeedbackLabel(feedback))}</strong><div class="artist-pounding-feedback"><button type="button" data-pounding-result-index="${index}" data-pounding-feedback="dislike" class="${feedback === "dislike" ? "active" : "danger"}" ${feedback ? "disabled" : ""}>싫어요</button><button type="button" data-pounding-result-index="${index}" data-pounding-feedback="skip" class="${feedback === "skip" ? "active" : "ghost"}" ${feedback ? "disabled" : ""}>건너뛰기</button><button type="button" data-pounding-result-index="${index}" data-pounding-feedback="like" class="${feedback === "like" ? "active" : ""}" ${feedback ? "disabled" : ""}>좋아요</button></div></div></article>`;
+  }).join("") : `<p>아직 생성된 파운딩 이미지가 없다.</p>`;
+}
+
+function renderArtistFinalizeRounds() {
+  $("#artistFinalizeRoundCount").textContent = `${state.artistPoundingRounds.length}개`;
+  $("#artistFinalizeRounds").innerHTML = state.artistPoundingRounds.length ? state.artistPoundingRounds.map((round) => {
+    const selected = round.id === state.artistFinalizeRoundId;
+    return `<label class="artist-finalize-round-card${selected ? " active" : ""}${round.available ? "" : " unavailable"}"><input type="radio" name="finalizeRound" value="${esc(round.id)}" ${selected ? "checked" : ""} ${round.available ? "" : "disabled"}><span><strong title="${esc(round.fileName)}">${esc(round.fileName)}</strong><small>${esc(round.artistCount)}명 · ${esc(round.trialCount)}회 · 최고점 ${Number(round.topScore) >= 0 ? "+" : ""}${esc(round.topScore)}</small></span></label>`;
+  }).join("") : `<p class="muted">저장된 파운딩 라운드가 없다. 파운딩에서 라운드 종료를 먼저 실행해.</p>`;
+}
+
+function renderArtistFinalizeSelection() {
+  const artists = state.artistFinalizeRound?.artists || [];
+  $("#artistFinalizeSelection").innerHTML = artists.length ? artists.map((artist) => `<article class="artist-finalize-artist-card"><strong>${esc(artist.rank)}</strong><span><b>${esc(artist.name)}</b><small>점수 ${Number(artist.score) >= 0 ? "+" : ""}${esc(artist.score)} · 평가 ${esc(artist.feedbackCount)}회</small></span><output>${Number(artist.weight).toFixed(2)}</output></article>`).join("") : `<p class="muted">라운드를 선택하면 최종 작가와 계산 가중치가 표시된다.</p>`;
+}
+
+function renderArtistFinalizeResults() {
+  const gallery = $("#artistFinalizeGallery");
+  gallery.classList.toggle("empty", !state.artistFinalizeResults.length);
+  $("#clearArtistFinalizeResults").disabled = state.artistFinalizeResults.length === 0;
+  gallery.innerHTML = state.artistFinalizeResults.length ? state.artistFinalizeResults.map((result, index) => {
+    const artists = result.source?.artists?.map((artist) => `${artist.rank}위 ${artist.name} ${Number(artist.weight).toFixed(2)}`).join(" · ") || "최종 작가 없음";
+    return `<article class="result-card"><img src="${esc(result.outputUrl)}" alt="파이널라이즈 생성 결과" data-image-preview-scope="artist-finalize" data-image-preview-index="${index}" tabindex="0" role="button" aria-label="파이널라이즈 생성 결과 크게 보기"><div class="result-card-meta"><span><strong>Artist Finalize</strong><small>${esc(artists)}</small></span></div></article>`;
+  }).join("") : `<p>아직 생성된 파이널 이미지가 없다.</p>`;
+}
+
+function renderArtistSearchResults() {
+  const gallery = $("#artistSearchGallery");
+  gallery.classList.toggle("empty", !state.artistSearchResults.length);
+  $("#clearArtistSearchResults").disabled = state.artistSearchResults.length === 0;
+  gallery.innerHTML = state.artistSearchResults.length ? state.artistSearchResults.map((result, index) => {
+    const artist = result.source?.artists?.[0];
+    const artistName = artist?.name || result.source?.slotName || "작가 비교";
+    const favoriteLabel = result.favoriteSaved ? `${artistName} 선호 이미지로 저장됨` : `${artistName} 선호 이미지로 저장`;
+    return `<article class="result-card artist-search-result-card"><img src="${esc(result.outputUrl)}" alt="${esc(artistName)} 생성 결과" data-image-preview-scope="artist-search" data-image-preview-index="${index}" tabindex="0" role="button" aria-label="${esc(artistName)} 생성 결과 크게 보기"><div class="result-card-meta"><span><strong>${esc(artistName)}</strong><small>가중치 ${Number(artist?.weight ?? 1).toFixed(2)} · seed ${esc(result.seed ?? "-")}</small></span><button type="button" class="artist-favorite-button${result.favoriteSaved ? " active" : ""}" data-save-artist-favorite="${index}" title="${esc(favoriteLabel)}" aria-label="${esc(favoriteLabel)}" ${result.favoriteSaved ? "disabled" : ""}>${result.favoriteSaved ? "★" : "☆"}</button></div></article>`;
+  }).join("") : `<p>아직 생성된 비교 이미지가 없다.</p>`;
+}
+
+function renderArtistStudyMode() {
+  $("#artistStudySearchingPage").hidden = state.artistStudyMode !== "searching";
+  $("#artistStudyFavoritesPage").hidden = state.artistStudyMode !== "favorites";
+  $("#artistStudyMixingPage").hidden = state.artistStudyMode !== "mixing";
+  $("#artistStudyPoundingPage").hidden = state.artistStudyMode !== "pounding";
+  $("#artistStudyFinalizePage").hidden = state.artistStudyMode !== "finalize";
+  $("#artistStudyDevPage").hidden = state.artistStudyMode !== "dev";
+  $$('[data-artist-study-mode]').forEach((button) => {
+    const active = button.dataset.artistStudyMode === state.artistStudyMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  syncHeaderModelSelector();
+}
+
 function renderArtistStudy() {
   if (!state.artistStudy) return;
   const form = $("#artistStudyForm");
@@ -847,10 +1176,68 @@ function renderArtistStudy() {
   form.elements.negativePrompt.value = state.artistStudy.negativePrompt || "";
   form.elements.randomMin.value = state.artistStudy.randomMin ?? 0.4;
   form.elements.randomMax.value = state.artistStudy.randomMax ?? 1.6;
+  renderArtistRepeat(form);
   $("[data-settings-scope=artist-study]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "study");
   syncSelectValues(form, state.artistStudy.settings || {}, "study");
   $("#artistSliderList").innerHTML = artistSliderRows(state.artistStudy.artists);
   renderArtistStudyCharacters();
+  const searchForm = $("#artistSearchForm");
+  searchForm.elements.searchBasePrompt.value = state.artistStudy.basePrompt || "";
+  searchForm.elements.searchNegativePrompt.value = state.artistStudy.negativePrompt || "";
+  renderArtistRepeat(searchForm);
+  $("[data-settings-scope=artist-search]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "search");
+  syncSelectValues(searchForm, state.artistStudy.settings || {}, "search");
+  $("#artistSearchList").innerHTML = artistSearchRows(state.artistStudy.artists);
+  renderArtistSearchCharacters();
+  renderArtistSearchResults();
+  renderArtistFavoritesViewer();
+  const mixingForm = $("#artistMixingForm");
+  mixingForm.elements.mixingBasePrompt.value = state.artistStudy.basePrompt || "";
+  mixingForm.elements.mixingNegativePrompt.value = state.artistStudy.negativePrompt || "";
+  renderArtistRepeat(mixingForm);
+  $("[data-settings-scope=artist-mixing]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "mixing");
+  syncSelectValues(mixingForm, state.artistStudy.settings || {}, "mixing");
+  $("#artistMixingList").innerHTML = artistMixingRows(state.artistStudy.mixingArtists);
+  renderArtistMixingCharacters();
+  renderArtistMixingResults();
+  renderArtistFavoritePicker();
+  const poundingForm = $("#artistPoundingForm");
+  poundingForm.elements.poundingBasePrompt.value = state.artistStudy.basePrompt || "";
+  poundingForm.elements.poundingNegativePrompt.value = state.artistStudy.negativePrompt || "";
+  renderArtistRepeat(poundingForm);
+  poundingForm.elements.poundingMinArtists.value = state.artistPounding?.settings?.minArtists ?? 2;
+  poundingForm.elements.poundingMaxArtists.value = state.artistPounding?.settings?.maxArtists ?? 4;
+  poundingForm.elements.poundingMinWeight.value = Number(state.artistPounding?.settings?.globalMinWeight ?? 0.4).toFixed(2);
+  poundingForm.elements.poundingMaxWeight.value = Number(state.artistPounding?.settings?.globalMaxWeight ?? 1.6).toFixed(2);
+  syncArtistPoundingCountInputs(poundingForm);
+  syncArtistPoundingWeightInputs(poundingForm, true);
+  $("[data-settings-scope=artist-pounding]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "pounding");
+  syncSelectValues(poundingForm, state.artistStudy.settings || {}, "pounding");
+  renderArtistPoundingCharacters();
+  renderArtistPoundingScores();
+  renderArtistPoundingResults();
+  const finalizeForm = $("#artistFinalizeForm");
+  finalizeForm.elements.finalizeBasePrompt.value = state.artistStudy.basePrompt || "";
+  finalizeForm.elements.finalizeNegativePrompt.value = state.artistStudy.negativePrompt || "";
+  renderArtistRepeat(finalizeForm);
+  finalizeForm.elements.finalizeTopCount.value = state.artistFinalizeTopCount;
+  finalizeForm.elements.finalizeMinScore.value = state.artistFinalizeMinScore;
+  finalizeForm.elements.finalizeMaxScore.value = state.artistFinalizeMaxScore;
+  finalizeForm.elements.finalizeMinWeight.value = state.artistFinalizeMinWeight.toFixed(2);
+  finalizeForm.elements.finalizeMaxWeight.value = state.artistFinalizeMaxWeight.toFixed(2);
+  syncArtistFinalizeScoreInputs(finalizeForm, true);
+  syncArtistFinalizeWeightInputs(finalizeForm, true);
+  $("[data-settings-scope=artist-finalize]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "finalize");
+  syncSelectValues(finalizeForm, state.artistStudy.settings || {}, "finalize");
+  renderArtistFinalizeCharacters();
+  renderArtistFinalizeRounds();
+  renderArtistFinalizeSelection();
+  renderArtistFinalizeResults();
+  renderArtistStudyMode();
+  updateArtistSearchButton();
+  updateArtistMixingButtons();
+  updateArtistPoundingButton();
+  updateArtistFinalizeButton();
   if (state.tab === "artist-study") syncHeaderModelSelector();
   updateDirtyIndicator();
 }
@@ -864,6 +1251,7 @@ function syncArtistStudyFromDom() {
   state.artistStudy.negativePrompt = form.elements.negativePrompt.value;
   state.artistStudy.randomMin = Number(form.elements.randomMin.value);
   state.artistStudy.randomMax = Number(form.elements.randomMax.value);
+  syncArtistRepeat(form);
   state.artistStudy.settings = readSettings(form, "study");
   syncArtistStudyCharactersFromDom();
   $$("[data-artist-index]", form).forEach((row) => {
@@ -873,6 +1261,76 @@ function syncArtistStudyFromDom() {
     artist.enabled = $("[data-artist-field=enabled]", row).checked;
     artist.weight = Number($("[data-artist-field=weight]", row).value);
   });
+}
+
+function syncArtistSearchFromDom() {
+  const form = $("#artistSearchForm");
+  if (!form || !state.artistStudy) return;
+  state.artistStudy.basePrompt = form.elements.searchBasePrompt.value;
+  state.artistStudy.negativePrompt = form.elements.searchNegativePrompt.value;
+  syncArtistRepeat(form);
+  state.artistStudy.settings = readSettings(form, "search");
+  syncArtistSearchCharactersFromDom();
+  $$('[data-search-artist-index]', form).forEach((row) => {
+    const artist = state.artistStudy.artists[Number(row.dataset.searchArtistIndex)];
+    if (!artist) return;
+    artist.name = $("[data-search-artist-field=name]", row).value;
+    artist.enabled = $("[data-search-artist-field=enabled]", row).checked;
+  });
+}
+
+function syncArtistMixingFromDom() {
+  const form = $("#artistMixingForm");
+  if (!form || !state.artistStudy) return;
+  state.artistStudy.basePrompt = form.elements.mixingBasePrompt.value;
+  state.artistStudy.negativePrompt = form.elements.mixingNegativePrompt.value;
+  syncArtistRepeat(form);
+  state.artistStudy.settings = readSettings(form, "mixing");
+  syncArtistMixingCharactersFromDom();
+  $$('[data-mixing-artist-index]', form).forEach((row) => {
+    const artist = state.artistStudy.mixingArtists[Number(row.dataset.mixingArtistIndex)];
+    if (!artist) return;
+    artist.enabled = $("[data-mixing-artist-field=enabled]", row).checked;
+    artist.weight = Number($("[data-mixing-artist-field=weight]", row).value);
+  });
+}
+
+function syncArtistPoundingFromDom() {
+  const form = $("#artistPoundingForm");
+  if (!form || !state.artistStudy || !state.artistPounding) return;
+  state.artistStudy.basePrompt = form.elements.poundingBasePrompt.value;
+  state.artistStudy.negativePrompt = form.elements.poundingNegativePrompt.value;
+  syncArtistRepeat(form);
+  state.artistStudy.settings = readSettings(form, "pounding");
+  const artistCounts = syncArtistPoundingCountInputs(form);
+  const weightRange = syncArtistPoundingWeightInputs(form);
+  state.artistPounding.settings = {
+    ...state.artistPounding.settings,
+    ...artistCounts,
+    ...weightRange,
+  };
+  syncArtistPoundingCharactersFromDom();
+}
+
+function syncArtistFinalizeFromDom() {
+  const form = $("#artistFinalizeForm");
+  if (!form || !state.artistStudy) return;
+  state.artistStudy.basePrompt = form.elements.finalizeBasePrompt.value;
+  state.artistStudy.negativePrompt = form.elements.finalizeNegativePrompt.value;
+  syncArtistRepeat(form);
+  state.artistStudy.settings = readSettings(form, "finalize");
+  state.artistFinalizeTopCount = Math.max(1, Math.trunc(Number(form.elements.finalizeTopCount.value) || 4));
+  syncArtistFinalizeScoreInputs(form);
+  syncArtistFinalizeWeightInputs(form);
+  syncArtistFinalizeCharactersFromDom();
+}
+
+function syncActiveArtistStudyFromDom() {
+  if (state.artistStudyMode === "searching") syncArtistSearchFromDom();
+  else if (state.artistStudyMode === "mixing") syncArtistMixingFromDom();
+  else if (state.artistStudyMode === "pounding") syncArtistPoundingFromDom();
+  else if (state.artistStudyMode === "finalize") syncArtistFinalizeFromDom();
+  else syncArtistStudyFromDom();
 }
 
 function slotRows(slots, owner) {
@@ -1015,7 +1473,7 @@ async function discardPresetChanges() {
 }
 
 async function saveCurrentArtistStudy(trigger = null) {
-  syncArtistStudyFromDom();
+  syncActiveArtistStudyFromDom();
   state.artistStudy = await action(() => call(api.saveArtistStudy(state.artistStudy)), "작례 연구 설정을 저장했다.", trigger);
   markDirty("artist-study", false);
   renderArtistStudy();
@@ -1057,8 +1515,8 @@ async function guardCurrentEditor(nextTab = null) {
 }
 
 function queueStateLabel(value) { return ({ pending: "전송 전 대기", in_flight: "NAI에 전송됨", completed: "저장 완료", failed: "생성 실패", cancelled: "전송 전 취소" })[value] || value; }
-function renderQueue() { const q = state.queue || { jobs: [] }; const active = q.jobs?.filter((j) => !["completed", "failed", "cancelled"].includes(j.state)).length || 0; $("#queueCount").textContent = active; $("#queueState").textContent = q.state === "running" ? "한 장 생성 중 · 현재 응답 저장 후 다음 요청 전송" : q.state === "paused" ? "실패로 일시정지 · 같은 Run의 미전송 항목 취소됨" : "대기 작업 없음"; $("#queueList").innerHTML = q.jobs?.length ? [...q.jobs].reverse().slice(0, 60).map((j) => { const label = j.task?.label || j.task?.source?.slotName || "Single"; const owner = j.task?.source?.characterName ? `${j.task.source.characterName} · ${j.task?.source?.slotName || "슬롯"}` : j.task?.source?.type === "general" ? `일반 슬롯 · ${j.task?.source?.slotName || ""}` : j.task?.source?.type === "multi" ? `멀티 슬롯 ${j.task.source.slotIndex} · ${j.task.source.slotName}` : j.task?.source?.type === "artist-study" ? "작례 연구기" : "Single"; const error = j.error?.message || ""; return `<article class="queue-job"><header><strong title="${esc(label)}">${esc(label)}</strong><span class="job-state state-${esc(j.state)}">${esc(queueStateLabel(j.state))}</span></header><small title="${esc(owner)}">${esc(owner)}</small>${error ? `<p class="job-error state-failed" title="${esc(error)}">${esc(error)}</p>` : ""}</article>`; }).join("") : `<p class="muted">대기 중인 작업이 없다.</p>`; }
-function resultCards(results, selectedIndex = -1) { return results.map((r, index) => { const artists = r.source?.artists?.map((artist) => `${artist.name} ${Number(artist.weight).toFixed(2)}`).join(" · "); const apply = r.source?.type === "artist-study" ? `<button type="button" class="ghost result-apply" data-apply-artist-result="${index}" title="이 이미지에 사용된 작가 활성 상태와 가중치를 등록 작가 목록에 적용">값 적용</button>` : ""; return `<article class="result-card ${selectedIndex === index ? "active" : ""}" data-result-index="${index}"><img src="${esc(r.outputUrl)}" alt="생성 결과"><div class="result-card-meta"><span><strong>${esc(r.source?.slotName || r.source?.type || "Single")}</strong><small>${esc(artists || `seed ${r.seed ?? "-"}`)}</small></span>${apply}</div></article>`; }).join(""); }
+function renderQueue() { const q = state.queue || { jobs: [] }; const active = q.jobs?.filter((j) => !["completed", "failed", "cancelled"].includes(j.state)).length || 0; $("#queueCount").textContent = active; $("#queueState").textContent = q.state === "running" ? "한 장 생성 중 · 현재 응답 저장 후 다음 요청 전송" : q.state === "paused" ? "실패로 일시정지 · 같은 Run의 미전송 항목 취소됨" : "대기 작업 없음"; $("#queueList").innerHTML = q.jobs?.length ? [...q.jobs].reverse().slice(0, 60).map((j) => { const label = j.task?.label || j.task?.source?.slotName || "Single"; const owner = j.task?.source?.characterName ? `${j.task.source.characterName} · ${j.task?.source?.slotName || "슬롯"}` : j.task?.source?.type === "general" ? `일반 슬롯 · ${j.task?.source?.slotName || ""}` : j.task?.source?.type === "multi" ? `멀티 슬롯 ${j.task.source.slotIndex} · ${j.task.source.slotName}` : j.task?.source?.type === "artist-study" ? j.task.source.studyMode === "searching" ? `Searching · ${j.task.source.slotName}` : j.task.source.studyMode === "mixing" ? "Mixing · 현재 조합" : j.task.source.studyMode === "pounding" ? "파운딩 · 랜덤 조합" : j.task.source.studyMode === "finalize" ? "Finalize · 최종 조합" : "작례 연구기 Dev" : "Single"; const error = j.error?.message || ""; return `<article class="queue-job"><header><strong title="${esc(label)}">${esc(label)}</strong><span class="job-state state-${esc(j.state)}">${esc(queueStateLabel(j.state))}</span></header><small title="${esc(owner)}">${esc(owner)}</small>${error ? `<p class="job-error state-failed" title="${esc(error)}">${esc(error)}</p>` : ""}</article>`; }).join("") : `<p class="muted">대기 중인 작업이 없다.</p>`; }
+function resultCards(results, selectedIndex = -1) { return results.map((r, index) => { const artists = r.source?.artists?.map((artist) => `${artist.name} ${Number(artist.weight).toFixed(2)}`).join(" · "); const isArtistStudy = r.source?.type === "artist-study"; const preview = isArtistStudy ? `data-image-preview-scope="artist-dev" data-image-preview-index="${index}" tabindex="0" role="button" aria-label="생성 결과 크게 보기"` : ""; const apply = isArtistStudy && r.source?.studyMode !== "searching" ? `<button type="button" class="ghost result-apply" data-apply-artist-result="${index}" title="이 이미지에 사용된 작가 활성 상태와 가중치를 등록 작가 목록에 적용">값 적용</button>` : ""; return `<article class="result-card ${selectedIndex === index ? "active" : ""}" data-result-index="${index}"><img src="${esc(r.outputUrl)}" alt="생성 결과" ${preview}><div class="result-card-meta"><span><strong>${esc(r.source?.slotName || r.source?.type || "Single")}</strong><small>${esc(artists || `seed ${r.seed ?? "-"}`)}</small></span>${apply}</div></article>`; }).join(""); }
 
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function selectedSingleResult() { return state.results[state.singleResultIndex] || null; }
@@ -1114,6 +1572,106 @@ function renderSinglePreview(result) {
   $("#trashSingleResult").disabled = !result.relativePath;
   requestAnimationFrame(applySinglePreviewTransform);
 }
+function imagePreviewResult(scope, index) {
+  const collections = {
+    "artist-search": state.artistSearchResults,
+    "artist-mixing": state.artistMixingResults,
+    "artist-pounding": state.artistPoundingResults,
+    "artist-finalize": state.artistFinalizeResults,
+    "artist-dev": state.artistStudyResults,
+    "artist-favorite": state.artistFavoritePreviewResults,
+  };
+  return collections[scope]?.[index] || null;
+}
+function imagePreviewTitle(result) {
+  if (result.source?.studyMode === "favorite") return `${result.source?.slotName || "Favorites"} · 선호 샘플`;
+  if (result.source?.studyMode === "searching") return result.source?.artists?.[0]?.name || "Searching 결과";
+  if (result.source?.studyMode === "mixing") return "Mixing 결과";
+  if (result.source?.studyMode === "pounding") return "파운딩 결과";
+  if (result.source?.studyMode === "finalize") return "Finalize 결과";
+  return result.source?.slotName || "작례 연구 결과";
+}
+function renderImagePreviewPoundingFeedback() {
+  const footer = $("#imagePreviewPoundingFeedback");
+  const result = state.imagePreview.result;
+  const isPounding = result?.source?.studyMode === "pounding";
+  footer.hidden = !isPounding;
+  if (!isPounding) return;
+  const trial = state.artistPounding?.trials?.find((item) => item.id === result.source?.trialId);
+  const feedback = result.poundingFeedback || trial?.feedback || null;
+  $("#imagePreviewPoundingState").textContent = `현재 평가 · ${poundingFeedbackLabel(feedback)}`;
+  $$('[data-image-preview-pounding-feedback]', footer).forEach((button) => {
+    const selected = button.dataset.imagePreviewPoundingFeedback === feedback;
+    button.classList.toggle("active", selected);
+    button.disabled = Boolean(feedback);
+  });
+}
+function imagePreviewMetrics() {
+  const viewport = $("#imagePreviewCanvas");
+  const image = $("#imagePreviewImage");
+  if (!viewport || !image || !state.imagePreview.result) return null;
+  const imageWidth = Math.max(1, state.imagePreview.imageSize.width);
+  const imageHeight = Math.max(1, state.imagePreview.imageSize.height);
+  const fitScale = Math.min(viewport.clientWidth / imageWidth, viewport.clientHeight / imageHeight, 1);
+  const scale = (state.imagePreview.mode === "fit" ? fitScale : 1) * state.imagePreview.zoom;
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  return { viewport, image, scale, width, height, overflowX: Math.max(0, (width - viewport.clientWidth) / 2), overflowY: Math.max(0, (height - viewport.clientHeight) / 2) };
+}
+function applyImagePreviewTransform() {
+  const metrics = imagePreviewMetrics();
+  if (!metrics) return;
+  state.imagePreview.pan = {
+    x: clamp(state.imagePreview.pan.x, -metrics.overflowX, metrics.overflowX),
+    y: clamp(state.imagePreview.pan.y, -metrics.overflowY, metrics.overflowY),
+  };
+  metrics.image.style.left = `calc(50% + ${state.imagePreview.pan.x}px)`;
+  metrics.image.style.top = `calc(50% + ${state.imagePreview.pan.y}px)`;
+  metrics.image.style.width = `${Math.max(1, metrics.width)}px`;
+  metrics.image.style.height = `${Math.max(1, metrics.height)}px`;
+  metrics.viewport.classList.toggle("pannable", metrics.overflowX > 0 || metrics.overflowY > 0);
+  $("#imagePreviewZoom").textContent = `${Math.round(metrics.scale * 100)}%`;
+  $("#imagePreviewFit")?.classList.toggle("active", state.imagePreview.mode === "fit" && state.imagePreview.zoom === 1);
+  $("#imagePreviewActual")?.classList.toggle("active", state.imagePreview.mode === "actual" && state.imagePreview.zoom === 1);
+}
+function resetImagePreviewTransform(mode = "fit") {
+  state.imagePreview.mode = mode;
+  state.imagePreview.zoom = 1;
+  state.imagePreview.pan = { x: 0, y: 0 };
+  applyImagePreviewTransform();
+}
+function openImagePreview(result) {
+  if (!result?.outputUrl) return;
+  const dialog = $("#imagePreviewDialog");
+  state.imagePreview.result = result;
+  state.imagePreview.mode = "fit";
+  state.imagePreview.zoom = 1;
+  state.imagePreview.pan = { x: 0, y: 0 };
+  state.imagePreview.imageSize = { width: Number(result.width) || 1, height: Number(result.height) || 1 };
+  $("#imagePreviewTitle").textContent = imagePreviewTitle(result);
+  renderImagePreviewPoundingFeedback();
+  $("#imagePreviewCanvas").innerHTML = `<img id="imagePreviewImage" src="${esc(result.outputUrl)}" alt="크게 본 생성 결과" draggable="false"><div class="single-viewer-tools"><button type="button" id="imagePreviewFit" class="active" aria-label="화면에 맞춰보기" title="화면에 맞춰보기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"></path></svg></button><button type="button" id="imagePreviewActual" aria-label="실제 크기" title="실제 크기 (1:1)">1:1</button><span id="imagePreviewZoom">100%</span></div><span class="single-preview-meta">${esc(result.width || "-")}×${esc(result.height || "-")} · seed ${esc(result.seed ?? "-")}</span>`;
+  const image = $("#imagePreviewImage");
+  image.addEventListener("load", () => {
+    state.imagePreview.imageSize = { width: image.naturalWidth || Number(result.width) || 1, height: image.naturalHeight || Number(result.height) || 1 };
+    applyImagePreviewTransform();
+  }, { once: true });
+  if (!dialog.open) dialog.showModal();
+  $("#imagePreviewClose").focus();
+  requestAnimationFrame(applyImagePreviewTransform);
+}
+function closeImagePreview() {
+  const dialog = $("#imagePreviewDialog");
+  if (dialog.open) dialog.close();
+}
+function openImagePreviewFromTarget(target) {
+  const image = target.closest?.("[data-image-preview-scope]");
+  if (!image) return false;
+  const result = imagePreviewResult(image.dataset.imagePreviewScope, Number(image.dataset.imagePreviewIndex));
+  if (!result) return false;
+  openImagePreview(result);
+  return true;
+}
 function renderSingleResults() {
   $("#singleResultCount").textContent = `${state.results.length}장`;
   const gallery = $("#resultGallery");
@@ -1165,6 +1723,37 @@ function renderMultiResults() {
 
 function addResult(result) {
   if (result.source?.type === "artist-study") {
+    if (result.source?.studyMode === "pounding") {
+      state.artistPoundingResults.unshift(result);
+      state.artistPoundingResults = state.artistPoundingResults.slice(0, 50);
+      const trial = state.artistPounding?.trials?.find((item) => item.id === result.source.trialId);
+      if (trial) {
+        trial.resultId = result.id;
+        trial.relativePath = result.relativePath;
+        trial.completedAt = result.createdAt;
+      }
+      renderArtistPoundingScores();
+      renderArtistPoundingResults();
+      return;
+    }
+    if (result.source?.studyMode === "finalize") {
+      state.artistFinalizeResults.unshift(result);
+      state.artistFinalizeResults = state.artistFinalizeResults.slice(0, 50);
+      renderArtistFinalizeResults();
+      return;
+    }
+    if (result.source?.studyMode === "mixing") {
+      state.artistMixingResults.unshift(result);
+      state.artistMixingResults = state.artistMixingResults.slice(0, 20);
+      renderArtistMixingResults();
+      return;
+    }
+    if (result.source?.studyMode === "searching") {
+      state.artistSearchResults.push(result);
+      state.artistSearchResults = state.artistSearchResults.slice(-MAX_LOCAL_TASKS);
+      renderArtistSearchResults();
+      return;
+    }
     state.artistStudyResults.unshift(result);
     state.artistStudyResults = state.artistStudyResults.slice(0, 20);
     $("#artistStudyGallery").classList.remove("empty");
@@ -1535,9 +2124,47 @@ function multiCostInput() {
 
 function artistCostInput() {
   const form = $("#artistStudyForm");
+  const summary = artistRepeatSummary(form, 1, "#artistStudyGenerationTotal");
   return {
     request: { settings: readSettings(form, "study") },
-    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: 1 },
+    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: summary.totalTasks },
+  };
+}
+
+function artistSearchCostInput() {
+  const form = $("#artistSearchForm");
+  const artistCount = state.artistStudy?.artists?.filter((artist) => artist.enabled !== false && artist.name.trim()).length || 0;
+  const summary = artistRepeatSummary(form, artistCount, "#artistSearchGenerationTotal");
+  return {
+    request: { settings: readSettings(form, "search") },
+    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: summary.totalTasks },
+  };
+}
+
+function artistMixingCostInput() {
+  const form = $("#artistMixingForm");
+  const summary = artistRepeatSummary(form, 1, "#artistMixingGenerationTotal");
+  return {
+    request: { settings: readSettings(form, "mixing") },
+    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: summary.totalTasks },
+  };
+}
+
+function artistPoundingCostInput() {
+  const form = $("#artistPoundingForm");
+  const summary = artistRepeatSummary(form, 1, "#artistPoundingGenerationTotal");
+  return {
+    request: { settings: readSettings(form, "pounding") },
+    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: summary.totalTasks },
+  };
+}
+
+function artistFinalizeCostInput() {
+  const form = $("#artistFinalizeForm");
+  const summary = artistRepeatSummary(form, 1, "#artistFinalizeGenerationTotal");
+  return {
+    request: { settings: readSettings(form, "finalize") },
+    options: { subscriptionKnown: Boolean(state.subscription), isOpus: isOpusSubscription(), opusUsageExhausted: opusUsageState()?.isNegative === true, generationCount: summary.totalTasks },
   };
 }
 
@@ -1581,14 +2208,62 @@ function costLabel(result) {
 }
 
 function updateArtistGenerationButtons() {
-  const result = state.costs.artist;
+  const summary = artistRepeatSummary($("#artistStudyForm"), 1, "#artistStudyGenerationTotal");
+  const result = state.costs.artist?.generationCount === summary.totalTasks ? state.costs.artist : null;
   const suffix = costLabel(result);
   const current = $("#generateArtistStudy");
   const random = $("#randomGenerateArtistStudy");
-  if (current) current.textContent = `현재 조합 생성 · ${suffix}`;
-  if (random) random.textContent = `랜덤 생성 · ${suffix}`;
-  if (current) current.disabled = Boolean(result?.overLimit);
-  if (random) random.disabled = Boolean(result?.overLimit);
+  if (current) current.textContent = `현재 조합 생성 · ${summary.totalTasks || 0}장 · ${suffix}`;
+  if (random) random.textContent = `랜덤 생성 · ${summary.totalTasks || 0}장 · ${suffix}`;
+  if (current) current.disabled = !summary.valid || Boolean(result?.overLimit);
+  if (random) random.disabled = !summary.valid || Boolean(result?.overLimit);
+}
+
+function updateArtistSearchButton() {
+  const count = state.artistStudy?.artists?.filter((artist) => artist.enabled !== false && artist.name.trim()).length || 0;
+  const summary = artistRepeatSummary($("#artistSearchForm"), count, "#artistSearchGenerationTotal");
+  const result = state.costs.artistSearch?.generationCount === summary.totalTasks ? state.costs.artistSearch : null;
+  const button = $("#generateArtistSearch");
+  if (!button) return;
+  $("#artistSearchActiveCount").textContent = `${count}명 활성`;
+  button.textContent = `활성 작가 비교 생성 · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
+  button.disabled = count < 1 || !summary.valid || Boolean(result?.overLimit);
+  button.title = count < 1 ? "이름이 있고 사용 체크된 작가가 없다." : !summary.valid ? `작가 수 × 배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
+}
+
+function updateArtistMixingButtons() {
+  const count = state.artistStudy?.mixingArtists?.filter((artist) => artist.enabled !== false)?.length || 0;
+  const summary = artistRepeatSummary($("#artistMixingForm"), 1, "#artistMixingGenerationTotal");
+  const result = state.costs.artistMixing?.generationCount === summary.totalTasks ? state.costs.artistMixing : null;
+  $("#artistMixingActiveCount").textContent = `${count}명 활성`;
+  for (const [selector, label] of [["#generateArtistMixing", "현재 조합 생성"], ["#randomGenerateArtistMixing", "랜덤 생성"]]) {
+    const button = $(selector);
+    if (!button) continue;
+    button.textContent = `${label} · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
+    button.disabled = count < 1 || !summary.valid || Boolean(result?.overLimit);
+    button.title = count < 1 ? "Favorites에서 추가한 활성 작가가 없다." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
+  }
+}
+
+function updateArtistPoundingButton() {
+  const summary = artistRepeatSummary($("#artistPoundingForm"), 1, "#artistPoundingGenerationTotal");
+  const result = state.costs.artistPounding?.generationCount === summary.totalTasks ? state.costs.artistPounding : null;
+  const button = $("#generateArtistPounding");
+  if (!button) return;
+  button.textContent = `랜덤 조합 생성 · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
+  button.disabled = state.artistFavorites.length < 1 || !summary.valid || Boolean(result?.overLimit);
+  button.title = state.artistFavorites.length < 1 ? "Searching에서 좋아요로 등록한 Favorites 작가가 없다." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
+}
+
+function updateArtistFinalizeButton() {
+  const summary = artistRepeatSummary($("#artistFinalizeForm"), 1, "#artistFinalizeGenerationTotal");
+  const result = state.costs.artistFinalize?.generationCount === summary.totalTasks ? state.costs.artistFinalize : null;
+  const button = $("#generateArtistFinalize");
+  if (!button) return;
+  const count = state.artistFinalizeRound?.artists?.length || 0;
+  button.textContent = count ? `상위 ${count}명 최종 조합 생성 · ${summary.totalTasks || 0}장 · ${costLabel(result)}` : "최종 조합 생성 · 라운드 선택 필요";
+  button.disabled = count < 1 || !summary.valid || Boolean(result?.overLimit);
+  button.title = count < 1 ? "평가 데이터가 있는 저장 라운드를 선택해." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
 }
 
 function updateProjectGenerationButtons() {
@@ -1601,13 +2276,18 @@ function updateProjectGenerationButtons() {
 
 function renderCostEstimate(scope, result) {
   state.costs[scope] = result;
-  const badge = $(`#${scope === "artist" ? "artistStudy" : scope}Eligibility`);
+  const badgeId = scope === "artist" ? "artistStudyEligibility" : scope === "artistSearch" ? "artistSearchEligibility" : scope === "artistMixing" ? "artistMixingEligibility" : scope === "artistPounding" ? "artistPoundingEligibility" : scope === "artistFinalize" ? "artistFinalizeEligibility" : `${scope}Eligibility`;
+  const badge = $(`#${badgeId}`);
   const prefix = result.subscriptionKnown ? "" : "최대 ";
   badge.textContent = result.isFree ? "예상 0 Anlas · FREE" : `${prefix}예상 ${result.totalCost} Anlas`;
   badge.className = `pill ${result.isFree ? "good" : "bad"}`;
   badge.title = result.reasons.join(" · ");
   if (scope === "single") updateSingleGenerationSummary();
   else if (scope === "multi") updateMultiGenerationSummary();
+  else if (scope === "artistSearch") updateArtistSearchButton();
+  else if (scope === "artistMixing") updateArtistMixingButtons();
+  else if (scope === "artistPounding") updateArtistPoundingButton();
+  else if (scope === "artistFinalize") updateArtistFinalizeButton();
   else updateArtistGenerationButtons();
   return result;
 }
@@ -1636,9 +2316,48 @@ async function confirmAnlasUse(result) {
 }
 
 async function refreshArtistStudy() {
-  state.artistStudy = await call(api.getArtistStudy());
+  [state.artistStudy, state.artistFavorites, state.artistFavoriteDetails, state.artistPounding, state.artistPoundingRounds] = await Promise.all([call(api.getArtistStudy()), call(api.listArtistFavorites()), call(api.listArtistFavoriteDetails()), call(api.getArtistPounding()), call(api.listArtistPoundingRounds())]);
+  if (!state.artistPoundingRounds.some((round) => round.id === state.artistFinalizeRoundId && round.available)) {
+    state.artistFinalizeRoundId = state.artistPoundingRounds.find((round) => round.available)?.id || null;
+  }
+  state.artistFinalizeRound = state.artistFinalizeRoundId ? await call(api.getArtistPoundingRound(state.artistFinalizeRoundId, state.artistFinalizeTopCount, artistFinalizeSettings())) : null;
   markDirty("artist-study", false);
   renderArtistStudy();
+}
+
+async function refreshArtistFavorites(options = {}) {
+  [state.artistFavorites, state.artistFavoriteDetails] = await Promise.all([
+    call(api.listArtistFavorites()),
+    call(api.listArtistFavoriteDetails()),
+  ]);
+  const savedResultIds = new Set(state.artistFavoriteDetails.flatMap((artist) => artist.images.map((image) => image.sourceResultId).filter(Boolean)));
+  state.artistSearchResults.forEach((result) => { result.favoriteSaved = savedResultIds.has(result.id); });
+  if (options.pruneMixing && state.artistStudy) {
+    const favoriteKeys = new Set(state.artistFavorites.map((artist) => artist.key));
+    const remaining = state.artistStudy.mixingArtists.filter((artist) => favoriteKeys.has(artist.favoriteKey));
+    if (remaining.length !== state.artistStudy.mixingArtists.length) {
+      state.artistStudy.mixingArtists = remaining;
+      markDirty("artist-study");
+    }
+  }
+  renderArtistFavoritesViewer();
+  renderArtistFavoritePicker();
+  renderArtistSearchResults();
+  if (state.artistStudy) $("#artistMixingList").innerHTML = artistMixingRows(state.artistStudy.mixingArtists);
+  renderArtistPoundingScores();
+  updateArtistPoundingButton();
+}
+
+async function refreshArtistFinalizeRounds(preferredRoundId = state.artistFinalizeRoundId) {
+  state.artistPoundingRounds = await call(api.listArtistPoundingRounds());
+  const preferred = state.artistPoundingRounds.find((round) => round.id === preferredRoundId && round.available);
+  state.artistFinalizeRoundId = preferred?.id || state.artistPoundingRounds.find((round) => round.available)?.id || null;
+  state.artistFinalizeRound = state.artistFinalizeRoundId
+    ? await call(api.getArtistPoundingRound(state.artistFinalizeRoundId, state.artistFinalizeTopCount, artistFinalizeSettings()))
+    : null;
+  renderArtistFinalizeRounds();
+  renderArtistFinalizeSelection();
+  updateArtistFinalizeButton();
 }
 
 async function estimateArtistStudy(trigger = null) {
@@ -1646,6 +2365,34 @@ async function estimateArtistStudy(trigger = null) {
   const work = () => call(api.estimateGeneration(input.request, input.options));
   const result = trigger ? await action(work, null, trigger) : await work();
   return renderCostEstimate("artist", result);
+}
+
+async function estimateArtistSearch(trigger = null) {
+  const input = artistSearchCostInput();
+  const work = () => call(api.estimateGeneration(input.request, input.options));
+  const result = trigger ? await action(work, null, trigger) : await work();
+  return renderCostEstimate("artistSearch", result);
+}
+
+async function estimateArtistMixing(trigger = null) {
+  const input = artistMixingCostInput();
+  const work = () => call(api.estimateGeneration(input.request, input.options));
+  const result = trigger ? await action(work, null, trigger) : await work();
+  return renderCostEstimate("artistMixing", result);
+}
+
+async function estimateArtistPounding(trigger = null) {
+  const input = artistPoundingCostInput();
+  const work = () => call(api.estimateGeneration(input.request, input.options));
+  const result = trigger ? await action(work, null, trigger) : await work();
+  return renderCostEstimate("artistPounding", result);
+}
+
+async function estimateArtistFinalize(trigger = null) {
+  const input = artistFinalizeCostInput();
+  const work = () => call(api.estimateGeneration(input.request, input.options));
+  const result = trigger ? await action(work, null, trigger) : await work();
+  return renderCostEstimate("artistFinalize", result);
 }
 
 async function estimateMulti(trigger = null) {
@@ -1675,7 +2422,7 @@ $("#modelSelector").addEventListener("change", async (event) => {
   const context = settingsContextForTab();
   if (!context) return;
   if (state.tab === "multi") syncMultiFromDom();
-  if (state.tab === "artist-study") syncArtistStudyFromDom();
+  if (state.tab === "artist-study") syncActiveArtistStudyFromDom();
   if (state.tab === "projects") syncProjectFromDom();
   const model = event.currentTarget.value;
   const definition = NAI_MODELS[model];
@@ -1704,8 +2451,9 @@ $("#modelSelector").addEventListener("change", async (event) => {
   } else if (state.tab === "artist-study") {
     state.artistStudy.settings = next;
     markDirty("artist-study");
-    invalidateCost("artist");
-    scheduleCostEstimate("artist");
+    const scope = state.artistStudyMode === "searching" ? "artistSearch" : state.artistStudyMode === "mixing" ? "artistMixing" : state.artistStudyMode === "pounding" ? "artistPounding" : state.artistStudyMode === "finalize" ? "artistFinalize" : "artist";
+    invalidateCost(scope);
+    scheduleCostEstimate(scope);
   } else if (state.tab === "projects") {
     state.project.commonSettings = next;
     markDirty("project");
@@ -1718,6 +2466,10 @@ $("#modelSelector").addEventListener("change", async (event) => {
 $("[data-settings-scope=single]").innerHTML = settingsHtml({}, "settings");
 $("[data-settings-scope=multi]").innerHTML = settingsHtml({}, "multi");
 $("[data-settings-scope=artist-study]").innerHTML = settingsHtml({}, "study");
+$("[data-settings-scope=artist-search]").innerHTML = settingsHtml({}, "search");
+$("[data-settings-scope=artist-mixing]").innerHTML = settingsHtml({}, "mixing");
+$("[data-settings-scope=artist-pounding]").innerHTML = settingsHtml({}, "pounding");
+$("[data-settings-scope=artist-finalize]").innerHTML = settingsHtml({}, "finalize");
 $("#singleForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1836,6 +2588,61 @@ function endSinglePreviewDrag(event) {
 $("#singlePreview").addEventListener("pointerup", endSinglePreviewDrag);
 $("#singlePreview").addEventListener("pointercancel", endSinglePreviewDrag);
 new ResizeObserver(() => applySinglePreviewTransform()).observe($("#singlePreview"));
+
+$("#imagePreviewClose").addEventListener("click", closeImagePreview);
+$("#imagePreviewDialog").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeImagePreview();
+});
+$("#imagePreviewDialog").addEventListener("close", () => {
+  state.imagePreview.result = null;
+  state.imagePreview.drag = null;
+  $("#imagePreviewCanvas").classList.remove("dragging", "pannable");
+  $("#imagePreviewCanvas").replaceChildren();
+  $("#imagePreviewPoundingFeedback").hidden = true;
+});
+$("#imagePreviewPoundingFeedback").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-image-preview-pounding-feedback]");
+  const result = state.imagePreview.result;
+  if (!button || result?.source?.studyMode !== "pounding") return;
+  try {
+    await rateArtistPoundingResult(result, button.dataset.imagePreviewPoundingFeedback, button);
+  } catch {
+    // action()이 사용자에게 오류를 표시한다.
+  }
+});
+$("#imagePreviewCanvas").addEventListener("click", (event) => {
+  if (event.target.closest("#imagePreviewFit")) resetImagePreviewTransform("fit");
+  if (event.target.closest("#imagePreviewActual")) resetImagePreviewTransform("actual");
+});
+$("#imagePreviewCanvas").addEventListener("wheel", (event) => {
+  if (!state.imagePreview.result) return;
+  event.preventDefault();
+  state.imagePreview.zoom = clamp(state.imagePreview.zoom * (event.deltaY < 0 ? 1.12 : (1 / 1.12)), 0.1, 8);
+  applyImagePreviewTransform();
+}, { passive: false });
+$("#imagePreviewCanvas").addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || event.target.closest(".single-viewer-tools")) return;
+  const metrics = imagePreviewMetrics();
+  if (!metrics || (metrics.overflowX <= 0 && metrics.overflowY <= 0)) return;
+  event.currentTarget.setPointerCapture(event.pointerId);
+  state.imagePreview.drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, panX: state.imagePreview.pan.x, panY: state.imagePreview.pan.y };
+  event.currentTarget.classList.add("dragging");
+});
+$("#imagePreviewCanvas").addEventListener("pointermove", (event) => {
+  const drag = state.imagePreview.drag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  state.imagePreview.pan = { x: drag.panX + event.clientX - drag.startX, y: drag.panY + event.clientY - drag.startY };
+  applyImagePreviewTransform();
+});
+function endImagePreviewDrag(event) {
+  if (state.imagePreview.drag?.pointerId !== event.pointerId) return;
+  state.imagePreview.drag = null;
+  event.currentTarget.classList.remove("dragging");
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+}
+$("#imagePreviewCanvas").addEventListener("pointerup", endImagePreviewDrag);
+$("#imagePreviewCanvas").addEventListener("pointercancel", endImagePreviewDrag);
+new ResizeObserver(() => applyImagePreviewTransform()).observe($("#imagePreviewCanvas"));
 
 $("#multiForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1997,6 +2804,579 @@ $("#trashSingleResult").addEventListener("click", async (event) => {
   notify("선택 이미지를 Windows 휴지통으로 이동했다.");
 });
 
+$(".artist-study-mode-tabs").addEventListener("click", async (event) => {
+  const mode = event.target.closest("[data-artist-study-mode]")?.dataset.artistStudyMode;
+  if (!mode || mode === state.artistStudyMode) return;
+  syncActiveArtistStudyFromDom();
+  state.artistStudyMode = mode;
+  renderArtistStudy();
+  if (mode === "favorites") {
+    try {
+      await refreshArtistFavorites();
+    } catch (error) {
+      notify(`${error.code ? `${error.code}: ` : ""}${error.message}`, true);
+    }
+    return;
+  }
+  if (mode === "finalize") {
+    try {
+      await refreshArtistFinalizeRounds();
+    } catch (error) {
+      notify(`${error.code ? `${error.code}: ` : ""}${error.message}`, true);
+    }
+  }
+  const scope = mode === "searching" ? "artistSearch" : mode === "mixing" ? "artistMixing" : mode === "pounding" ? "artistPounding" : mode === "finalize" ? "artistFinalize" : "artist";
+  invalidateCost(scope);
+  scheduleCostEstimate(scope);
+});
+
+$("#artistSearchForm").addEventListener("input", () => {
+  syncArtistSearchFromDom();
+  markDirty("artist-study");
+  invalidateCost("artistSearch");
+  scheduleCostEstimate("artistSearch");
+});
+$("#artistSearchForm").addEventListener("change", () => {
+  syncArtistSearchFromDom();
+  markDirty("artist-study");
+  invalidateCost("artistSearch");
+  scheduleCostEstimate("artistSearch");
+});
+$("#artistSearchForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveCurrentArtistStudy();
+  const estimate = await estimateArtistSearch();
+  if (!(await confirmAnlasUse(estimate))) return;
+  const result = await action(() => call(api.generateArtistSearch(state.artistStudy)), null, event.submitter);
+  state.queue = result.queue;
+  renderQueue();
+  notify(`작가 비교 ${result.tasks}장을 큐에 추가했다.`);
+});
+$("#artistSearchGallery").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-save-artist-favorite]");
+  if (!button) return;
+  const index = Number(button.dataset.saveArtistFavorite);
+  const result = state.artistSearchResults[index];
+  const artistName = result?.source?.artists?.[0]?.name;
+  if (!result || !artistName) {
+    notify("선호 자료로 저장할 작가 정보를 찾을 수 없다.", true);
+    return;
+  }
+  try {
+    const saved = await action(() => call(api.saveArtistFavorite({
+      artistName,
+      resultId: result.id,
+      relativePath: result.relativePath,
+      seed: result.seed,
+    })), null, button);
+    result.favoriteSaved = true;
+    await refreshArtistFavorites();
+    renderArtistSearchResults();
+    notify(`${saved.artist.name} 선호 자료 저장 완료 · ${saved.artist.imageCount}/${saved.maximum}장${saved.alreadySaved ? " (이미 등록됨)" : ""}`);
+  } catch {
+    // action()이 사용자에게 오류를 표시한다.
+  }
+});
+$("#clearArtistSearchResults").addEventListener("click", () => {
+  state.artistSearchResults = [];
+  renderArtistSearchResults();
+  notify("Searching 결과 카드 표시를 비웠다. 생성 파일과 Favorites는 유지된다.");
+});
+$("#artistFavoritesViewer").addEventListener("click", async (event) => {
+  const row = event.target.closest("[data-favorite-artist-index]");
+  if (!row) return;
+  const artistIndex = Number(row.dataset.favoriteArtistIndex);
+  const artist = state.artistFavoriteDetails[artistIndex];
+  if (!artist) return;
+  const imageButton = event.target.closest("[data-remove-favorite-image]");
+  if (imageButton) {
+    const imageIndex = Number(imageButton.dataset.removeFavoriteImage);
+    const image = artist.images[imageIndex];
+    if (!image) return;
+    const lastSample = artist.images.length === 1;
+    const choice = await confirmChoice({
+      title: `${artist.name}의 샘플을 삭제할까?`,
+      message: lastSample ? "마지막 샘플이므로 작가도 Favorites에서 함께 제거된다. 이미지 파일은 영구 삭제된다." : `선호 샘플 ${imageIndex + 1}과 실제 이미지 파일을 영구 삭제한다.`,
+      confirmText: "샘플 삭제",
+    });
+    if (choice !== "confirm") return;
+    try {
+      const removed = await action(() => call(api.removeArtistFavoriteImage(artist.key, image.id)), null, imageButton);
+      await refreshArtistFavorites({ pruneMixing: removed.removedArtist });
+      notify(removed.removedArtist ? `${removed.artistName}의 마지막 샘플과 작가를 제거했다.` : `${removed.artistName}의 샘플을 제거했다. ${removed.remainingImages}장 남음.`);
+    } catch {
+      // action()이 사용자에게 오류를 표시한다.
+    }
+    return;
+  }
+  const artistButton = event.target.closest("[data-remove-favorite-artist]");
+  if (!artistButton) return;
+  const choice = await confirmChoice({
+    title: `${artist.name}을 Favorites에서 제거할까?`,
+    message: `등록된 선호 샘플 ${artist.images.length}장과 작가 폴더를 영구 삭제한다.`,
+    confirmText: "작가와 샘플 삭제",
+  });
+  if (choice !== "confirm") return;
+  try {
+    const removed = await action(() => call(api.removeArtistFavorite(artist.key)), null, artistButton);
+    await refreshArtistFavorites({ pruneMixing: true });
+    notify(`${removed.artistName}과 선호 샘플 ${removed.removedImages}장을 제거했다.`);
+  } catch {
+    // action()이 사용자에게 오류를 표시한다.
+  }
+});
+$("#clearArtistFavorites").addEventListener("click", async (event) => {
+  const artistCount = state.artistFavoriteDetails.length;
+  const imageCount = state.artistFavoriteDetails.reduce((sum, artist) => sum + artist.images.length, 0);
+  if (!artistCount && !imageCount) return;
+  const choice = await confirmChoice({
+    title: "Favorites를 전부 삭제할까?",
+    message: `선호 작가 ${artistCount}명과 저장된 샘플 ${imageCount}장, Favorites/Searching의 DB와 작가 폴더를 모두 영구 삭제한다.`,
+    confirmText: "전체 삭제",
+  });
+  if (choice !== "confirm") return;
+  try {
+    const removed = await action(() => call(api.clearArtistFavorites()), null, event.currentTarget);
+    await refreshArtistFavorites({ pruneMixing: true });
+    notify(`Favorites 전체 삭제 완료 · 작가 ${removed.removedArtists}명, 샘플 ${removed.removedImages}장 제거.`);
+  } catch {
+    // action()이 사용자에게 오류를 표시한다.
+  }
+});
+$("#artistMixingForm").addEventListener("input", (event) => {
+  syncArtistMixingFromDom();
+  if (event.target.matches('[data-mixing-artist-field="weight"]')) event.target.closest(".artist-weight-control")?.querySelector("output")?.replaceChildren(Number(event.target.value).toFixed(2));
+  markDirty("artist-study");
+  invalidateCost("artistMixing");
+  scheduleCostEstimate("artistMixing");
+});
+$("#artistMixingForm").addEventListener("change", () => {
+  syncArtistMixingFromDom();
+  markDirty("artist-study");
+  invalidateCost("artistMixing");
+  scheduleCostEstimate("artistMixing");
+});
+$("#artistMixingForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveCurrentArtistStudy();
+  const estimate = await estimateArtistMixing();
+  if (!(await confirmAnlasUse(estimate))) return;
+  const result = await action(() => call(api.generateArtistMixing(state.artistStudy)), null, event.submitter);
+  state.queue = result.queue;
+  renderQueue();
+  notify(`현재 작가 조합 ${result.tasks}장을 큐에 추가했다.`);
+});
+$("#randomGenerateArtistMixing").addEventListener("click", async (event) => {
+  syncArtistMixingFromDom();
+  state.artistStudy = await action(() => call(api.randomizeArtistMixing(state.artistStudy)), null, event.currentTarget);
+  state.artistStudy = await call(api.saveArtistStudy(state.artistStudy));
+  markDirty("artist-study", false);
+  renderArtistStudy();
+  const estimate = await estimateArtistMixing();
+  if (!(await confirmAnlasUse(estimate))) return;
+  const result = await action(() => call(api.generateArtistMixing(state.artistStudy)), null, $("#randomGenerateArtistMixing"));
+  state.queue = result.queue;
+  renderQueue();
+  notify(`활성 작가 가중치를 랜덤화해 ${result.tasks}장을 큐에 추가했다.`);
+});
+$("#estimateArtistMixing").addEventListener("click", (event) => estimateArtistMixing(event.currentTarget));
+$("#saveArtistMixing").addEventListener("click", (event) => saveCurrentArtistStudy(event.currentTarget));
+$("#clearArtistMixingResults").addEventListener("click", () => {
+  state.artistMixingResults = [];
+  renderArtistMixingResults();
+  notify("Mixing 결과 카드 표시를 비웠다. 생성 파일과 Favorites는 유지된다.");
+});
+$("#openArtistFavoritePicker").addEventListener("click", async () => {
+  state.artistFavorites = await action(() => call(api.listArtistFavorites()));
+  renderArtistFavoritePicker();
+  $("#artistFavoritePickerDialog").showModal();
+});
+$("#artistFavoritePickerGrid").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-add-favorite-key]");
+  if (!card || !state.artistStudy) return;
+  const favorite = state.artistFavorites.find((artist) => artist.key === card.dataset.addFavoriteKey);
+  if (!favorite || state.artistStudy.mixingArtists.some((artist) => artist.favoriteKey === favorite.key)) return;
+  state.artistStudy.mixingArtists.push({ id: id("artist"), favoriteKey: favorite.key, name: favorite.name, enabled: true, weight: 1 });
+  markDirty("artist-study");
+  renderArtistStudy();
+  invalidateCost("artistMixing");
+  scheduleCostEstimate("artistMixing");
+  notify(`${favorite.name}을 믹싱 리스트에 추가했다.`);
+});
+$("#addArtistMixingCharacter").addEventListener("click", () => {
+  syncArtistMixingFromDom();
+  const character = { id: id("character"), name: `캐릭터 ${state.artistStudy.characters.length + 1}`, prompt: "", negativePrompt: "", enabled: true, position: null };
+  state.artistStudy.characters.push(character);
+  state.artistMixingCharacterOpenIds.add(character.id);
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistMixingCharacters").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-mixing-character-index]");
+  if (!card) return;
+  syncArtistMixingCharactersFromDom();
+  const index = Number(card.dataset.mixingCharacterIndex);
+  if (event.target.hasAttribute("data-character-position")) {
+    state.artistStudy.characters[index].position = event.target.dataset.characterPosition || null;
+  } else {
+    const actionName = event.target.dataset.mixingCharacterAction;
+    if (!actionName) return;
+    if (actionName === "delete") {
+      state.artistMixingCharacterOpenIds.delete(state.artistStudy.characters[index].id);
+      state.artistStudy.characters.splice(index, 1);
+    } else {
+      move(state.artistStudy.characters, index, actionName === "up" ? -1 : 1);
+    }
+  }
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistMixingCharacters").addEventListener("input", (event) => {
+  const card = event.target.closest("[data-mixing-character-index]");
+  if (!card) return;
+  if (event.target.matches("[data-mixing-character-field=name]")) $("summary strong", card).textContent = event.target.value || `캐릭터 ${Number(card.dataset.mixingCharacterIndex) + 1}`;
+  if (event.target.matches("[data-mixing-character-field=enabled]")) {
+    const badge = $(".character-use-state", card);
+    badge.textContent = event.target.checked ? "사용" : "미사용";
+    badge.classList.toggle("off", !event.target.checked);
+  }
+});
+$("#artistMixingList").addEventListener("click", (event) => {
+  const row = event.target.closest("[data-mixing-artist-index]");
+  const actionName = event.target.dataset.mixingArtistAction;
+  if (!row || !actionName) return;
+  syncArtistMixingFromDom();
+  const index = Number(row.dataset.mixingArtistIndex);
+  if (actionName === "delete") state.artistStudy.mixingArtists.splice(index, 1);
+  else move(state.artistStudy.mixingArtists, index, actionName === "up" ? -1 : 1);
+  markDirty("artist-study");
+  renderArtistStudy();
+  invalidateCost("artistMixing");
+  scheduleCostEstimate("artistMixing");
+});
+$("#artistMixingList").addEventListener("change", (event) => {
+  if (!event.target.matches('[data-mixing-artist-field="sort"]')) return;
+  syncArtistMixingFromDom();
+  const row = event.target.closest("[data-mixing-artist-index]");
+  const fromIndex = Number(row.dataset.mixingArtistIndex);
+  const lastIndex = state.artistStudy.mixingArtists.length - 1;
+  const requestedIndex = Math.min(lastIndex, Math.max(0, Math.trunc(Number(event.target.value) || (fromIndex + 1)) - 1));
+  if (requestedIndex !== fromIndex) {
+    const [artist] = state.artistStudy.mixingArtists.splice(fromIndex, 1);
+    state.artistStudy.mixingArtists.splice(requestedIndex, 0, artist);
+  }
+  markDirty("artist-study");
+  renderArtistStudy();
+  $(`[data-mixing-artist-index="${requestedIndex}"] [data-mixing-artist-field="sort"]`, $("#artistMixingList"))?.focus();
+});
+$("#artistMixingList").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && event.target.matches('[data-mixing-artist-field="sort"]')) {
+    event.preventDefault();
+    event.target.blur();
+  }
+});
+$("#sortArtistMixingArtists").addEventListener("click", () => {
+  syncArtistMixingFromDom();
+  state.artistStudy.mixingArtists.sort((left, right) => Number(right.enabled !== false) - Number(left.enabled !== false) || Number(right.weight) - Number(left.weight));
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistPoundingForm").addEventListener("input", (event) => {
+  syncArtistPoundingFromDom();
+  if (!["poundingMinArtists", "poundingMaxArtists", "poundingMinWeight", "poundingMaxWeight"].includes(event.target.name)) markDirty("artist-study");
+  invalidateCost("artistPounding");
+  scheduleCostEstimate("artistPounding");
+});
+$("#artistPoundingForm").addEventListener("change", (event) => {
+  syncArtistPoundingFromDom();
+  if (["poundingMinWeight", "poundingMaxWeight"].includes(event.target.name)) {
+    Object.assign(state.artistPounding.settings, syncArtistPoundingWeightInputs(event.currentTarget, true));
+  }
+  if (!["poundingMinArtists", "poundingMaxArtists", "poundingMinWeight", "poundingMaxWeight"].includes(event.target.name)) markDirty("artist-study");
+  invalidateCost("artistPounding");
+  scheduleCostEstimate("artistPounding");
+});
+$("#artistPoundingForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  syncArtistPoundingFromDom();
+  await saveCurrentArtistStudy();
+  const estimate = await estimateArtistPounding();
+  if (!(await confirmAnlasUse(estimate))) return;
+  const result = await action(() => call(api.generateArtistPounding({ study: state.artistStudy, settings: state.artistPounding.settings })), null, event.submitter);
+  state.artistPounding = result.preference;
+  state.queue = result.queue;
+  renderArtistPoundingScores();
+  renderQueue();
+  notify(`${result.tasks}개의 독립 랜덤 작가 조합을 큐에 추가했다.`);
+});
+$("#estimateArtistPounding").addEventListener("click", (event) => estimateArtistPounding(event.currentTarget));
+$("#resetArtistPoundingRound").addEventListener("click", async (event) => {
+  const preference = state.artistPounding || { artists: [], trials: [] };
+  const pending = preference.trials.filter((trial) => !trial.feedback).length;
+  const choice = await confirmChoice({
+    title: "파운딩 현재 라운드 초기화",
+    message: `현재 누적 데이터 ${preference.trials.length}회와 작가 통계 ${preference.artists.length}명을 JSON 저장 없이 폐기한다.${pending ? `\n미평가 결과 ${pending}회도 함께 폐기된다.` : ""}\n이미 생성된 원본 PNG와 Favorites/Pounding의 좋아요 이미지 복사본은 삭제하지 않는다.`,
+    confirmText: "저장 없이 초기화",
+  });
+  if (choice !== "confirm") return;
+  const result = await action(() => call(api.resetArtistPoundingRound()), null, event.currentTarget);
+  state.artistPounding = result.preference;
+  state.artistPoundingResults = [];
+  renderArtistStudy();
+  notify(`현재 파운딩 라운드 ${result.discardedTrialCount}회와 작가 통계 ${result.discardedArtistCount}명을 폐기하고 초기화했다.`);
+});
+$("#finishArtistPoundingRound").addEventListener("click", async (event) => {
+  const preference = state.artistPounding || { artists: [], trials: [] };
+  const pending = preference.trials.filter((trial) => !trial.feedback).length;
+  const choice = await confirmChoice({
+    title: "파운딩 라운드 종료",
+    message: `현재 누적 데이터 ${preference.trials.length}회를 JSON으로 저장한 뒤 새 라운드로 초기화한다.${pending ? `\n미평가 결과 ${pending}회도 JSON에 포함된다.` : ""}\nFavorites/Pounding에 저장된 좋아요 이미지는 유지된다.`,
+    confirmText: "JSON 저장 후 종료",
+  });
+  if (choice !== "confirm") return;
+  const result = await action(() => call(api.finishArtistPoundingRound()), null, event.currentTarget);
+  if (result.canceled) return;
+  state.artistPounding = result.preference;
+  state.artistPoundingResults = [];
+  await refreshArtistFinalizeRounds(result.round?.id);
+  renderArtistStudy();
+  notify(`파운딩 라운드 ${result.archivedTrialCount}회를 ${result.fileName}에 저장하고 초기화했다.`);
+});
+$("#loadArtistPoundingRound").addEventListener("click", async (event) => {
+  const current = state.artistPounding || { artists: [], trials: [] };
+  if (current.trials.length || current.artists.length) {
+    const choice = await confirmChoice({
+      title: "파운딩 라운드 JSON 로드",
+      message: "현재 누적 데이터는 선택한 JSON의 라운드 데이터로 교체된다. 필요한 현재 라운드는 먼저 종료해서 저장해.",
+      confirmText: "JSON 선택",
+    });
+    if (choice !== "confirm") return;
+  }
+  const result = await action(() => call(api.loadArtistPoundingRound()), null, event.currentTarget);
+  if (result.canceled) return;
+  state.artistPounding = result.preference;
+  state.artistPoundingResults = poundingResultsFromPreference(result.preference);
+  await refreshArtistFinalizeRounds(result.round?.id);
+  renderArtistStudy();
+  notify(`파운딩 라운드를 불러왔다: ${result.fileName}`);
+});
+async function rateArtistPoundingResult(result, feedback, trigger) {
+  if (!result?.source?.trialId) return;
+  state.artistPounding = await action(() => call(api.rateArtistPounding({ trialId: result.source.trialId, resultId: result.id, feedback })), null, trigger);
+  result.poundingFeedback = feedback;
+  renderArtistPoundingScores();
+  renderArtistPoundingResults();
+  renderImagePreviewPoundingFeedback();
+  notify(feedback === "like" ? "파운딩 결과를 좋아요로 기록하고 Favorites/Pounding에 저장했다." : `파운딩 결과를 ${poundingFeedbackLabel(feedback)}로 기록했다.`);
+}
+
+$("#artistPoundingGallery").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-pounding-feedback]");
+  if (!button) return;
+  const result = state.artistPoundingResults[Number(button.dataset.poundingResultIndex)];
+  try {
+    await rateArtistPoundingResult(result, button.dataset.poundingFeedback, button);
+  } catch {
+    // action()이 사용자에게 오류를 표시한다.
+  }
+});
+$("#addArtistPoundingCharacter").addEventListener("click", () => {
+  syncArtistPoundingFromDom();
+  const character = { id: id("character"), name: `캐릭터 ${state.artistStudy.characters.length + 1}`, prompt: "", negativePrompt: "", enabled: true, position: null };
+  state.artistStudy.characters.push(character);
+  state.artistPoundingCharacterOpenIds.add(character.id);
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistPoundingCharacters").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-pounding-character-index]");
+  if (!card) return;
+  syncArtistPoundingCharactersFromDom();
+  const index = Number(card.dataset.poundingCharacterIndex);
+  if (event.target.hasAttribute("data-character-position")) {
+    state.artistStudy.characters[index].position = event.target.dataset.characterPosition || null;
+  } else {
+    const actionName = event.target.dataset.poundingCharacterAction;
+    if (!actionName) return;
+    if (actionName === "delete") {
+      state.artistPoundingCharacterOpenIds.delete(state.artistStudy.characters[index].id);
+      state.artistStudy.characters.splice(index, 1);
+    } else {
+      move(state.artistStudy.characters, index, actionName === "up" ? -1 : 1);
+    }
+  }
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistPoundingCharacters").addEventListener("input", (event) => {
+  const card = event.target.closest("[data-pounding-character-index]");
+  if (!card) return;
+  if (event.target.matches("[data-pounding-character-field=name]")) $("summary strong", card).textContent = event.target.value || `캐릭터 ${Number(card.dataset.poundingCharacterIndex) + 1}`;
+  if (event.target.matches("[data-pounding-character-field=enabled]")) {
+    const badge = $(".character-use-state", card);
+    badge.textContent = event.target.checked ? "사용" : "미사용";
+    badge.classList.toggle("off", !event.target.checked);
+  }
+});
+$("#artistFinalizeForm").addEventListener("input", (event) => {
+  syncArtistFinalizeFromDom();
+  if (!["finalizeTopCount", "finalizeMinScore", "finalizeMaxScore", "finalizeMinWeight", "finalizeMaxWeight"].includes(event.target.name)) markDirty("artist-study");
+  invalidateCost("artistFinalize");
+  scheduleCostEstimate("artistFinalize");
+});
+$("#artistFinalizeForm").addEventListener("change", async (event) => {
+  syncArtistFinalizeFromDom();
+  if (!["finalizeTopCount", "finalizeMinScore", "finalizeMaxScore", "finalizeMinWeight", "finalizeMaxWeight"].includes(event.target.name)) markDirty("artist-study");
+  if (["finalizeMinScore", "finalizeMaxScore"].includes(event.target.name)) syncArtistFinalizeScoreInputs(event.currentTarget, true);
+  if (["finalizeMinWeight", "finalizeMaxWeight"].includes(event.target.name)) syncArtistFinalizeWeightInputs(event.currentTarget, true);
+  if (["finalizeTopCount", "finalizeMinScore", "finalizeMaxScore", "finalizeMinWeight", "finalizeMaxWeight"].includes(event.target.name) && state.artistFinalizeRoundId) {
+    try {
+      state.artistFinalizeRound = await call(api.getArtistPoundingRound(state.artistFinalizeRoundId, state.artistFinalizeTopCount, artistFinalizeSettings()));
+      renderArtistFinalizeSelection();
+      updateArtistFinalizeButton();
+    } catch (error) {
+      notify(`${error.code ? `${error.code}: ` : ""}${error.message}`, true);
+    }
+  }
+  invalidateCost("artistFinalize");
+  scheduleCostEstimate("artistFinalize");
+});
+$("#artistFinalizeForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  syncArtistFinalizeFromDom();
+  if (!state.artistFinalizeRoundId) return;
+  await saveCurrentArtistStudy();
+  const estimate = await estimateArtistFinalize();
+  if (!(await confirmAnlasUse(estimate))) return;
+  const result = await action(() => call(api.generateArtistFinalize({
+    study: state.artistStudy,
+    roundId: state.artistFinalizeRoundId,
+    topCount: state.artistFinalizeTopCount,
+    finalizeSettings: artistFinalizeSettings(),
+  })), null, event.submitter);
+  state.artistFinalizeRound = { round: result.round, artists: result.artists };
+  state.queue = result.queue;
+  renderArtistFinalizeSelection();
+  renderQueue();
+  notify(`상위 ${result.artists.length}명의 점수 기반 최종 조합 ${result.tasks}장을 큐에 추가했다.`);
+});
+$("#estimateArtistFinalize").addEventListener("click", (event) => estimateArtistFinalize(event.currentTarget));
+$("#clearArtistFinalizeResults").addEventListener("click", () => {
+  state.artistFinalizeResults = [];
+  renderArtistFinalizeResults();
+  notify("Finalize 결과 카드 표시를 비웠다. 생성 파일과 저장 라운드는 유지된다.");
+});
+$("#artistFinalizeRounds").addEventListener("change", async (event) => {
+  if (!event.target.matches('input[name="finalizeRound"]')) return;
+  state.artistFinalizeRoundId = event.target.value;
+  try {
+    state.artistFinalizeRound = await action(() => call(api.getArtistPoundingRound(state.artistFinalizeRoundId, state.artistFinalizeTopCount, artistFinalizeSettings())), null, event.target.closest(".artist-finalize-round-card"));
+    renderArtistFinalizeRounds();
+    renderArtistFinalizeSelection();
+    updateArtistFinalizeButton();
+    invalidateCost("artistFinalize");
+    scheduleCostEstimate("artistFinalize");
+  } catch {
+    // action()이 사용자에게 오류를 표시한다.
+  }
+});
+$("#addArtistFinalizeCharacter").addEventListener("click", () => {
+  syncArtistFinalizeFromDom();
+  const character = { id: id("character"), name: `캐릭터 ${state.artistStudy.characters.length + 1}`, prompt: "", negativePrompt: "", enabled: true, position: null };
+  state.artistStudy.characters.push(character);
+  state.artistFinalizeCharacterOpenIds.add(character.id);
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistFinalizeCharacters").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-finalize-character-index]");
+  if (!card) return;
+  syncArtistFinalizeCharactersFromDom();
+  const index = Number(card.dataset.finalizeCharacterIndex);
+  if (event.target.hasAttribute("data-character-position")) {
+    state.artistStudy.characters[index].position = event.target.dataset.characterPosition || null;
+  } else {
+    const actionName = event.target.dataset.finalizeCharacterAction;
+    if (!actionName) return;
+    if (actionName === "delete") {
+      state.artistFinalizeCharacterOpenIds.delete(state.artistStudy.characters[index].id);
+      state.artistStudy.characters.splice(index, 1);
+    } else {
+      move(state.artistStudy.characters, index, actionName === "up" ? -1 : 1);
+    }
+  }
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistFinalizeCharacters").addEventListener("input", (event) => {
+  const card = event.target.closest("[data-finalize-character-index]");
+  if (!card) return;
+  if (event.target.matches("[data-finalize-character-field=name]")) $("summary strong", card).textContent = event.target.value || `캐릭터 ${Number(card.dataset.finalizeCharacterIndex) + 1}`;
+  if (event.target.matches("[data-finalize-character-field=enabled]")) {
+    const badge = $(".character-use-state", card);
+    badge.textContent = event.target.checked ? "사용" : "미사용";
+    badge.classList.toggle("off", !event.target.checked);
+  }
+});
+$("#saveArtistSearch").addEventListener("click", (event) => saveCurrentArtistStudy(event.currentTarget));
+$("#estimateArtistSearch").addEventListener("click", (event) => estimateArtistSearch(event.currentTarget));
+$("#addArtistSearchCharacter").addEventListener("click", () => {
+  syncArtistSearchFromDom();
+  const character = { id: id("character"), name: `캐릭터 ${state.artistStudy.characters.length + 1}`, prompt: "", negativePrompt: "", enabled: true, position: null };
+  state.artistStudy.characters.push(character);
+  state.artistSearchCharacterOpenIds.add(character.id);
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistSearchCharacters").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-search-character-index]");
+  if (!card) return;
+  syncArtistSearchCharactersFromDom();
+  const index = Number(card.dataset.searchCharacterIndex);
+  if (event.target.hasAttribute("data-character-position")) {
+    state.artistStudy.characters[index].position = event.target.dataset.characterPosition || null;
+  } else {
+    const actionName = event.target.dataset.searchCharacterAction;
+    if (!actionName) return;
+    if (actionName === "delete") {
+      state.artistSearchCharacterOpenIds.delete(state.artistStudy.characters[index].id);
+      state.artistStudy.characters.splice(index, 1);
+    } else {
+      move(state.artistStudy.characters, index, actionName === "up" ? -1 : 1);
+    }
+  }
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+$("#artistSearchCharacters").addEventListener("input", (event) => {
+  const card = event.target.closest("[data-search-character-index]");
+  if (!card) return;
+  if (event.target.matches("[data-search-character-field=name]")) $("summary strong", card).textContent = event.target.value || `캐릭터 ${Number(card.dataset.searchCharacterIndex) + 1}`;
+  if (event.target.matches("[data-search-character-field=enabled]")) {
+    const badge = $(".character-use-state", card);
+    badge.textContent = event.target.checked ? "사용" : "미사용";
+    badge.classList.toggle("off", !event.target.checked);
+  }
+});
+$("#addArtistSearchArtist").addEventListener("click", () => {
+  syncArtistSearchFromDom();
+  state.artistStudy.artists.push({ id: id("artist"), name: "", enabled: true, weight: 1 });
+  markDirty("artist-study");
+  renderArtistStudy();
+  $$('[data-search-artist-field="name"]', $("#artistSearchList")).at(-1)?.focus();
+});
+$("#sortArtistSearchArtists").addEventListener("click", () => {
+  syncArtistSearchFromDom();
+  state.artistStudy.artists = state.artistStudy.artists
+    .map((artist, index) => ({ artist, index }))
+    .sort((left, right) => Number(right.artist.enabled) - Number(left.artist.enabled)
+      || Number(right.artist.weight) - Number(left.artist.weight)
+      || left.index - right.index)
+    .map(({ artist }) => artist);
+  markDirty("artist-study");
+  renderArtistStudy();
+});
+
 $("#artistStudyForm").addEventListener("input", (event) => {
   if (event.target.matches('[data-artist-field="weight"]')) event.target.nextElementSibling.textContent = Number(event.target.value).toFixed(2);
   markDirty("artist-study");
@@ -2009,9 +3389,10 @@ $("#artistStudyForm").addEventListener("submit", async (event) => {
   await saveCurrentArtistStudy();
   const estimate = await estimateArtistStudy();
   if (!(await confirmAnlasUse(estimate))) return;
-  const result = await action(() => call(api.generateArtistStudy(state.artistStudy)), "현재 작가 조합 한 장을 큐에 추가했다.", event.submitter);
+  const result = await action(() => call(api.generateArtistStudy(state.artistStudy)), null, event.submitter);
   state.queue = result.queue;
   renderQueue();
+  notify(`현재 작가 조합 ${result.tasks}장을 큐에 추가했다.`);
 });
 $("#addArtistStudyCharacter").addEventListener("click", () => {
   syncArtistStudyFromDom();
@@ -2097,6 +3478,14 @@ $("#artistStudyGallery").addEventListener("click", (event) => {
   const button = event.target.closest("[data-apply-artist-result]");
   if (button) applyArtistResult(Number(button.dataset.applyArtistResult));
 });
+$("#view-artist-study").addEventListener("click", (event) => {
+  openImagePreviewFromTarget(event.target);
+});
+$("#view-artist-study").addEventListener("keydown", (event) => {
+  if (!["Enter", " "].includes(event.key) || !event.target.matches("[data-image-preview-scope]")) return;
+  event.preventDefault();
+  openImagePreviewFromTarget(event.target);
+});
 $("#saveArtistStudy").addEventListener("click", (event) => saveCurrentArtistStudy(event.currentTarget));
 $("#registerArtistExample").addEventListener("click", openArtistExampleNameDialog);
 $("#artistExampleNameForm").addEventListener("submit", async (event) => {
@@ -2154,9 +3543,10 @@ $("#randomGenerateArtistStudy").addEventListener("click", async (event) => {
     markDirty("artist-study", false);
     renderArtistStudy();
     return generated;
-  }, "체크된 작가만 랜덤 조절해 한 장을 큐에 추가했다.", event.currentTarget);
+  }, null, event.currentTarget);
   state.queue = result.queue;
   renderQueue();
+  notify(`체크된 작가만 랜덤 조절해 ${result.tasks}장을 큐에 추가했다.`);
 });
 $$('[data-open-outputs]').forEach((button) => button.addEventListener("click", (event) => action(() => call(api.openOutputs()), null, event.currentTarget)));
 $("#hostHomeButton").addEventListener("click", async (event) => {
@@ -2202,7 +3592,7 @@ $("#presetEditor").addEventListener("change", () => markDirty("preset"));
 $("#presetEditor").addEventListener("submit", async (event) => { if (event.target.id !== "presetForm") return; event.preventDefault(); await saveCurrentPreset(event.submitter); });
 $("#presetEditor").addEventListener("click", async (event) => { const el = event.target; if (!state.preset) return; if (el.id === "addPresetItem" && state.preset.type === "sub-slot") { syncPresetFromDom(); state.preset.items.push({ name: "새 슬롯", prompt: "", negativePrompt: "", settings: {} }); markDirty("preset"); renderPreset(); return; } if (el.id === "deletePreset") { const saved = state.presets.some((item) => item.id === state.preset.id); if (!saved) { state.preset = null; markDirty("preset", false); renderPreset(); return; } const isExample = state.preset.type === "example"; const choice = await confirmChoice({ title: `${isExample ? "작례" : "서브슬롯"} 프리셋 삭제`, message: isExample ? `${state.preset.name} 작례 프리셋을 영구 삭제할까?` : `${state.preset.name} 프리셋을 영구 삭제할까? 이미 Append한 독립 슬롯은 영향을 받지 않아.`, confirmText: "프리셋 삭제" }); if (choice !== "confirm") return; await action(() => call(api.deletePreset(state.preset.id)), "프리셋을 삭제했다.", el); state.preset = null; markDirty("preset", false); await refreshLibraries(); renderPreset(); return; } if (state.preset.type !== "sub-slot") return; const row = el.closest("[data-preset-index]"); if (!row) return; syncPresetFromDom(); const index = Number(row.dataset.presetIndex); if (el.hasAttribute("data-preset-item-delete")) state.preset.items.splice(index, 1); else if (el.dataset.presetMove) move(state.preset.items, index, el.dataset.presetMove === "up" ? -1 : 1); markDirty("preset"); renderPreset(); });
 
-async function refreshAllCostEstimates() { await Promise.all([estimateSingle(), estimateMulti(), estimateArtistStudy(), estimateAllProjectCosts()]); }
+async function refreshAllCostEstimates() { await Promise.all([estimateSingle(), estimateMulti(), estimateArtistStudy(), estimateArtistSearch(), estimateArtistMixing(), estimateArtistPounding(), estimateArtistFinalize(), estimateAllProjectCosts()]); }
 $("#credentialForm").addEventListener("submit", async (event) => { event.preventDefault(); const token = event.currentTarget.elements.token.value; const credential = await action(() => call(api.saveCredential(token)), "토큰을 암호화 저장했다.", event.submitter); renderCredentialStatus(credential); event.currentTarget.reset(); await refreshStatus(); await refreshSubscription(); await refreshAllCostEstimates(); });
 $("#clearCredential").addEventListener("click", async (event) => { const choice = await confirmChoice({ title: "저장된 토큰 삭제", message: "암호화 저장된 NovelAI 토큰을 이 제품 폴더에서 삭제할까?", confirmText: "토큰 삭제" }); if (choice !== "confirm") return; const credential = await action(() => call(api.clearCredential()), "저장된 토큰을 삭제했다.", event.currentTarget); state.subscription = null; state.subscriptionCheckedAt = 0; renderCredentialStatus(credential); await refreshStatus(); await refreshAllCostEstimates(); });
 $("#openOutputFolder").addEventListener("click", (event) => action(() => call(api.openOutputs()), null, event.currentTarget));

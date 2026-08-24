@@ -140,6 +140,126 @@
       </section>
 
       <section id="view-artist-study" class="view">
+        <div class="artist-study-mode-tabs" role="tablist" aria-label="작례 연구기 모드">
+          <button type="button" class="active" data-artist-study-mode="searching" role="tab" aria-selected="true">Searching</button>
+          <button type="button" data-artist-study-mode="favorites" role="tab" aria-selected="false">Favorites</button>
+          <button type="button" data-artist-study-mode="mixing" role="tab" aria-selected="false">Mixing</button>
+          <button type="button" data-artist-study-mode="pounding" role="tab" aria-selected="false">Pounding</button>
+          <button type="button" data-artist-study-mode="finalize" role="tab" aria-selected="false">Finalize</button>
+          <button type="button" data-artist-study-mode="dev" role="tab" aria-selected="false">Dev</button>
+        </div>
+        <div id="artistStudySearchingPage" class="artist-study-mode-page">
+          <form id="artistSearchForm" class="artist-search-workspace">
+            <section class="panel artist-search-control-panel">
+              <div class="artist-panel-scroll">
+                <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">모든 작가에 동일하게 적용</span></div>
+                <details class="prompt-block artist-current-prompt" open><summary><span>현재 프롬프트</span><small>대상·장면·구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="searchBasePrompt" rows="6" required placeholder="1girl, solo,"></textarea></label><label>Undesired Content<textarea name="searchNegativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
+                <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="artistSearchCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addArtistSearchCharacter" class="secondary">＋ 캐릭터</button></div></div>
+                <div id="artistSearchCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 작가 비교</small></div></div>
+                <div class="single-section-heading settings-heading"><div><span class="step-number">03</span><h2>생성 설정</h2></div><span id="artistSearchEligibility" class="pill">계산 중</span></div>
+                <div class="settings-grid single-settings-grid artist-generation-settings" data-settings-scope="artist-search"></div>
+                <section class="artist-study-section artist-search-artists">
+                  <header><div><h3>등록 작가</h3><p>체크된 작가마다 가중치 1.00의 독립 이미지를 한 장씩 만든다.</p></div><button type="button" id="addArtistSearchArtist">＋ 작가</button></header>
+                  <div class="artist-search-list-tools"><span id="artistSearchActiveCount" class="pill">0명 활성</span><button type="button" id="sortArtistSearchArtists" class="secondary">작가 소팅</button></div>
+                  <div id="artistSearchList" class="artist-slider-list"><p class="muted">등록된 작가가 없다.</p></div>
+                </section>
+              </div>
+              <div class="artist-search-actions artist-local-generation-footer"><div class="local-generation-counts" aria-label="Searching 로컬 반복 설정"><label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="artistSearchGenerationTotal">총 1장</strong></div><small class="local-generation-note">활성 작가 × 배치 × 큐 · 요청당 1장</small><div class="artist-local-generation-buttons artist-search-generation-buttons"><button type="button" id="saveArtistSearch" class="ghost">연구 설정 저장</button><button type="button" id="estimateArtistSearch" class="secondary">비용 확인</button><button type="submit" id="generateArtistSearch" class="primary">활성 작가 비교 생성 · 비용 계산 중</button></div></div>
+            </section>
+            <section class="panel result-panel artist-search-result-panel"><div class="panel-head"><div><h2>Searching 결과</h2><p>활성 작가를 같은 조건·가중치 1.00으로 한 장씩 순차 생성한다.</p></div><div class="artist-result-head-actions"><button type="button" id="clearArtistSearchResults" class="ghost" disabled>클리어</button><button type="button" class="ghost" data-open-outputs>폴더 열기</button></div></div><div id="artistSearchGallery" class="gallery artist-search-gallery empty"><p>아직 생성된 비교 이미지가 없다.</p></div></section>
+          </form>
+        </div>
+        <div id="artistStudyFavoritesPage" class="artist-study-mode-page artist-favorites-page" hidden>
+          <section class="panel artist-favorites-panel">
+            <div class="panel-head"><div><h2>Favorites</h2><p>Searching에서 저장한 선호 작가와 샘플을 관리한다. 작가마다 한 줄로 표시된다.</p></div><div class="artist-favorites-head-actions"><span id="artistFavoritesSummary" class="pill">0명 · 0장</span><button type="button" id="clearArtistFavorites" class="danger" disabled>전체 삭제</button></div></div>
+            <div id="artistFavoritesViewer" class="artist-favorites-viewer"><div class="artist-favorites-empty"><span>☆</span><strong>저장된 선호 작가가 없다.</strong><p>Searching 결과에서 별표를 누르면 여기에 작가와 샘플이 쌓인다.</p></div></div>
+          </section>
+        </div>
+        <div id="artistStudyMixingPage" class="artist-study-mode-page" hidden>
+          <form id="artistMixingForm" class="artist-mixing-workspace">
+            <section class="panel artist-generation-panel artist-mixing-control-panel">
+              <div class="artist-panel-scroll">
+                <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">작가 조합 → 현재 입력 순서로 합성</span></div>
+                <details class="prompt-block artist-current-prompt" open><summary><span>현재 프롬프트</span><small>대상·장면·구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="mixingBasePrompt" rows="6" required placeholder="1girl, solo,"></textarea></label><label>Undesired Content<textarea name="mixingNegativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
+                <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="artistMixingCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addArtistMixingCharacter" class="secondary">＋ 캐릭터</button></div></div>
+                <div id="artistMixingCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 작가 믹싱</small></div></div>
+                <div class="single-section-heading settings-heading"><div><span class="step-number">03</span><h2>생성 설정</h2></div><span id="artistMixingEligibility" class="pill">계산 중</span></div>
+                <div class="settings-grid single-settings-grid artist-generation-settings" data-settings-scope="artist-mixing"></div>
+              </div>
+              <div class="artist-generation-actions artist-mixing-actions artist-local-generation-footer"><div class="local-generation-counts" aria-label="Mixing 로컬 반복 설정"><label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="artistMixingGenerationTotal">총 1장</strong></div><small class="local-generation-note">현재 작가 조합 × 배치 × 큐 · 요청당 1장</small><div class="artist-local-generation-buttons artist-mixing-generation-buttons"><button type="button" id="estimateArtistMixing" class="secondary">비용 확인</button><button type="submit" id="generateArtistMixing" class="primary">현재 조합 생성 · 비용 계산 중</button><button type="button" id="randomGenerateArtistMixing" class="primary">랜덤 생성 · 비용 계산 중</button></div></div>
+            </section>
+            <section class="panel artist-slider-panel artist-mixing-slider-panel">
+              <div class="artist-panel-scroll">
+                <div class="panel-head"><div><h2>등록 작가 리스트</h2><p>Favorites에 저장한 작가만 조합에 추가할 수 있다.</p></div><button type="button" id="openArtistFavoritePicker">＋ 작가</button></div>
+                <div class="artist-search-list-tools"><span id="artistMixingActiveCount" class="pill">0명 활성</span><button type="button" id="sortArtistMixingArtists" class="secondary">작가 소팅</button></div>
+                <div id="artistMixingList" class="artist-slider-list"><p class="muted">믹싱에 등록된 작가가 없다.</p></div>
+              </div>
+              <div class="artist-slider-actions"><button type="button" id="saveArtistMixing" class="ghost">믹싱 설정 저장</button></div>
+            </section>
+            <section class="panel result-panel artist-result-panel artist-mixing-result-panel"><div class="panel-head"><div><h2>Mixing 결과</h2><p>활성 작가와 현재 가중치를 한 장에 조합한다.</p></div><div class="artist-result-head-actions"><button type="button" id="clearArtistMixingResults" class="ghost" disabled>클리어</button><button type="button" class="ghost" data-open-outputs>폴더 열기</button></div></div><div id="artistMixingGallery" class="gallery empty"><p>아직 생성된 믹싱 이미지가 없다.</p></div></section>
+          </form>
+        </div>
+        <div id="artistStudyPoundingPage" class="artist-study-mode-page" hidden>
+          <form id="artistPoundingForm" class="artist-pounding-workspace">
+            <section class="panel artist-generation-panel artist-pounding-control-panel">
+              <div class="artist-panel-scroll">
+                <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">모든 파운딩 회차의 공통 조건</span></div>
+                <details class="prompt-block artist-current-prompt" open><summary><span>현재 프롬프트</span><small>대상·장면·구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="poundingBasePrompt" rows="6" required placeholder="1girl, solo,"></textarea></label><label>Undesired Content<textarea name="poundingNegativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
+                <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="artistPoundingCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addArtistPoundingCharacter" class="secondary">＋ 캐릭터</button></div></div>
+                <div id="artistPoundingCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 파운딩 탐색</small></div></div>
+                <div class="single-section-heading settings-heading"><div><span class="step-number">03</span><h2>생성 설정</h2></div><span id="artistPoundingEligibility" class="pill">계산 중</span></div>
+                <div class="settings-grid single-settings-grid artist-generation-settings" data-settings-scope="artist-pounding"></div>
+              </div>
+              <div class="artist-generation-actions artist-pounding-actions artist-local-generation-footer"><div class="local-generation-counts" aria-label="Pounding 로컬 반복 설정"><label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="artistPoundingGenerationTotal">총 1장</strong></div><small class="local-generation-note">각 장마다 독립 랜덤 조합 · 요청당 1장</small><div class="artist-local-generation-buttons"><button type="button" id="estimateArtistPounding" class="secondary">비용 확인</button><button type="submit" id="generateArtistPounding" class="primary">랜덤 조합 생성 · 비용 계산 중</button></div></div>
+            </section>
+            <section class="panel artist-pounding-learning-panel">
+              <div class="artist-panel-scroll">
+                <div class="panel-head"><div><h2>파운딩 탐색</h2><p>Favorites 작가를 무작위 조합하고 평가 결과로 다음 탐색 폭을 조정한다.</p></div><span id="artistPoundingFavoriteCount" class="pill">0명 후보</span></div>
+                <div class="artist-pounding-range">
+                  <label>최소 작가 수<input name="poundingMinArtists" type="number" min="1" step="1" value="2"></label>
+                  <label>최대 작가 수<input name="poundingMaxArtists" type="number" min="1" step="1" value="4"></label>
+                  <label>최소 가중치<input name="poundingMinWeight" type="number" min="0" max="2" step="0.05" value="0.40"></label>
+                  <label>최대 가중치<input name="poundingMaxWeight" type="number" min="0" max="2" step="0.05" value="1.60"></label>
+                </div>
+                <div class="artist-pounding-contract"><strong>회차당 10,000점</strong><p>좋아요·싫어요는 작가 가중치 비율로 배분한다. 건너뛰기는 학습에서 제외한다.</p><small id="artistPoundingWeightRangeSummary">사용자 범위 0.40~1.60 · 기본 탐색률 20% · 평가 3회부터 범위 조정</small></div>
+                <div class="artist-pounding-summary"><span id="artistPoundingTrialCount" class="pill">0회 평가</span><span id="artistPoundingPendingCount" class="pill">0회 대기</span></div>
+                <div class="artist-pounding-round-actions"><button type="button" id="loadArtistPoundingRound" class="secondary">JSON 로드</button><button type="button" id="resetArtistPoundingRound" class="danger" disabled>초기화</button><button type="button" id="finishArtistPoundingRound" class="secondary" disabled>라운드 종료</button></div>
+                <div id="artistPoundingScores" class="artist-pounding-scores"><p class="muted">평가 데이터가 없다.</p></div>
+              </div>
+            </section>
+            <section class="panel result-panel artist-result-panel artist-pounding-result-panel"><div class="panel-head"><div><h2>파운딩 결과</h2><p>결과를 평가하면 작가 선호 점수와 가중치 탐색 범위에 반영된다.</p></div><button type="button" class="ghost" data-open-outputs>폴더 열기</button></div><div id="artistPoundingGallery" class="gallery artist-pounding-gallery empty"><p>아직 생성된 파운딩 이미지가 없다.</p></div></section>
+          </form>
+        </div>
+        <div id="artistStudyFinalizePage" class="artist-study-mode-page" hidden>
+          <form id="artistFinalizeForm" class="artist-finalize-workspace">
+            <section class="panel artist-generation-panel artist-finalize-control-panel">
+              <div class="artist-panel-scroll">
+                <div class="single-section-heading"><div><span class="step-number">01</span><h2>프롬프트</h2></div><span class="single-hint">선택 라운드의 최종 작가 조합에 적용</span></div>
+                <details class="prompt-block artist-current-prompt" open><summary><span>현재 프롬프트</span><small>대상·장면·구도</small></summary><div class="prompt-block-body"><label>Prompt<textarea name="finalizeBasePrompt" rows="6" required placeholder="1girl, solo,"></textarea></label><label>Undesired Content<textarea name="finalizeNegativePrompt" rows="3" placeholder="bad anatomy, text"></textarea></label></div></details>
+                <div class="single-section-heading"><div><span class="step-number">02</span><h2>캐릭터</h2></div><div class="single-section-actions"><span id="artistFinalizeCharacterCount" class="single-hint">0 / 6</span><button type="button" id="addArtistFinalizeCharacter" class="secondary">＋ 캐릭터</button></div></div>
+                <div id="artistFinalizeCharacters" class="single-character-list"><div class="single-character-empty"><span>캐릭터 없음</span><small>일반 파이널라이즈</small></div></div>
+                <div class="single-section-heading settings-heading"><div><span class="step-number">03</span><h2>생성 설정</h2></div><span id="artistFinalizeEligibility" class="pill">계산 중</span></div>
+                <div class="settings-grid single-settings-grid artist-generation-settings" data-settings-scope="artist-finalize"></div>
+              </div>
+              <div class="artist-generation-actions artist-finalize-actions artist-local-generation-footer"><div class="local-generation-counts" aria-label="Finalize 로컬 반복 설정"><label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="artistFinalizeGenerationTotal">총 1장</strong></div><small class="local-generation-note">최종 작가 조합 × 배치 × 큐 · 요청당 1장</small><div class="artist-local-generation-buttons"><button type="button" id="estimateArtistFinalize" class="secondary">비용 확인</button><button type="submit" id="generateArtistFinalize" class="primary" disabled>최종 조합 생성 · 라운드 선택 필요</button></div></div>
+            </section>
+            <section class="panel artist-finalize-round-panel">
+              <div class="artist-panel-scroll">
+                <div class="panel-head"><div><h2>저장된 라운드 JSON</h2><p>종료한 파운딩 라운드를 선택하고 상위 작가 수를 지정한다.</p></div><span id="artistFinalizeRoundCount" class="pill">0개</span></div>
+                <div class="artist-finalize-controls">
+                  <label class="artist-finalize-count">상위 작가 수<input id="artistFinalizeTopCount" name="finalizeTopCount" type="number" min="1" step="1" value="4"></label>
+                  <div class="artist-finalize-score-range"><label>최저 점수<input id="artistFinalizeMinScore" name="finalizeMinScore" type="number" max="9999" step="500" value="0"></label><label>최고 점수<input id="artistFinalizeMaxScore" name="finalizeMaxScore" type="number" min="10001" step="500" value="20000"></label></div>
+                  <div class="artist-finalize-score-range artist-finalize-weight-range"><label>최저 가중치<input id="artistFinalizeMinWeight" name="finalizeMinWeight" type="number" min="0" max="1" step="0.05" value="0.40"></label><label>최고 가중치<input id="artistFinalizeMaxWeight" name="finalizeMaxWeight" type="number" min="1" max="2" step="0.05" value="1.60"></label></div>
+                </div>
+                <div id="artistFinalizeRounds" class="artist-finalize-rounds"><p class="muted">저장된 파운딩 라운드가 없다.</p></div>
+                <div class="artist-pounding-contract artist-finalize-contract"><strong>기준점 고정형 점수 정규화</strong><p>10,000점 = 1.00을 고정하고, 지정한 점수·가중치 사이의 하위·상위 구간을 각각 정규화한 뒤 0.05 단위로 적용한다.</p><small id="artistFinalizeScoreRangeSummary">0점 → 0.40 · 10,000점 → 1.00 · 20,000점 → 1.60</small></div>
+                <div id="artistFinalizeSelection" class="artist-finalize-selection"><p class="muted">라운드를 선택하면 최종 작가와 계산 가중치가 표시된다.</p></div>
+              </div>
+            </section>
+            <section class="panel result-panel artist-result-panel artist-finalize-result-panel"><div class="panel-head"><div><h2>Finalize 결과</h2><p>저장된 라운드의 상위 점수 작가 조합을 한 장으로 생성한다.</p></div><div class="artist-result-head-actions"><button type="button" id="clearArtistFinalizeResults" class="ghost" disabled>클리어</button><button type="button" class="ghost" data-open-outputs>폴더 열기</button></div></div><div id="artistFinalizeGallery" class="gallery empty"><p>아직 생성된 파이널 이미지가 없다.</p></div></section>
+          </form>
+        </div>
+        <div id="artistStudyDevPage" class="artist-study-mode-page" hidden>
         <form id="artistStudyForm" class="artist-study-workspace">
           <section class="panel artist-generation-panel">
             <div class="artist-panel-scroll">
@@ -150,7 +270,7 @@
               <div class="single-section-heading settings-heading"><div><span class="step-number">03</span><h2>생성 설정</h2></div><span id="artistStudyEligibility" class="pill">계산 중</span></div>
               <div class="settings-grid single-settings-grid artist-generation-settings" data-settings-scope="artist-study"></div>
             </div>
-            <div class="artist-generation-actions"><button type="button" id="estimateArtistStudy" class="secondary">비용 확인</button><button type="submit" id="generateArtistStudy" class="primary">현재 조합 생성 · 비용 계산 중</button><button type="button" id="randomGenerateArtistStudy" class="primary">랜덤 생성 · 비용 계산 중</button></div>
+            <div class="artist-generation-actions artist-local-generation-footer"><div class="local-generation-counts" aria-label="Dev 로컬 반복 설정"><label>배치<input name="batchCount" type="number" min="1" max="8" step="1" value="1"></label><span aria-hidden="true">×</span><label>큐<input name="queueCount" type="number" min="1" max="20" step="1" value="1"></label><strong id="artistStudyGenerationTotal">총 1장</strong></div><small class="local-generation-note">현재 작가 조합 × 배치 × 큐 · 요청당 1장</small><div class="artist-local-generation-buttons artist-study-generation-buttons"><button type="button" id="estimateArtistStudy" class="secondary">비용 확인</button><button type="submit" id="generateArtistStudy" class="primary">현재 조합 생성 · 비용 계산 중</button><button type="button" id="randomGenerateArtistStudy" class="primary">랜덤 생성 · 비용 계산 중</button></div></div>
           </section>
           <section class="panel artist-slider-panel">
             <div class="artist-panel-scroll">
@@ -166,6 +286,7 @@
           </section>
           <section class="panel result-panel artist-result-panel"><div class="panel-head"><div><h2>연구 결과</h2><p>수동·랜덤 생성 모두 한 번에 한 장만 큐에 추가된다.</p></div><button class="ghost" data-open-outputs>폴더 열기</button></div><div id="artistStudyGallery" class="gallery empty"><p>아직 생성된 연구 이미지가 없다.</p></div></section>
           </form>
+        </div>
       </section>
 
       <section id="view-projects" class="view">
@@ -244,6 +365,30 @@
       <div id="artistExampleNameError" class="dialog-error" role="alert" hidden></div>
       <div class="dialog-actions"><button type="button" id="artistExampleNameCancel" class="ghost">취소</button><button type="submit" class="primary">작례 등록</button></div>
     </form>
+  </dialog>
+  <dialog id="artistFavoritePickerDialog" class="artist-favorite-picker-dialog" aria-modal="true" aria-labelledby="artistFavoritePickerTitle" aria-describedby="artistFavoritePickerDescription">
+    <div class="dialog-card">
+      <div class="dialog-heading"><span class="dialog-heading-icon" aria-hidden="true">★</span><div><h2 id="artistFavoritePickerTitle">Favorites 작가 추가</h2><p id="artistFavoritePickerDescription">Searching에서 좋아요로 저장한 작가만 표시한다. 카드를 누르면 믹싱 리스트에 추가된다.</p></div></div>
+      <div id="artistFavoritePickerGrid" class="artist-favorite-picker-grid"><p class="muted">Favorites를 불러오는 중…</p></div>
+      <div class="dialog-actions"><button type="button" id="artistFavoritePickerClose" class="ghost">닫기</button></div>
+    </div>
+  </dialog>
+  <dialog id="imagePreviewDialog" class="image-preview-dialog" aria-modal="true" aria-labelledby="imagePreviewTitle" aria-describedby="imagePreviewDescription">
+    <section class="image-preview-shell">
+      <header class="image-preview-heading">
+        <div><h2 id="imagePreviewTitle">이미지 미리보기</h2><p id="imagePreviewDescription">휠로 확대·축소하고, 확대된 이미지는 드래그해서 이동할 수 있다.</p></div>
+        <button type="button" id="imagePreviewClose" class="ghost image-preview-close" aria-label="이미지 미리보기 닫기" title="닫기">×</button>
+      </header>
+      <div id="imagePreviewCanvas" class="single-preview-canvas image-preview-canvas" aria-label="확대 이미지 뷰어"></div>
+      <footer id="imagePreviewPoundingFeedback" class="image-preview-pounding-feedback" hidden>
+        <span id="imagePreviewPoundingState">현재 평가 · 미평가</span>
+        <div>
+          <button type="button" class="danger" data-image-preview-pounding-feedback="dislike">싫어요</button>
+          <button type="button" class="ghost" data-image-preview-pounding-feedback="skip">건너뛰기</button>
+          <button type="button" data-image-preview-pounding-feedback="like">좋아요</button>
+        </div>
+      </footer>
+    </section>
   </dialog>
   <script src="./app.js"></script>
 </body>

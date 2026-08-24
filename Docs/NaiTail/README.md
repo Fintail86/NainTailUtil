@@ -19,7 +19,7 @@ NaiTail은 NainTail의 기본 내장 NovelAI 생성 애드온이다. NovelAI 요
 |---|---|
 | 싱글 | 단일 생성 요청, 캐릭터 프롬프트, 참조 이미지와 결과 미리보기 |
 | 멀티 | 공통 프롬프트와 활성 슬롯을 조합한 연속 생성 |
-| 작례 연구기 | 작가·태그 조합을 관리하고 예시 이미지를 생성·저장 |
+| 작례 연구기 | Searching·Mixing·파운딩·Dev로 작가를 수집하고 조합·선호 가중치를 탐색 |
 | 작품 | 작품별 공통 설정, 캐릭터 카드와 일반·캐릭터 슬롯 관리 |
 | 프리셋 | 서브슬롯과 작례 프리셋 저장·재사용 |
 | 설정 | NovelAI 자격증명과 애드온 상태 관리 |
@@ -88,6 +88,8 @@ Hosted와 Standalone 모두 다음 비출력 데이터는 NaiTail 애드온 폴�
 | `Presets/examples/` | 작례 프리셋 |
 | `References/precise/` | Precise Reference 원본 |
 | `References/vibes/` | Vibe Transfer 원본 |
+| `Favorites/Searching/` | Searching에서 별표로 저장한 작가별 이미지와 DB. Favorites 탭에서 작가별 한 줄 뷰로 조회·삭제 |
+| `Favorites/Pounding/` | 파운딩 개인화 통계와 좋아요로 보존한 결과 PNG |
 | `cache/vibes/` | 모델별 인코딩된 Vibe cache |
 | `config/` | 생성 profile, 작례 연구 설정과 암호화된 자격증명 |
 | `logs/` | NaiTail 실행 로그 |
@@ -95,6 +97,25 @@ Hosted와 Standalone 모두 다음 비출력 데이터는 NaiTail 애드온 폴�
 최종 출력은 Standalone `NaiTail/outputs/`, Hosted `NainTailUtil/outputs/naitail/`을 사용한다.
 경로는 명시적으로 전달된 data root와 output root에서만 계산한다. 부모 폴더, 현재 작업 디렉터리
 또는 개발 PC의 절대경로를 추측해서 사용하지 않는다.
+
+작례 연구기 출력은 출력 루트 아래에서 다음처럼 분리한다.
+
+```text
+artist-study/
+├─ searching/
+├─ mixing/
+├─ pounding/<roundId>/
+└─ finalize/<JSON 파일명>_<roundId suffix>/
+```
+
+Pounding의 `roundId`는 현재 평가 라운드 시작부터 종료 JSON까지 유지된다. 초기화·라운드 종료로
+새 평가 라운드가 시작되면 새 ID와 출력 폴더를 사용한다. Finalize는 선택한 라운드 JSON별 폴더를 사용한다.
+
+작례 연구기의 Favorites 탭은 `Favorites/Searching/favorites.json`을 기준으로 작가명과 최대 10장의
+샘플을 한 줄씩 표시한다. 개별 샘플 삭제는 DB 항목과 PNG를 함께 제거하고, 마지막 샘플을 지우면
+빈 작가 항목도 제거한다. 작가 삭제는 해당 작가의 DB 항목과 저장 폴더 전체를 함께 제거하며 실행 전에
+확인을 받는다. 전체 삭제는 `Favorites/Searching/`의 선호 작가 DB와 모든 작가별 샘플 폴더를 한 번에
+초기화하며, 역시 삭제 수량을 안내하고 확인받은 뒤 실행한다.
 
 ## NovelAI 자격증명
 
@@ -115,6 +136,7 @@ Hosted와 Standalone 모두 다음 비출력 데이터는 NaiTail 애드온 폴�
 
 ## 관련 문서
 
+- [`features/ARTIST_POUNDING.md`](features/ARTIST_POUNDING.md): Favorites 기반 반복 선호도·가중치 탐색 계약
 - [`../ADDON_DEVELOPMENT_CONTRACT.md`](../ADDON_DEVELOPMENT_CONTRACT.md): Hosted·Standalone 공통 계약
 - [`../ADDON_OUTPUT_CONTRACT.md`](../ADDON_OUTPUT_CONTRACT.md): 실행 형태별 출력 위치 계약
 - [`../MCP.md`](../MCP.md): 범용 MCP host와 NaiTail 등록 방식
