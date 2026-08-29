@@ -26,6 +26,7 @@ class FederationRouter {
     this.registry = registry;
     this.hostRoot = context.hostRoot || registry.productRoot;
     this.outputSettings = context.outputSettings || new HostOutputSettings(this.hostRoot);
+    this.services = context.services || {};
     this.adapters = new Map();
     this.activating = new Map();
     this.closed = false;
@@ -100,6 +101,7 @@ class FederationRouter {
         dependencies,
         runtimeRoot: dependencies.runtimeRoot,
         outputRoot,
+        services: this.services,
         dependencyRoots: Object.fromEntries((Array.isArray(addon.requires) ? addon.requires : [])
           .map((id) => [id, this.registry.get(id)?.directory || null])
           .filter(([, directory]) => directory)),

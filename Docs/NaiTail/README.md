@@ -120,7 +120,8 @@ Pounding의 `roundId`는 현재 평가 라운드 시작부터 종료 JSON까지 
 ## NovelAI 자격증명
 
 - GUI는 Electron `safeStorage`로 토큰을 암호화해 `config/credentials.json`에 저장한다.
-- CLI와 MCP는 프로세스 환경의 `NAINTAIL_NAI_TOKEN`을 사용한다.
+- 로컬 MCP 런처는 이 GUI 저장 토큰을 재사용한다. `NAINTAIL_NAI_TOKEN`이 있으면 환경값을 우선한다.
+- CLI는 프로세스 환경의 `NAINTAIL_NAI_TOKEN`을 사용한다.
 - GUI에 저장된 토큰은 stdio CLI·MCP 프로세스에 자동으로 노출하지 않는다.
 - 토큰 원문은 프로젝트, 프리셋, 로그나 Git 추적 파일에 기록하지 않는다.
 

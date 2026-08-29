@@ -77,8 +77,8 @@ SHA-256을 검증해
 CLI는 Node.js로 직접 검증할 수 있지만 최종 포터블 실행은 시스템 Node에 의존하지 않는다.
 
 NovelAI 토큰은 프로젝트나 프리셋에 저장하지 않는다. GUI에서는 Windows 보호 저장소를
-사용하고 CLI·MCP에서는 `NAINTAIL_NAI_TOKEN` 환경변수를 사용한다. MCP는 stdio 호환성을 위해
-포터블 Electron을 Node 모드로 실행하므로 GUI 암호화 토큰을 복호화하지 않는다.
+사용하고 로컬 MCP는 같은 암호화 토큰을 재사용한다. `NAINTAIL_NAI_TOKEN` 환경변수가
+있으면 MCP는 이를 우선하며, CLI는 환경변수만 사용한다.
 
 ## 큐 동작
 
@@ -151,8 +151,9 @@ CensorTail은 GUI와 MCP standalone을 제공한다.
 ## MCP 등록
 
 MCP host가 `cmd.exe /d /s /c <제품 절대경로>\NainTailUtil_MCP.bat`를 실행하도록 등록한다.
-생성이 필요하면 host의 server 환경변수에 `NAINTAIL_NAI_TOKEN`을 설정한다. stdout은 MCP
-프로토콜 전용이며 로그는 stderr로만 출력한다.
+로컬 MCP는 GUI에 저장한 Windows `safeStorage` 토큰을 재사용한다. 별도 자동화 토큰이 필요하면
+host의 server 환경변수에 `NAINTAIL_NAI_TOKEN`을 설정하며 이 값이 GUI 저장값보다 우선한다.
+stdout은 MCP 프로토콜 전용이며 로그는 stderr로만 출력한다.
 
 기본 MCP 서버는 NainTail federation router다. 현재 `mcpAdapter`가 연결된 NaiTail, AnimaTail과 CensorTail
 도구를 축약 list/get/call로 조회·실행한다. AnimaTail MCP만 직접 쓰려면 server 환경변수에

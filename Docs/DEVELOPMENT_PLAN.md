@@ -625,7 +625,8 @@ MVP는 다음 수직 흐름을 실제로 완료해야 한다.
   자동 재시도하지 않는다.
 - 결과는 제품 루트 상대경로로 작품에 연결하고, 작품/카드/슬롯 식별자를 PNG iTXt에
   기록한다. 절대경로와 file URL은 작품 JSON에 저장하지 않는다.
-- GUI 토큰은 Electron `safeStorage`, CLI 토큰은 `NAINTAIL_NAI_TOKEN`만 사용한다. 제품
+- GUI 토큰은 Electron `safeStorage`에 저장하며 로컬 MCP 런처가 같은 값을 재사용한다.
+  MCP 환경의 `NAINTAIL_NAI_TOKEN`은 GUI 저장값보다 우선하고 CLI는 환경변수만 사용한다. 제품
   폴더를 다른 PC로 옮기면 GUI 토큰은 다시 입력한다.
 - MVP 고급 기능은 V4.5 Full/Curated, 8개 Sampler와 4개 Scheduler, Guidance Rescale,
   Decrisper, 품질/UC 프리셋, Vibe Transfer와 Precise Reference까지 포함한다. V4/V4.5 웹

@@ -31,7 +31,7 @@ function createRegistry(productRoot) {
   return registry;
 }
 
-function startSelectedAddon(registry, addonId) {
+function startSelectedAddon(registry, addonId, options = {}) {
   const addon = registry.get(addonId);
   if (!addon) throw new Error(`애드온을 찾을 수 없습니다: ${addonId}`);
   const missing = registry.missingRequirements(addon);
@@ -54,6 +54,7 @@ function startSelectedAddon(registry, addonId) {
     runtimeRoot: dependencies.runtimeRoot,
     resourceRoot: addon.directory,
     outputRoot: outputSettings.resolveManifestOutputRoot(addon),
+    services: options.services || {},
   });
   activeRuntime = { mode: "selected-addon", addonId: addon.id, entry, server };
   return activeRuntime;
@@ -63,6 +64,7 @@ function startFederation(registry, options = {}) {
   const router = new FederationRouter(registry, {
     hostRoot: registry.productRoot,
     outputSettings: new HostOutputSettings(registry.productRoot),
+    services: options.services || {},
   });
   const tools = createFederationTools(router);
   const server = new McpStdioServer({
@@ -90,7 +92,7 @@ function main(options = {}) {
   const productRoot = options.productRoot || path.resolve(__dirname, "..", "..");
   const registry = options.registry || createRegistry(productRoot);
   const addonId = String(options.addonId ?? process.env.NAINTAIL_ADDON_ID ?? "").trim();
-  const runtime = addonId ? startSelectedAddon(registry, addonId) : startFederation(registry, options);
+  const runtime = addonId ? startSelectedAddon(registry, addonId, options) : startFederation(registry, options);
   if (runtime.mode === "federation") {
     process.stdin.once("end", () => { void shutdown(); });
     process.once("SIGINT", () => { void shutdown(); });

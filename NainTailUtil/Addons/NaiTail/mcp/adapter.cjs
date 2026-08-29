@@ -3,16 +3,28 @@
 const { NainTailApplication } = require("../app/core/application.cjs");
 const { defaultProductRoot } = require("../app/core/paths.cjs");
 const { NainTailError } = require("../app/core/errors.cjs");
+const { CredentialService } = require("../electron/credential-service.cjs");
+const { createWindowsSafeStorageReader } = require("./windows-safe-storage.cjs");
 const { McpJobManager } = require("./job-manager.cjs");
 const { callTool, createTools, failure } = require("./tools.cjs");
 
 const ADAPTER_SCHEMA = "naintail.addon-mcp-profile/v1";
 
 function createAdapter(options = {}) {
+  const productRoot = options.dataRoot || options.productRoot || defaultProductRoot();
+  const safeStorage = options.services?.safeStorage || createWindowsSafeStorageReader({
+    appName: options.hosted === true ? "naintailutil" : "naitail-standalone",
+  });
+  const credentials = safeStorage ? new CredentialService(productRoot, safeStorage) : null;
+  const getToken = options.getToken || (credentials
+    ? async () => String(process.env.NAINTAIL_NAI_TOKEN || "").trim() || credentials.getToken()
+    : undefined);
   const core = options.core || new NainTailApplication({
-    productRoot: options.dataRoot || options.productRoot || defaultProductRoot(),
+    productRoot,
     outputRoot: options.outputRoot,
     version: options.manifest?.version,
+    worker: options.worker,
+    ...(getToken ? { getToken } : {}),
   });
   const manager = options.manager || new McpJobManager(core);
   const tools = createTools(core, manager);

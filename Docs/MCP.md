@@ -17,7 +17,7 @@ NainTail federation server이며, host routing 도구 5개를 통해 MCP Adapter
 
 - 전송: 로컬 stdio
 - 런처: 제품 루트 `NainTailUtil_MCP.bat`
-- 런타임: 제품에 포함된 Electron을 `ELECTRON_RUN_AS_NODE=1`로 실행
+- 런타임: 제품에 포함된 Electron을 Node mode로 실행하고 Windows `safeStorage` 호환 reader 사용
 - 프로토콜: MCP `2025-06-18`, `2025-03-26`, `2024-11-05` 협상 지원
 
 MCP는 GUI나 CLI를 자동 조작하지 않는다. NainTail은 단일 stdio transport와 routing을 소유하고,
@@ -26,9 +26,9 @@ MCP는 GUI나 CLI를 자동 조작하지 않는다. NainTail은 단일 stdio tra
 
 ## 호스트 등록
 
-Windows에서 BAT를 직접 실행하지 못하는 MCP host는 `cmd.exe`를 사용한다. MCP Node 프로세스에는
-GUI의 Windows `safeStorage` 복호화 권한을 전달하지 않는다. 생성 기능을 사용할 host 환경에
-`NAINTAIL_NAI_TOKEN`을 설정한다.
+Windows에서 BAT를 직접 실행하지 못하는 MCP host는 `cmd.exe`를 사용한다. 로컬 MCP 런처는
+GUI와 같은 애드온 `config/credentials.json`을 동일한 Windows 보호 키로 복호화해 사용한다.
+MCP host 환경에 `NAINTAIL_NAI_TOKEN`이 있으면 해당 값을 GUI 저장값보다 우선한다.
 
 ```json
 {
@@ -40,14 +40,13 @@ GUI의 Windows `safeStorage` 복호화 권한을 전달하지 않는다. 생성 
         "/s",
         "/c",
         "D:\\Portable\\NainTailUtil\\NainTailUtil_MCP.bat"
-      ],
-      "env": {
-        "NAINTAIL_NAI_TOKEN": "YOUR_PERSISTENT_NAI_TOKEN"
-      }
+      ]
     }
   }
 }
 ```
+
+GUI와 다른 자동화 전용 토큰을 강제로 사용할 때만 server 환경에 `NAINTAIL_NAI_TOKEN`을 추가한다.
 
 AnimaTail만 별도 MCP 서버로 등록할 때는 같은 launcher를 사용하고 selector만 추가한다.
 
@@ -103,8 +102,9 @@ AnimaTail 완료 결과는 Hosted 호출에서 절대경로 대신 session `arti
 두 launcher 모두 같은 애드온 폴더의 `runtime/electron/electron.exe`를 Node mode로 실행하며,
 저장소·런타임·모델 경로도 상위 NainTailUtil이 아니라 해당 폴더를 기준으로 계산한다.
 
-토큰을 설정하지 않아도 discovery와 저장 데이터 조회는 가능하지만 생성은
-`NAI_TOKEN_MISSING`으로 거부된다. 토큰은 프로젝트·프리셋·작업 기록이나 도구 응답에 포함하지 않는다.
+GUI 저장 토큰과 환경변수 토큰이 모두 없어도 discovery와 저장 데이터 조회는 가능하지만 생성은
+`NAI_TOKEN_MISSING`으로 거부된다. 복호화된 토큰은 애드온 Core와 Worker 사이에서만 사용하며
+프로젝트·프리셋·작업 기록이나 MCP 도구 응답에 포함하지 않는다.
 
 ## 토큰 절약 discovery 계약
 

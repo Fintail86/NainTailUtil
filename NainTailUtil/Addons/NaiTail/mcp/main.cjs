@@ -36,7 +36,7 @@ function start(options = {}) {
       "Use naintail_jobs_list to recover a lost jobId without fetching every job result.",
       "Paid generation first returns ANLAS_CONFIRMATION_REQUIRED. Resubmit only after user approval with allowPaidAnlas=true and maxAnlas set to the approved cap.",
       "Cancelling an active job lets the one image already sent to NovelAI finish and cancels only undispatched images.",
-      "Set NAINTAIL_NAI_TOKEN in the MCP host environment; GUI safeStorage credentials are intentionally not exposed to the stdio Node process.",
+      "Use the explicit NAINTAIL_NAI_TOKEN environment value when present; otherwise the local Windows MCP launcher can reuse the GUI safeStorage credential without exposing it in tool results.",
     ].join(" "),
   }).start();
   process.stdin.once("end", shutdown);
