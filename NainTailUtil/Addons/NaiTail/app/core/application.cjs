@@ -186,8 +186,11 @@ class NainTailApplication extends EventEmitter {
     const favorites = new Map(this.artistFavoriteStore.list().map((artist) => [artist.key, artist]));
     const mixingArtists = Array.isArray(input.mixingArtists) ? input.mixingArtists.map((artist) => {
       const favorite = favorites.get(String(artist.favoriteKey || ""));
-      if (!favorite) throw new NainTailError("ARTIST_FAVORITE_REQUIRED", "믹싱에는 Favorites에 등록된 작가만 추가할 수 있습니다.");
-      return { ...artist, name: favorite.name, favoriteKey: favorite.key };
+      if (favorite) return { ...artist, name: favorite.name, favoriteKey: favorite.key };
+      const sourceRoundId = String(artist.sourceRoundId || "").trim();
+      const name = String(artist.name || "").trim();
+      if (sourceRoundId && name) return { ...artist, name, sourceRoundId };
+      throw new NainTailError("ARTIST_MIXING_SOURCE_REQUIRED", "믹싱에는 Favorites에서 추가했거나 저장 라운드에서 불러온 작가만 사용할 수 있습니다.");
     }) : [];
     return { ...input, mixingArtists };
   }

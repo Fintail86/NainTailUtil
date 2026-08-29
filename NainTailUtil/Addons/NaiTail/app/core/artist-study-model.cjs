@@ -33,6 +33,7 @@ function normalizeMixingArtist(input = {}) {
   return {
     ...normalizeArtist(input),
     favoriteKey: asString(input.favoriteKey).trim(),
+    sourceRoundId: asString(input.sourceRoundId).trim(),
   };
 }
 
@@ -54,6 +55,8 @@ function normalizeArtistStudy(input = {}) {
     randomMax: Math.max(randomMin, randomMax),
     artists: Array.isArray(input.artists) ? input.artists.map(normalizeArtist) : [],
     mixingArtists: Array.isArray(input.mixingArtists) ? input.mixingArtists.map(normalizeMixingArtist) : [],
+    mixingRoundId: asString(input.mixingRoundId).trim(),
+    mixingTopCount: Math.max(1, Math.trunc(Number(input.mixingTopCount) || 4)),
   };
 }
 
@@ -161,7 +164,7 @@ function materializeArtistSearch(input) {
 function materializeArtistMixing(input) {
   const study = normalizeArtistStudy(input);
   const activeArtists = study.mixingArtists.filter((artist) => artist.enabled && artist.name);
-  if (!activeArtists.length) throw new NainTailError("EMPTY_ARTIST_MIXING", "믹싱할 활성 Favorites 작가가 없습니다.");
+  if (!activeArtists.length) throw new NainTailError("EMPTY_ARTIST_MIXING", "믹싱할 활성 작가가 없습니다.");
   const artistPrompt = serializeArtistPrompt(activeArtists);
   const characters = activeCharacterPrompts(study.characters);
   const prompt = joinPrompt(artistPrompt, study.basePrompt);
@@ -215,6 +218,7 @@ function materializeArtistPounding(input, trial) {
         weight: artist.weight,
         share: artist.share,
         allocatedPoints: artist.allocatedPoints,
+        fixed: artist.fixed === true,
       })),
     },
     request: {

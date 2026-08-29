@@ -14,9 +14,12 @@ const ARTIST_POUNDING_ROUND_SCHEMA = "naintail.artist-pounding-round/v1";
 const ARTIST_POUNDING_ROUND_SCHEMA_VERSION = 1;
 const ARTIST_POUNDING_ROUND_INDEX_SCHEMA = "naintail.artist-pounding-round-index/v1";
 const SCORE_POOL = 10_000;
+const SCORING_VERSION = 2;
+const BASELINE_WINDOW = 50;
+const WILSON_Z = 1.96;
 const WEIGHT_STEP = 0.05;
 const WEIGHT_BUCKET_SIZE = 0.2;
-const MIN_ADAPTIVE_FEEDBACK = 3;
+const MIN_ADAPTIVE_EXPOSURE = 3;
 const MIN_ADAPTIVE_WIDTH = 0.3;
 const MAX_TRIALS = 2_000;
 const MAX_ROUND_JSON_BYTES = 10 * 1024 * 1024;
@@ -24,7 +27,7 @@ const FINAL_WEIGHT_MIN = 0.4;
 const FINAL_WEIGHT_MAX = 1.6;
 const DEFAULT_FINALIZE_SETTINGS = Object.freeze({
   minScore: 0,
-  maxScore: SCORE_POOL * 2,
+  maxScore: SCORE_POOL,
   minWeight: FINAL_WEIGHT_MIN,
   maxWeight: FINAL_WEIGHT_MAX,
 });
@@ -35,6 +38,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   explorationRate: 0.2,
   globalMinWeight: 0.4,
   globalMaxWeight: 1.6,
+  manualArtists: [],
 });
 
 function clamp(value, minimum, maximum, fallback) {
@@ -51,9 +55,37 @@ function positiveInteger(value, fallback) {
   return Number.isFinite(number) ? Math.max(1, Math.trunc(number)) : fallback;
 }
 
+function artistNameKey(value) {
+  return String(value || "").replace(/^artist\s*:/iu, "").trim().toLocaleLowerCase("en-US");
+}
+
+function normalizeManualArtist(input = {}) {
+  const name = String(input.name || "").replace(/^artist\s*:/iu, "").trim();
+  return {
+    id: String(input.id || createId("pounding_manual_artist")),
+    favoriteKey: String(input.favoriteKey || "").trim(),
+    name,
+    enabled: input.enabled !== false,
+    weight: roundWeight(clamp(input.weight, 0, 2, 1)),
+  };
+}
+
+function normalizeManualArtists(input) {
+  const unique = new Map();
+  for (const artist of (Array.isArray(input) ? input : []).map(normalizeManualArtist)) {
+    const key = artist.favoriteKey;
+    if (!key) continue;
+    const current = unique.get(key);
+    if (!current || (current.enabled === false && artist.enabled)) unique.set(key, artist);
+  }
+  return [...unique.values()];
+}
+
 function normalizeSettings(input = {}) {
-  const requestedMaxArtists = positiveInteger(input.maxArtists, DEFAULT_SETTINGS.maxArtists);
-  const requestedMinArtists = positiveInteger(input.minArtists, DEFAULT_SETTINGS.minArtists);
+  const manualArtists = normalizeManualArtists(input.manualArtists);
+  const enabledManualCount = manualArtists.filter((artist) => artist.enabled).length;
+  const requestedMaxArtists = Math.max(enabledManualCount, positiveInteger(input.maxArtists, DEFAULT_SETTINGS.maxArtists));
+  const requestedMinArtists = Math.max(enabledManualCount, positiveInteger(input.minArtists, DEFAULT_SETTINGS.minArtists));
   const globalMinWeight = roundWeight(clamp(input.globalMinWeight, 0, 2, DEFAULT_SETTINGS.globalMinWeight));
   const globalMaxWeight = roundWeight(clamp(input.globalMaxWeight, 0, 2, DEFAULT_SETTINGS.globalMaxWeight));
   return {
@@ -62,23 +94,25 @@ function normalizeSettings(input = {}) {
     explorationRate: Number(clamp(input.explorationRate, 0.05, 0.5, DEFAULT_SETTINGS.explorationRate).toFixed(2)),
     globalMinWeight: Math.min(globalMinWeight, globalMaxWeight),
     globalMaxWeight: Math.max(globalMinWeight, globalMaxWeight),
+    manualArtists,
   };
 }
 
 function normalizeFinalizeSettings(input = {}) {
   const requestedMinScore = Number(input.minScore);
   const requestedMaxScore = Number(input.maxScore);
+  const maxScore = Number.isFinite(requestedMaxScore) ? Math.trunc(requestedMaxScore) : DEFAULT_FINALIZE_SETTINGS.maxScore;
+  const minScore = Math.min(
+    maxScore - 1,
+    Number.isFinite(requestedMinScore) ? Math.trunc(requestedMinScore) : DEFAULT_FINALIZE_SETTINGS.minScore,
+  );
+  const maxWeight = roundWeight(clamp(input.maxWeight, 0, 2, DEFAULT_FINALIZE_SETTINGS.maxWeight));
+  const requestedMinWeight = roundWeight(clamp(input.minWeight, 0, 2, DEFAULT_FINALIZE_SETTINGS.minWeight));
   return {
-    minScore: Math.min(
-      SCORE_POOL - 1,
-      Number.isFinite(requestedMinScore) ? Math.trunc(requestedMinScore) : DEFAULT_FINALIZE_SETTINGS.minScore,
-    ),
-    maxScore: Math.max(
-      SCORE_POOL + 1,
-      Number.isFinite(requestedMaxScore) ? Math.trunc(requestedMaxScore) : DEFAULT_FINALIZE_SETTINGS.maxScore,
-    ),
-    minWeight: roundWeight(clamp(input.minWeight, 0, 1, DEFAULT_FINALIZE_SETTINGS.minWeight)),
-    maxWeight: roundWeight(clamp(input.maxWeight, 1, 2, DEFAULT_FINALIZE_SETTINGS.maxWeight)),
+    minScore,
+    maxScore,
+    minWeight: Math.min(requestedMinWeight, maxWeight),
+    maxWeight,
   };
 }
 
@@ -87,25 +121,114 @@ function finalizeWeightForScore(score, input = {}) {
   const value = Number(score) || 0;
   if (value <= settings.minScore) return settings.minWeight;
   if (value >= settings.maxScore) return settings.maxWeight;
-  if (value === SCORE_POOL) return 1;
-  if (value < SCORE_POOL) {
-    const ratio = (value - settings.minScore) / (SCORE_POOL - settings.minScore);
-    return roundWeight(settings.minWeight + ratio * (1 - settings.minWeight));
-  }
-  const ratio = (value - SCORE_POOL) / (settings.maxScore - SCORE_POOL);
-  return roundWeight(1 + ratio * (settings.maxWeight - 1));
+  const ratio = (value - settings.minScore) / (settings.maxScore - settings.minScore);
+  return roundWeight(settings.minWeight + ratio * (settings.maxWeight - settings.minWeight));
 }
 
 function emptyDatabase() {
   return {
     schema: ARTIST_PREFERENCE_SCHEMA,
     schemaVersion: ARTIST_PREFERENCE_SCHEMA_VERSION,
+    scoringVersion: SCORING_VERSION,
     roundId: createId("pounding_round"),
     updatedAt: null,
     settings: { ...DEFAULT_SETTINGS },
     artists: [],
     trials: [],
+    scoring: { baselineWindow: BASELINE_WINDOW, ratedCount: 0, recentOutcomeMean: 0 },
   };
+}
+
+function exposureFor(stat = {}) {
+  const stored = Number(stat.exposurePoints || 0);
+  if (stored > 0) return stored;
+  return Math.max(0, Number(stat.positivePoints || 0) + Number(stat.negativePoints || 0));
+}
+
+function effectiveExposureFor(stat = {}) {
+  return exposureFor(stat) / SCORE_POOL;
+}
+
+function preferenceRateFor(stat = {}) {
+  const exposure = exposureFor(stat);
+  return exposure > 0 ? Number(stat.positivePoints || 0) / exposure : 0;
+}
+
+function confidenceRateFor(stat = {}) {
+  const sampleSize = effectiveExposureFor(stat);
+  if (sampleSize <= 0) return 0;
+  const proportion = Math.min(1, Math.max(0, preferenceRateFor(stat)));
+  const zSquared = WILSON_Z ** 2;
+  const denominator = 1 + zSquared / sampleSize;
+  const center = proportion + zSquared / (2 * sampleSize);
+  const margin = WILSON_Z * Math.sqrt((proportion * (1 - proportion) + zSquared / (4 * sampleSize)) / sampleSize);
+  return Math.max(0, Math.min(1, (center - margin) / denominator));
+}
+
+function confidenceScoreFor(stat = {}) {
+  return Math.round(confidenceRateFor(stat) * SCORE_POOL);
+}
+
+function adjustedRatingFor(stat = {}) {
+  const exposure = exposureFor(stat);
+  return exposure > 0 ? Number(stat.adjustedPoints || 0) / exposure : 0;
+}
+
+function outcomeForFeedback(feedback) {
+  if (feedback === "like") return 1;
+  if (feedback === "dislike") return -1;
+  return null;
+}
+
+function recentOutcomeMean(outcomes) {
+  const recent = outcomes.slice(-BASELINE_WINDOW);
+  return recent.length ? recent.reduce((sum, outcome) => sum + outcome, 0) / recent.length : 0;
+}
+
+function rebuildAdjustedScoring(database) {
+  const artistStats = new Map(database.artists.map((artist) => {
+    artist.adjustedPoints = 0;
+    for (const bucket of artist.weightBuckets || []) bucket.adjustedPoints = 0;
+    return [artist.key, artist];
+  }));
+  const outcomes = [];
+  const ratedTrials = database.trials.map((trial, index) => ({ trial, index, outcome: outcomeForFeedback(trial.feedback) }))
+    .filter((entry) => entry.outcome !== null)
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.trial.evaluatedAt || left.trial.createdAt || "") || 0;
+      const rightTime = Date.parse(right.trial.evaluatedAt || right.trial.createdAt || "") || 0;
+      return leftTime - rightTime || left.index - right.index;
+    });
+  for (const { trial, outcome } of ratedTrials) {
+    const baseline = recentOutcomeMean(outcomes);
+    const advantage = outcome - baseline;
+    trial.scoring = {
+      version: SCORING_VERSION,
+      baselineWindow: BASELINE_WINDOW,
+      outcome,
+      baseline: Number(baseline.toFixed(6)),
+      advantage: Number(advantage.toFixed(6)),
+    };
+    for (const trialArtist of trial.artists || []) {
+      const stat = artistStats.get(trialArtist.favoriteKey);
+      if (!stat) continue;
+      stat.adjustedPoints += Number(trialArtist.allocatedPoints || 0) * advantage;
+      const bucket = (stat.weightBuckets || []).find((item) => item.key === bucketForWeight(trialArtist.weight).key);
+      if (bucket) bucket.adjustedPoints += Number(trialArtist.allocatedPoints || 0) * advantage;
+    }
+    outcomes.push(outcome);
+  }
+  for (const artist of database.artists) {
+    artist.adjustedPoints = Math.round(Number(artist.adjustedPoints || 0));
+    for (const bucket of artist.weightBuckets || []) bucket.adjustedPoints = Math.round(Number(bucket.adjustedPoints || 0));
+  }
+  database.scoringVersion = SCORING_VERSION;
+  database.scoring = {
+    baselineWindow: BASELINE_WINDOW,
+    ratedCount: outcomes.length,
+    recentOutcomeMean: Number(recentOutcomeMean(outcomes).toFixed(6)),
+  };
+  return database;
 }
 
 function validateDatabase(value) {
@@ -115,7 +238,7 @@ function validateDatabase(value) {
   if (value.trials.length > MAX_TRIALS || value.artists.length > MAX_TRIALS * 6) {
     throw new NainTailError("INVALID_ARTIST_PREFERENCE", "파운딩 라운드 데이터가 허용된 크기를 초과합니다.");
   }
-  return { ...value, roundId: String(value.roundId || createId("pounding_round")), settings: normalizeSettings(value.settings) };
+  return rebuildAdjustedScoring({ ...value, roundId: String(value.roundId || createId("pounding_round")), settings: normalizeSettings(value.settings) });
 }
 
 function roundArchive(database, exportedAt = new Date().toISOString(), roundId = database.roundId || createId("pounding_round")) {
@@ -139,10 +262,14 @@ function finalizeArtists(database, requestedCount, finalizeSettings = {}) {
   const ranked = validateDatabase(database).artists.map((artist) => ({
     favoriteKey: artist.key,
     name: artist.name,
-    score: scoreFor(artist),
+    score: confidenceScoreFor(artist),
+    rawScore: scoreFor(artist),
+    preferenceRate: Number(preferenceRateFor(artist).toFixed(4)),
+    confidenceRate: Number(confidenceRateFor(artist).toFixed(4)),
+    effectiveExposure: Number(effectiveExposureFor(artist).toFixed(4)),
     feedbackCount: Number(artist.feedbackCount || 0),
   })).filter((artist) => artist.favoriteKey && artist.name && artist.feedbackCount > 0)
-    .sort((left, right) => right.score - left.score || right.feedbackCount - left.feedbackCount || left.name.localeCompare(right.name));
+    .sort((left, right) => right.score - left.score || right.preferenceRate - left.preferenceRate || right.effectiveExposure - left.effectiveExposure || left.name.localeCompare(right.name));
   if (!ranked.length) throw new NainTailError("EMPTY_ARTIST_POUNDING_FINALIZE", "파이널라이즈할 평가 작가가 없습니다.");
   const count = Math.min(ranked.length, Math.max(1, Math.trunc(Number(requestedCount) || 1)));
   const selected = ranked.slice(0, count);
@@ -154,7 +281,7 @@ function finalizeArtists(database, requestedCount, finalizeSettings = {}) {
 }
 
 function ratingFor(stat = {}) {
-  const exposure = Number(stat.exposurePoints || 0);
+  const exposure = exposureFor(stat);
   return exposure > 0 ? (Number(stat.positivePoints || 0) - Number(stat.negativePoints || 0)) / exposure : 0;
 }
 
@@ -204,12 +331,12 @@ function bucketForWeight(weight) {
 }
 
 function adaptRange(stat, settings) {
-  if (Number(stat.feedbackCount || 0) < MIN_ADAPTIVE_FEEDBACK || Number(stat.positivePoints || 0) <= 0) return;
+  if (effectiveExposureFor(stat) < MIN_ADAPTIVE_EXPOSURE || Number(stat.positivePoints || 0) <= 0) return;
   const eligible = (stat.weightBuckets || []).filter((bucket) => Number(bucket.exposurePoints || 0) > 0);
   if (!eligible.length) return;
   const best = [...eligible].sort((left, right) => {
-    const leftQuality = (Number(left.positivePoints || 0) + 1_000) / (Number(left.exposurePoints || 0) + 2_000);
-    const rightQuality = (Number(right.positivePoints || 0) + 1_000) / (Number(right.exposurePoints || 0) + 2_000);
+    const leftQuality = Number(left.adjustedPoints || 0) / (exposureFor(left) + 2_000);
+    const rightQuality = Number(right.adjustedPoints || 0) / (exposureFor(right) + 2_000);
     return rightQuality - leftQuality || Number(right.feedbackCount || 0) - Number(left.feedbackCount || 0);
   })[0];
   const currentMin = Number.isFinite(Number(stat.rangeMin)) ? Number(stat.rangeMin) : settings.globalMinWeight;
@@ -234,12 +361,20 @@ function publicState(database) {
     schemaVersion: database.schemaVersion,
     roundId: database.roundId,
     updatedAt: database.updatedAt,
+    scoringVersion: database.scoringVersion,
+    scoring: database.scoring,
     settings: database.settings,
     artists: database.artists.map((artist) => ({
       key: artist.key,
       name: artist.name,
-      score: scoreFor(artist),
+      score: confidenceScoreFor(artist),
+      rawScore: scoreFor(artist),
       rating: Number(ratingFor(artist).toFixed(4)),
+      adjustedRating: Number(adjustedRatingFor(artist).toFixed(4)),
+      adjustedPoints: Number(artist.adjustedPoints || 0),
+      preferenceRate: Number(preferenceRateFor(artist).toFixed(4)),
+      confidenceRate: Number(confidenceRateFor(artist).toFixed(4)),
+      effectiveExposure: Number(effectiveExposureFor(artist).toFixed(4)),
       positivePoints: artist.positivePoints,
       negativePoints: artist.negativePoints,
       exposurePoints: artist.exposurePoints,
@@ -247,7 +382,7 @@ function publicState(database) {
       rangeMin: artist.rangeMin,
       rangeMax: artist.rangeMax,
       weightBuckets: artist.weightBuckets,
-    })).sort((left, right) => right.score - left.score || right.feedbackCount - left.feedbackCount || left.name.localeCompare(right.name)),
+    })).sort((left, right) => right.score - left.score || right.preferenceRate - left.preferenceRate || right.effectiveExposure - left.effectiveExposure || left.name.localeCompare(right.name)),
     trials: database.trials.slice(-100).reverse(),
   };
 }
@@ -275,7 +410,9 @@ class ArtistPreferenceStore {
     if (!fs.existsSync(this.filePath)) return emptyDatabase();
     const stored = readJson(this.filePath, "INVALID_ARTIST_PREFERENCE");
     const database = validateDatabase(stored);
-    if (!stored.roundId) writeJsonAtomic(this.filePath, database);
+    if (!stored.roundId || stored.scoringVersion !== SCORING_VERSION || !stored.scoring || stored.artists.some((artist) => !Number.isFinite(Number(artist.adjustedPoints)))) {
+      writeJsonAtomic(this.filePath, database);
+    }
     return database;
   }
 
@@ -308,7 +445,8 @@ class ArtistPreferenceStore {
       exportedAt: archive.exportedAt || database.updatedAt || new Date().toISOString(),
       artistCount: database.artists.length,
       trialCount: database.trials.length,
-      topScore: database.artists.length ? Math.max(...database.artists.map(scoreFor)) : 0,
+      topScore: database.artists.length ? Math.max(...database.artists.map(confidenceScoreFor)) : 0,
+      rankingMetric: "wilson-lower-bound",
       ...(portable ? { relativePath: relative.replaceAll(path.sep, "/") } : { absolutePath: path.resolve(filePath) }),
     };
     index.rounds = [entry, ...index.rounds.filter((item) => item.id !== entry.id && this.roundEntryPath(item) !== path.resolve(filePath))].slice(0, 500);
@@ -324,6 +462,7 @@ class ArtistPreferenceStore {
       artistCount: entry.artistCount,
       trialCount: entry.trialCount,
       topScore: entry.topScore,
+      rankingMetric: entry.rankingMetric || "legacy-raw-score",
       available: Boolean(this.roundEntryPath(entry) && fs.existsSync(this.roundEntryPath(entry))),
     }));
   }
@@ -443,39 +582,50 @@ class ArtistPreferenceStore {
   }
 
   createTrial(favorites, input = {}) {
-    const candidates = Array.isArray(favorites) ? favorites.filter((artist) => artist?.key && artist?.name) : [];
-    if (!candidates.length) throw new NainTailError("ARTIST_FAVORITES_REQUIRED", "파운딩을 시작하려면 Searching에서 작가를 Favorites에 먼저 등록해야 합니다.");
     const database = this.getDatabase();
     database.settings = normalizeSettings({ ...database.settings, ...(input.settings || input) });
     const settings = database.settings;
+    const favoritesByKey = new Map((Array.isArray(favorites) ? favorites : []).filter((artist) => artist?.key && artist?.name).map((artist) => [artist.key, artist]));
+    settings.manualArtists = settings.manualArtists.filter((artist) => favoritesByKey.has(artist.favoriteKey));
+    const manualArtists = settings.manualArtists.filter((artist) => artist.enabled).map((artist) => ({ ...artist, name: favoritesByKey.get(artist.favoriteKey).name }));
+    const manualFavoriteKeys = new Set(manualArtists.map((artist) => artist.favoriteKey));
+    const manualNameKeys = new Set(manualArtists.map((artist) => artistNameKey(artist.name)));
+    const candidates = [...favoritesByKey.values()].filter((artist) => !manualFavoriteKeys.has(artist.key) && !manualNameKeys.has(artistNameKey(artist.name)));
+    if (!manualArtists.length && !candidates.length) throw new NainTailError("ARTIST_POUNDING_ARTISTS_REQUIRED", "파운딩을 시작하려면 수동 작가를 등록하거나 Searching에서 작가를 Favorites에 먼저 등록해야 합니다.");
     for (const stat of database.artists) {
       const rangeMin = roundWeight(clamp(stat.rangeMin, settings.globalMinWeight, settings.globalMaxWeight, settings.globalMinWeight));
       const rangeMax = roundWeight(clamp(stat.rangeMax, settings.globalMinWeight, settings.globalMaxWeight, settings.globalMaxWeight));
       stat.rangeMin = Math.min(rangeMin, rangeMax);
       stat.rangeMax = Math.max(rangeMin, rangeMax);
     }
-    const minimum = Math.min(settings.minArtists, candidates.length);
-    const maximum = Math.min(settings.maxArtists, candidates.length);
+    const availableCount = manualArtists.length + candidates.length;
+    const minimum = Math.min(Math.max(settings.minArtists, manualArtists.length), availableCount);
+    const maximum = Math.min(Math.max(settings.maxArtists, manualArtists.length), availableCount);
     const selectedCount = randomInteger(minimum, maximum, this.random);
     const stats = new Map(database.artists.map((artist) => [artist.key, artist]));
     const pool = [...candidates];
-    const selected = [];
+    const selected = manualArtists.map((artist) => ({
+      favoriteKey: artist.favoriteKey,
+      name: artist.name,
+      weight: artist.weight,
+      fixed: true,
+    }));
 
     while (selected.length < selectedCount && pool.length) {
       const exploreSelection = this.random() < settings.explorationRate;
       const index = weightedPick(pool, (favorite) => {
         if (exploreSelection) return 1;
         const stat = stats.get(favorite.key);
-        const rating = stat ? ratingFor(stat) : 0;
-        const underexposed = 0.35 / Math.sqrt(Number(stat?.feedbackCount || 0) + 1);
+        const rating = stat ? adjustedRatingFor(stat) : 0;
+        const underexposed = 0.35 / Math.sqrt(effectiveExposureFor(stat) + 1);
         return Math.max(0.1, 1 + rating * 0.75 + underexposed);
       }, this.random);
       const [favorite] = pool.splice(index, 1);
       const stat = stats.get(favorite.key);
-      const exploreWeight = !stat || Number(stat.feedbackCount || 0) < MIN_ADAPTIVE_FEEDBACK || this.random() < settings.explorationRate;
+      const exploreWeight = !stat || effectiveExposureFor(stat) < MIN_ADAPTIVE_EXPOSURE || this.random() < settings.explorationRate;
       const rangeMin = exploreWeight ? settings.globalMinWeight : Number(stat.rangeMin ?? settings.globalMinWeight);
       const rangeMax = exploreWeight ? settings.globalMaxWeight : Number(stat.rangeMax ?? settings.globalMaxWeight);
-      selected.push({ favoriteKey: favorite.key, name: favorite.name, weight: randomWeight(rangeMin, rangeMax, this.random) });
+      selected.push({ favoriteKey: favorite.key, name: favorite.name, weight: randomWeight(rangeMin, rangeMax, this.random), fixed: false });
     }
 
     const now = new Date().toISOString();
@@ -536,6 +686,7 @@ class ArtistPreferenceStore {
             negativePoints: 0,
             exposurePoints: 0,
             feedbackCount: 0,
+            adjustedPoints: 0,
             rangeMin: database.settings.globalMinWeight,
             rangeMax: database.settings.globalMaxWeight,
             weightBuckets: [],
@@ -550,14 +701,18 @@ class ArtistPreferenceStore {
         const definition = bucketForWeight(trialArtist.weight);
         let bucket = stat.weightBuckets.find((item) => item.key === definition.key);
         if (!bucket) {
-          bucket = { ...definition, positivePoints: 0, negativePoints: 0, exposurePoints: 0, feedbackCount: 0 };
+          bucket = { ...definition, positivePoints: 0, negativePoints: 0, exposurePoints: 0, feedbackCount: 0, adjustedPoints: 0 };
           stat.weightBuckets.push(bucket);
         }
         bucket.exposurePoints += trialArtist.allocatedPoints;
         bucket.feedbackCount += 1;
         if (feedback === "like") bucket.positivePoints += trialArtist.allocatedPoints;
         else bucket.negativePoints += trialArtist.allocatedPoints;
-        adaptRange(stat, database.settings);
+      }
+      rebuildAdjustedScoring(database);
+      for (const trialArtist of trial.artists) {
+        const stat = database.artists.find((artist) => artist.key === trialArtist.favoriteKey);
+        if (stat) adaptRange(stat, database.settings);
       }
     }
     database.updatedAt = now;
@@ -579,14 +734,22 @@ module.exports = {
   ArtistPreferenceStore,
   DEFAULT_FINALIZE_SETTINGS,
   DEFAULT_SETTINGS,
-  MIN_ADAPTIVE_FEEDBACK,
+  BASELINE_WINDOW,
+  MIN_ADAPTIVE_EXPOSURE,
+  SCORING_VERSION,
   SCORE_POOL,
+  adjustedRatingFor,
   allocateScore,
+  confidenceRateFor,
+  confidenceScoreFor,
   databaseFromRound,
+  effectiveExposureFor,
   finalizeArtists,
   finalizeWeightForScore,
   normalizeFinalizeSettings,
+  normalizeManualArtists,
   normalizeSettings,
+  preferenceRateFor,
   ratingFor,
   roundArchive,
   scoreFor,

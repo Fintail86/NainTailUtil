@@ -54,13 +54,14 @@ const state = {
   artistFavorites: [],
   artistFavoriteDetails: [],
   artistFavoritePreviewResults: [],
+  artistFavoritePickerTarget: "mixing",
   artistPounding: null,
   artistPoundingRounds: [],
   artistFinalizeRoundId: null,
   artistFinalizeRound: null,
   artistFinalizeTopCount: 4,
   artistFinalizeMinScore: 0,
-  artistFinalizeMaxScore: 20000,
+  artistFinalizeMaxScore: 10000,
   artistFinalizeMinWeight: 0.4,
   artistFinalizeMaxWeight: 1.6,
   artistStudyCharacterOpenIds: new Set(),
@@ -281,11 +282,30 @@ function closeExamplePresetNameDialog() {
   $("#examplePresetNameDialog").close();
 }
 
-function openArtistExampleNameDialog() {
+function artistExampleRegistrationInput(source = "dev") {
+  if (source === "mixing") {
+    syncArtistMixingFromDom();
+    return {
+      ...state.artistStudy,
+      examplePrompt: state.artistStudy.basePrompt,
+      exampleNegativePrompt: state.artistStudy.negativePrompt,
+      artists: state.artistStudy.mixingArtists,
+    };
+  }
   syncArtistStudyFromDom();
+  return state.artistStudy;
+}
+
+function openArtistExampleNameDialog(event) {
+  const source = event?.currentTarget?.dataset.artistExampleSource || "dev";
+  artistExampleRegistrationInput(source);
   const dialog = $("#artistExampleNameDialog");
+  dialog.dataset.source = source;
   $("#artistExampleNameForm").reset();
   $("#artistExampleNameError").hidden = true;
+  $("#artistExampleNameDescription").textContent = source === "mixing"
+    ? "현재 Mixing Prompt·UC와 활성 작가 가중치를 작례 프리셋으로 저장한다."
+    : "현재 작례 Prompt·UC와 활성 작가 가중치를 작례 프리셋으로 저장한다.";
   dialog.showModal();
   $("#artistExampleNameInput").focus();
 }
@@ -946,13 +966,13 @@ function artistSearchRows(artists = []) {
 }
 
 function artistMixingRows(artists = []) {
-  if (!artists.length) return `<p class="muted">등록된 작가가 없다. ＋ 작가에서 Favorites 작가를 추가해.</p>`;
+  if (!artists.length) return `<p class="muted">등록된 작가가 없다. 저장 라운드에서 불러오거나 ＋ 작가에서 Favorites 작가를 추가해.</p>`;
   return artists.map((artist, index) => {
     const name = artist.name || `작가 ${index + 1}`;
     const weight = Number(artist.weight ?? 1).toFixed(2);
     return `<div class="artist-slider-row artist-mixing-row" data-mixing-artist-index="${index}">
-      <input class="artist-sort-number" data-mixing-artist-field="sort" type="number" min="1" max="${artists.length}" step="1" value="${index + 1}" aria-label="${esc(name)} 정렬 번호" title="번호를 바꾸면 해당 순서로 이동한다">
       <label class="checkbox artist-enabled" title="이 작가 사용"><input data-mixing-artist-field="enabled" type="checkbox" aria-label="${esc(name)} 사용" ${artist.enabled !== false ? "checked" : ""}></label>
+      <input class="artist-sort-number" data-mixing-artist-field="sort" type="number" min="1" max="${artists.length}" step="1" value="${index + 1}" aria-label="${esc(name)} 정렬 번호" title="번호를 바꾸면 해당 순서로 이동한다">
       <span class="artist-mixing-name" title="${esc(name)}">${esc(name)}</span>
       <div class="artist-weight-control"><input data-mixing-artist-field="weight" type="range" min="0" max="2" step="0.05" value="${esc(weight)}" aria-label="${esc(name)} 가중치"><output>${esc(weight)}</output></div>
       <div class="slot-tools"><button type="button" data-mixing-artist-action="up" title="위로 이동" aria-label="${esc(name)} 위로 이동">↑</button><button type="button" data-mixing-artist-action="down" title="아래로 이동" aria-label="${esc(name)} 아래로 이동">↓</button><button type="button" data-mixing-artist-action="delete" class="danger" title="삭제" aria-label="${esc(name)} 삭제">×</button></div>
@@ -960,13 +980,62 @@ function artistMixingRows(artists = []) {
   }).join("");
 }
 
+function artistPoundingNameKey(value) {
+  return String(value || "").replace(/^artist\s*:/iu, "").trim().toLocaleLowerCase("en-US");
+}
+
+function activeArtistPoundingManualArtists() {
+  const favoritesByKey = new Map(state.artistFavorites.map((artist) => [artist.key, artist]));
+  const seen = new Set();
+  return (state.artistPounding?.settings?.manualArtists || []).filter((artist) => {
+    const favorite = favoritesByKey.get(artist.favoriteKey);
+    if (artist.enabled === false || !favorite || seen.has(artist.favoriteKey)) return false;
+    seen.add(artist.favoriteKey);
+    return true;
+  });
+}
+
+function artistPoundingCandidateSummary() {
+  const manualArtists = activeArtistPoundingManualArtists();
+  const manualKeys = new Set(manualArtists.map((artist) => artist.favoriteKey));
+  const manualNames = new Set(manualArtists.map((artist) => artistPoundingNameKey(artist.name)));
+  const randomArtists = state.artistFavorites.filter((artist) => artist?.name && !manualKeys.has(artist.key) && !manualNames.has(artistPoundingNameKey(artist.name)));
+  return { manualArtists, randomArtists, total: manualArtists.length + randomArtists.length };
+}
+
+function artistPoundingManualRows(artists = []) {
+  if (!artists.length) return `<p class="muted">고정할 작가가 없다. ＋ 작가에서 Favorites 작가를 선택해.</p>`;
+  return artists.map((artist, index) => {
+    const name = artist.name || `수동 작가 ${index + 1}`;
+    const weight = normalizedPoundingWeight(artist.weight, 1).toFixed(2);
+    return `<div class="artist-pounding-manual-row" data-pounding-manual-index="${index}">
+      <label class="checkbox artist-enabled" title="이 수동 작가를 고정 사용"><input data-pounding-manual-field="enabled" type="checkbox" aria-label="${esc(name)} 고정 사용" ${artist.enabled !== false ? "checked" : ""}></label>
+      <span class="artist-pounding-manual-index" aria-label="등록 순서 ${index + 1}">${index + 1}</span>
+      <span class="artist-pounding-manual-name" title="${esc(name)}">${esc(name)}</span>
+      <button type="button" class="danger" data-pounding-manual-action="delete" title="삭제" aria-label="${esc(name)} 삭제">×</button>
+      <div class="artist-weight-control"><input data-pounding-manual-field="weight" type="range" min="0" max="2" step="0.05" value="${esc(weight)}" aria-label="${esc(name)} 고정 가중치"><output>${esc(weight)}</output></div>
+    </div>`;
+  }).join("");
+}
+
+function renderArtistPoundingManualArtists() {
+  const favoritesByKey = new Map(state.artistFavorites.map((artist) => [artist.key, artist]));
+  const current = state.artistPounding?.settings?.manualArtists || [];
+  const artists = current.filter((artist) => favoritesByKey.has(artist.favoriteKey)).map((artist) => ({ ...artist, name: favoritesByKey.get(artist.favoriteKey).name }));
+  if (state.artistPounding?.settings) state.artistPounding.settings.manualArtists = artists;
+  $("#artistPoundingManualArtists").innerHTML = artistPoundingManualRows(artists);
+}
+
 function renderArtistFavoritePicker() {
   const grid = $("#artistFavoritePickerGrid");
-  const selected = new Set((state.artistStudy?.mixingArtists || []).map((artist) => artist.favoriteKey));
+  const pounding = state.artistFavoritePickerTarget === "pounding";
+  const selectedArtists = pounding ? (state.artistPounding?.settings?.manualArtists || []) : (state.artistStudy?.mixingArtists || []);
+  const selected = new Set(selectedArtists.map((artist) => artist.favoriteKey));
+  $("#artistFavoritePickerDescription").textContent = pounding ? "Searching에서 좋아요로 저장한 작가만 표시한다. 카드를 누르면 파운딩 수동 작가 리스트에 추가된다." : "Searching에서 좋아요로 저장한 작가만 표시한다. 카드를 누르면 믹싱 리스트에 추가된다.";
   grid.innerHTML = state.artistFavorites.length ? state.artistFavorites.map((artist) => {
     const added = selected.has(artist.key);
     const preview = artist.preview?.file ? `<img src="${esc(productFileUrl(artist.preview.file))}" alt="${esc(artist.name)} 대표 이미지">` : `<span class="artist-favorite-picker-empty">이미지 없음</span>`;
-    return `<button type="button" class="artist-favorite-picker-card" data-add-favorite-key="${esc(artist.key)}" ${added ? "disabled" : ""}>${preview}<span><strong>${esc(artist.name)}</strong><small>${added ? "믹싱에 추가됨" : `${artist.imageCount}장 · 첫 이미지`}</small></span></button>`;
+    return `<button type="button" class="artist-favorite-picker-card" data-add-favorite-key="${esc(artist.key)}" title="${esc(artist.name)}${added ? " · 현재 목록에 추가됨" : ""}" ${added ? "disabled" : ""}>${preview}<span><strong>${esc(artist.name)}</strong></span></button>`;
   }).join("") : `<p class="muted">아직 좋아요로 저장한 작가가 없다. Searching 결과의 ☆ 버튼으로 먼저 등록해.</p>`;
 }
 
@@ -1010,13 +1079,14 @@ function renderArtistPoundingScores() {
   const preference = state.artistPounding || { settings: {}, artists: [], trials: [] };
   const rated = preference.trials.filter((trial) => trial.feedback).length;
   const pending = preference.trials.filter((trial) => !trial.feedback).length;
-  $("#artistPoundingFavoriteCount").textContent = `${state.artistFavorites.length}명 후보`;
+  const candidates = artistPoundingCandidateSummary();
+  $("#artistPoundingFavoriteCount").textContent = `${candidates.randomArtists.length}명 랜덤 · ${candidates.manualArtists.length}명 고정`;
   $("#artistPoundingTrialCount").textContent = `${rated}회 평가`;
   $("#artistPoundingPendingCount").textContent = `${pending}회 미평가`;
   const emptyRound = preference.trials.length === 0 && preference.artists.length === 0;
   $("#finishArtistPoundingRound").disabled = emptyRound;
   $("#resetArtistPoundingRound").disabled = emptyRound;
-  $("#artistPoundingScores").innerHTML = preference.artists.length ? preference.artists.map((artist) => `<article class="artist-pounding-score-card"><strong title="${esc(artist.name)}">${esc(artist.name)}</strong><output title="누적 순점수 · 좋아요 배분점수 - 싫어요 배분점수">${Number(artist.score) >= 0 ? "+" : ""}${esc(artist.score)}</output><small>${esc(artist.feedbackCount)}회 · 탐색 ${Number(artist.rangeMin).toFixed(2)}~${Number(artist.rangeMax).toFixed(2)} · 좋아요 ${esc(artist.positivePoints)} / 싫어요 ${esc(artist.negativePoints)}</small></article>`).join("") : `<p class="muted">평가 데이터가 없다. 첫 이미지를 생성하고 좋아요 또는 싫어요를 눌러.</p>`;
+  $("#artistPoundingScores").innerHTML = preference.artists.length ? preference.artists.map((artist) => `<article class="artist-pounding-score-card"><strong title="${esc(artist.name)}">${esc(artist.name)}</strong><output title="Wilson 95% 신뢰하한 · 0~10,000">${(Number(artist.preferenceRate || 0) * 100).toFixed(1)}%</output><small title="원시 누적점수 ${Number(artist.rawScore) >= 0 ? "+" : ""}${esc(artist.rawScore)} · 베이스라인 보정점수 ${Number(artist.adjustedPoints) >= 0 ? "+" : ""}${esc(artist.adjustedPoints)}">신뢰 ${(Number(artist.confidenceRate || 0) * 100).toFixed(1)}% · 유효 노출 ${Number(artist.effectiveExposure || 0).toFixed(2)} · 평가 ${esc(artist.feedbackCount)}회 · 탐색 ${Number(artist.rangeMin).toFixed(2)}~${Number(artist.rangeMax).toFixed(2)}</small></article>`).join("") : `<p class="muted">평가 데이터가 없다. 첫 이미지를 생성하고 좋아요 또는 싫어요를 눌러.</p>`;
 }
 
 function poundingResultsFromPreference(preference) {
@@ -1031,11 +1101,14 @@ function poundingResultsFromPreference(preference) {
 }
 
 function syncArtistPoundingCountInputs(form) {
+  const fixedCount = activeArtistPoundingManualArtists().length;
   const maxValue = Number(form.elements.poundingMaxArtists.value);
   const minValue = Number(form.elements.poundingMinArtists.value);
-  const maxArtists = Number.isFinite(maxValue) ? Math.max(1, Math.trunc(maxValue)) : 4;
-  const minArtists = Math.min(maxArtists, Number.isFinite(minValue) ? Math.max(1, Math.trunc(minValue)) : 2);
+  const maxArtists = Math.max(fixedCount, Number.isFinite(maxValue) ? Math.max(1, Math.trunc(maxValue)) : 4);
+  const minArtists = Math.min(maxArtists, Math.max(fixedCount, Number.isFinite(minValue) ? Math.max(1, Math.trunc(minValue)) : 2));
+  form.elements.poundingMaxArtists.min = String(Math.max(1, fixedCount));
   form.elements.poundingMaxArtists.value = maxArtists;
+  form.elements.poundingMinArtists.min = String(Math.max(1, fixedCount));
   form.elements.poundingMinArtists.max = String(maxArtists);
   form.elements.poundingMinArtists.value = minArtists;
   return { minArtists, maxArtists };
@@ -1056,7 +1129,7 @@ function syncArtistPoundingWeightInputs(form, writeFields = false) {
     form.elements.poundingMinWeight.value = minWeight.toFixed(2);
     form.elements.poundingMaxWeight.value = maxWeight.toFixed(2);
   }
-  $("#artistPoundingWeightRangeSummary").textContent = `사용자 범위 ${minWeight.toFixed(2)}~${maxWeight.toFixed(2)} · 기본 탐색률 20% · 평가 3회부터 범위 조정`;
+  $("#artistPoundingWeightRangeSummary").textContent = `사용자 범위 ${minWeight.toFixed(2)}~${maxWeight.toFixed(2)} · 기본 탐색률 20% · 유효 노출 3.0부터 범위 조정`;
   return { globalMinWeight: minWeight, globalMaxWeight: maxWeight };
 }
 
@@ -1066,14 +1139,15 @@ function normalizedFinalizeScore(value, fallback) {
 }
 
 function renderArtistFinalizeRangeSummary() {
-  $("#artistFinalizeScoreRangeSummary").textContent = `${state.artistFinalizeMinScore.toLocaleString("ko-KR")}점 → ${state.artistFinalizeMinWeight.toFixed(2)} · 10,000점 → 1.00 · ${state.artistFinalizeMaxScore.toLocaleString("ko-KR")}점 → ${state.artistFinalizeMaxWeight.toFixed(2)}`;
+  $("#artistFinalizeScoreRangeSummary").textContent = `${state.artistFinalizeMinScore.toLocaleString("ko-KR")}점 → ${state.artistFinalizeMinWeight.toFixed(2)} · ${state.artistFinalizeMaxScore.toLocaleString("ko-KR")}점 → ${state.artistFinalizeMaxWeight.toFixed(2)}`;
 }
 
 function syncArtistFinalizeScoreInputs(form, writeFields = false) {
-  const minScore = Math.min(9999, normalizedFinalizeScore(form.elements.finalizeMinScore.value, 0));
-  const maxScore = Math.max(10001, normalizedFinalizeScore(form.elements.finalizeMaxScore.value, 20000));
+  const maxScore = normalizedFinalizeScore(form.elements.finalizeMaxScore.value, 10000);
+  const minScore = Math.min(maxScore - 1, normalizedFinalizeScore(form.elements.finalizeMinScore.value, 0));
   if (writeFields) {
     form.elements.finalizeMinScore.value = minScore;
+    form.elements.finalizeMinScore.max = String(maxScore - 1);
     form.elements.finalizeMaxScore.value = maxScore;
   }
   state.artistFinalizeMinScore = minScore;
@@ -1083,9 +1157,10 @@ function syncArtistFinalizeScoreInputs(form, writeFields = false) {
 }
 
 function syncArtistFinalizeWeightInputs(form, writeFields = false) {
-  const minWeight = Math.min(1, normalizedPoundingWeight(form.elements.finalizeMinWeight.value, 0.4));
-  const maxWeight = Math.max(1, normalizedPoundingWeight(form.elements.finalizeMaxWeight.value, 1.6));
+  const maxWeight = normalizedPoundingWeight(form.elements.finalizeMaxWeight.value, 1.6);
+  const minWeight = Math.min(maxWeight, normalizedPoundingWeight(form.elements.finalizeMinWeight.value, 0.4));
   if (writeFields) {
+    form.elements.finalizeMinWeight.max = maxWeight.toFixed(2);
     form.elements.finalizeMinWeight.value = minWeight.toFixed(2);
     form.elements.finalizeMaxWeight.value = maxWeight.toFixed(2);
   }
@@ -1121,13 +1196,25 @@ function renderArtistFinalizeRounds() {
   $("#artistFinalizeRoundCount").textContent = `${state.artistPoundingRounds.length}개`;
   $("#artistFinalizeRounds").innerHTML = state.artistPoundingRounds.length ? state.artistPoundingRounds.map((round) => {
     const selected = round.id === state.artistFinalizeRoundId;
-    return `<label class="artist-finalize-round-card${selected ? " active" : ""}${round.available ? "" : " unavailable"}"><input type="radio" name="finalizeRound" value="${esc(round.id)}" ${selected ? "checked" : ""} ${round.available ? "" : "disabled"}><span><strong title="${esc(round.fileName)}">${esc(round.fileName)}</strong><small>${esc(round.artistCount)}명 · ${esc(round.trialCount)}회 · 최고점 ${Number(round.topScore) >= 0 ? "+" : ""}${esc(round.topScore)}</small></span></label>`;
+    const topScoreLabel = round.rankingMetric === "wilson-lower-bound" ? "최고 신뢰점수" : "기존 최고 누적점수";
+    return `<label class="artist-finalize-round-card${selected ? " active" : ""}${round.available ? "" : " unavailable"}"><input type="radio" name="finalizeRound" value="${esc(round.id)}" ${selected ? "checked" : ""} ${round.available ? "" : "disabled"}><span><strong title="${esc(round.fileName)}">${esc(round.fileName)}</strong><small>${esc(round.artistCount)}명 · ${esc(round.trialCount)}회 · ${topScoreLabel} ${esc(round.topScore)}</small></span></label>`;
   }).join("") : `<p class="muted">저장된 파운딩 라운드가 없다. 파운딩에서 라운드 종료를 먼저 실행해.</p>`;
+}
+
+function renderArtistMixingRounds() {
+  const selectedRoundId = state.artistStudy?.mixingRoundId || "";
+  $("#artistMixingRoundCount").textContent = `${state.artistPoundingRounds.length}개`;
+  $("#artistMixingRounds").innerHTML = state.artistPoundingRounds.length ? state.artistPoundingRounds.map((round) => {
+    const selected = round.id === selectedRoundId;
+    const topScoreLabel = round.rankingMetric === "wilson-lower-bound" ? "최고 신뢰점수" : "기존 최고 누적점수";
+    return `<label class="artist-finalize-round-card${selected ? " active" : ""}${round.available ? "" : " unavailable"}"><input type="radio" name="mixingRound" value="${esc(round.id)}" ${selected ? "checked" : ""} ${round.available ? "" : "disabled"}><span><strong title="${esc(round.fileName)}">${esc(round.fileName)}</strong><small>${esc(round.artistCount)}명 · ${esc(round.trialCount)}회 · ${topScoreLabel} ${esc(round.topScore)}</small></span></label>`;
+  }).join("") : `<p class="muted">저장된 파운딩 라운드가 없다. Pounding에서 라운드 종료를 먼저 실행해.</p>`;
+  updateArtistMixingRoundButton();
 }
 
 function renderArtistFinalizeSelection() {
   const artists = state.artistFinalizeRound?.artists || [];
-  $("#artistFinalizeSelection").innerHTML = artists.length ? artists.map((artist) => `<article class="artist-finalize-artist-card"><strong>${esc(artist.rank)}</strong><span><b>${esc(artist.name)}</b><small>점수 ${Number(artist.score) >= 0 ? "+" : ""}${esc(artist.score)} · 평가 ${esc(artist.feedbackCount)}회</small></span><output>${Number(artist.weight).toFixed(2)}</output></article>`).join("") : `<p class="muted">라운드를 선택하면 최종 작가와 계산 가중치가 표시된다.</p>`;
+  $("#artistFinalizeSelection").innerHTML = artists.length ? artists.map((artist) => `<article class="artist-finalize-artist-card"><strong>${esc(artist.rank)}</strong><span><b>${esc(artist.name)}</b><small>선호 ${(Number(artist.preferenceRate || 0) * 100).toFixed(1)}% · 신뢰 ${(Number(artist.confidenceRate || 0) * 100).toFixed(1)}% · 유효 노출 ${Number(artist.effectiveExposure || 0).toFixed(2)}</small></span><output title="신뢰점수 ${esc(artist.score)}">${Number(artist.weight).toFixed(2)}</output></article>`).join("") : `<p class="muted">라운드를 선택하면 최종 작가와 계산 가중치가 표시된다.</p>`;
 }
 
 function renderArtistFinalizeResults() {
@@ -1194,6 +1281,7 @@ function renderArtistStudy() {
   const mixingForm = $("#artistMixingForm");
   mixingForm.elements.mixingBasePrompt.value = state.artistStudy.basePrompt || "";
   mixingForm.elements.mixingNegativePrompt.value = state.artistStudy.negativePrompt || "";
+  mixingForm.elements.mixingTopCount.value = state.artistStudy.mixingTopCount ?? 4;
   renderArtistRepeat(mixingForm);
   $("[data-settings-scope=artist-mixing]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "mixing");
   syncSelectValues(mixingForm, state.artistStudy.settings || {}, "mixing");
@@ -1201,6 +1289,7 @@ function renderArtistStudy() {
   renderArtistMixingCharacters();
   renderArtistMixingResults();
   renderArtistFavoritePicker();
+  renderArtistMixingRounds();
   const poundingForm = $("#artistPoundingForm");
   poundingForm.elements.poundingBasePrompt.value = state.artistStudy.basePrompt || "";
   poundingForm.elements.poundingNegativePrompt.value = state.artistStudy.negativePrompt || "";
@@ -1209,6 +1298,7 @@ function renderArtistStudy() {
   poundingForm.elements.poundingMaxArtists.value = state.artistPounding?.settings?.maxArtists ?? 4;
   poundingForm.elements.poundingMinWeight.value = Number(state.artistPounding?.settings?.globalMinWeight ?? 0.4).toFixed(2);
   poundingForm.elements.poundingMaxWeight.value = Number(state.artistPounding?.settings?.globalMaxWeight ?? 1.6).toFixed(2);
+  renderArtistPoundingManualArtists();
   syncArtistPoundingCountInputs(poundingForm);
   syncArtistPoundingWeightInputs(poundingForm, true);
   $("[data-settings-scope=artist-pounding]").innerHTML = settingsHtml(state.artistStudy.settings || {}, "pounding");
@@ -1286,6 +1376,7 @@ function syncArtistMixingFromDom() {
   state.artistStudy.negativePrompt = form.elements.mixingNegativePrompt.value;
   syncArtistRepeat(form);
   state.artistStudy.settings = readSettings(form, "mixing");
+  state.artistStudy.mixingTopCount = Math.max(1, Math.trunc(Number(form.elements.mixingTopCount.value) || 4));
   syncArtistMixingCharactersFromDom();
   $$('[data-mixing-artist-index]', form).forEach((row) => {
     const artist = state.artistStudy.mixingArtists[Number(row.dataset.mixingArtistIndex)];
@@ -1302,6 +1393,14 @@ function syncArtistPoundingFromDom() {
   state.artistStudy.negativePrompt = form.elements.poundingNegativePrompt.value;
   syncArtistRepeat(form);
   state.artistStudy.settings = readSettings(form, "pounding");
+  const manualArtists = [...$("#artistPoundingManualArtists").querySelectorAll("[data-pounding-manual-index]")].map((row) => ({
+    id: state.artistPounding.settings.manualArtists?.[Number(row.dataset.poundingManualIndex)]?.id || id("pounding_manual_artist"),
+    favoriteKey: state.artistPounding.settings.manualArtists?.[Number(row.dataset.poundingManualIndex)]?.favoriteKey || "",
+    name: state.artistPounding.settings.manualArtists?.[Number(row.dataset.poundingManualIndex)]?.name || "",
+    enabled: $("[data-pounding-manual-field=enabled]", row).checked,
+    weight: normalizedPoundingWeight($("[data-pounding-manual-field=weight]", row).value, 1),
+  }));
+  state.artistPounding.settings = { ...state.artistPounding.settings, manualArtists };
   const artistCounts = syncArtistPoundingCountInputs(form);
   const weightRange = syncArtistPoundingWeightInputs(form);
   state.artistPounding.settings = {
@@ -2236,13 +2335,22 @@ function updateArtistMixingButtons() {
   const summary = artistRepeatSummary($("#artistMixingForm"), 1, "#artistMixingGenerationTotal");
   const result = state.costs.artistMixing?.generationCount === summary.totalTasks ? state.costs.artistMixing : null;
   $("#artistMixingActiveCount").textContent = `${count}명 활성`;
-  for (const [selector, label] of [["#generateArtistMixing", "현재 조합 생성"], ["#randomGenerateArtistMixing", "랜덤 생성"]]) {
-    const button = $(selector);
-    if (!button) continue;
-    button.textContent = `${label} · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
-    button.disabled = count < 1 || !summary.valid || Boolean(result?.overLimit);
-    button.title = count < 1 ? "Favorites에서 추가한 활성 작가가 없다." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
-  }
+  const button = $("#generateArtistMixing");
+  if (!button) return;
+  button.textContent = `현재 조합 생성 · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
+  button.disabled = count < 1 || !summary.valid || Boolean(result?.overLimit);
+  button.title = count < 1 ? "저장 라운드 또는 Favorites에서 추가한 활성 작가가 없다." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
+}
+
+function updateArtistMixingRoundButton() {
+  const button = $("#loadArtistMixingRoundArtists");
+  if (!button) return;
+  const roundId = state.artistStudy?.mixingRoundId || "";
+  const round = state.artistPoundingRounds.find((item) => item.id === roundId && item.available);
+  const topCount = Math.max(1, Math.trunc(Number(state.artistStudy?.mixingTopCount) || 4));
+  button.disabled = !round;
+  button.textContent = round ? `상위 ${Math.min(topCount, Number(round.artistCount) || topCount)}명 불러오기` : "상위 작가 불러오기";
+  button.title = round ? "현재 미세 조정 작가 목록을 선택 라운드의 계산 결과로 교체한다." : "사용 가능한 저장 라운드를 선택해.";
 }
 
 function updateArtistPoundingButton() {
@@ -2250,9 +2358,10 @@ function updateArtistPoundingButton() {
   const result = state.costs.artistPounding?.generationCount === summary.totalTasks ? state.costs.artistPounding : null;
   const button = $("#generateArtistPounding");
   if (!button) return;
-  button.textContent = `랜덤 조합 생성 · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
-  button.disabled = state.artistFavorites.length < 1 || !summary.valid || Boolean(result?.overLimit);
-  button.title = state.artistFavorites.length < 1 ? "Searching에서 좋아요로 등록한 Favorites 작가가 없다." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
+  const candidates = artistPoundingCandidateSummary();
+  button.textContent = `파운딩 조합 생성 · ${summary.totalTasks || 0}장 · ${costLabel(result)}`;
+  button.disabled = candidates.total < 1 || !summary.valid || Boolean(result?.overLimit);
+  button.title = candidates.total < 1 ? "수동 작가를 등록하거나 Searching에서 Favorites 작가를 먼저 등록해." : !summary.valid ? `배치 × 큐는 최대 ${MAX_LOCAL_TASKS}장이어야 한다.` : result?.overLimit ? `한 장 예상 비용 ${result.maximumPerImageCost} Anlas로 NAI 제한 140을 초과한다.` : "";
 }
 
 function updateArtistFinalizeButton() {
@@ -2317,6 +2426,7 @@ async function confirmAnlasUse(result) {
 
 async function refreshArtistStudy() {
   [state.artistStudy, state.artistFavorites, state.artistFavoriteDetails, state.artistPounding, state.artistPoundingRounds] = await Promise.all([call(api.getArtistStudy()), call(api.listArtistFavorites()), call(api.listArtistFavoriteDetails()), call(api.getArtistPounding()), call(api.listArtistPoundingRounds())]);
+  if (!state.artistPoundingRounds.some((round) => round.id === state.artistStudy.mixingRoundId && round.available)) state.artistStudy.mixingRoundId = "";
   if (!state.artistPoundingRounds.some((round) => round.id === state.artistFinalizeRoundId && round.available)) {
     state.artistFinalizeRoundId = state.artistPoundingRounds.find((round) => round.available)?.id || null;
   }
@@ -2334,7 +2444,7 @@ async function refreshArtistFavorites(options = {}) {
   state.artistSearchResults.forEach((result) => { result.favoriteSaved = savedResultIds.has(result.id); });
   if (options.pruneMixing && state.artistStudy) {
     const favoriteKeys = new Set(state.artistFavorites.map((artist) => artist.key));
-    const remaining = state.artistStudy.mixingArtists.filter((artist) => favoriteKeys.has(artist.favoriteKey));
+    const remaining = state.artistStudy.mixingArtists.filter((artist) => artist.sourceRoundId || favoriteKeys.has(artist.favoriteKey));
     if (remaining.length !== state.artistStudy.mixingArtists.length) {
       state.artistStudy.mixingArtists = remaining;
       markDirty("artist-study");
@@ -2357,6 +2467,7 @@ async function refreshArtistFinalizeRounds(preferredRoundId = state.artistFinali
     : null;
   renderArtistFinalizeRounds();
   renderArtistFinalizeSelection();
+  renderArtistMixingRounds();
   updateArtistFinalizeButton();
 }
 
@@ -2946,12 +3057,14 @@ $("#clearArtistFavorites").addEventListener("click", async (event) => {
 $("#artistMixingForm").addEventListener("input", (event) => {
   syncArtistMixingFromDom();
   if (event.target.matches('[data-mixing-artist-field="weight"]')) event.target.closest(".artist-weight-control")?.querySelector("output")?.replaceChildren(Number(event.target.value).toFixed(2));
+  if (event.target.name === "mixingTopCount") updateArtistMixingRoundButton();
   markDirty("artist-study");
   invalidateCost("artistMixing");
   scheduleCostEstimate("artistMixing");
 });
 $("#artistMixingForm").addEventListener("change", () => {
   syncArtistMixingFromDom();
+  updateArtistMixingRoundButton();
   markDirty("artist-study");
   invalidateCost("artistMixing");
   scheduleCostEstimate("artistMixing");
@@ -2966,19 +3079,6 @@ $("#artistMixingForm").addEventListener("submit", async (event) => {
   renderQueue();
   notify(`현재 작가 조합 ${result.tasks}장을 큐에 추가했다.`);
 });
-$("#randomGenerateArtistMixing").addEventListener("click", async (event) => {
-  syncArtistMixingFromDom();
-  state.artistStudy = await action(() => call(api.randomizeArtistMixing(state.artistStudy)), null, event.currentTarget);
-  state.artistStudy = await call(api.saveArtistStudy(state.artistStudy));
-  markDirty("artist-study", false);
-  renderArtistStudy();
-  const estimate = await estimateArtistMixing();
-  if (!(await confirmAnlasUse(estimate))) return;
-  const result = await action(() => call(api.generateArtistMixing(state.artistStudy)), null, $("#randomGenerateArtistMixing"));
-  state.queue = result.queue;
-  renderQueue();
-  notify(`활성 작가 가중치를 랜덤화해 ${result.tasks}장을 큐에 추가했다.`);
-});
 $("#estimateArtistMixing").addEventListener("click", (event) => estimateArtistMixing(event.currentTarget));
 $("#saveArtistMixing").addEventListener("click", (event) => saveCurrentArtistStudy(event.currentTarget));
 $("#clearArtistMixingResults").addEventListener("click", () => {
@@ -2986,16 +3086,59 @@ $("#clearArtistMixingResults").addEventListener("click", () => {
   renderArtistMixingResults();
   notify("Mixing 결과 카드 표시를 비웠다. 생성 파일과 Favorites는 유지된다.");
 });
-$("#openArtistFavoritePicker").addEventListener("click", async () => {
-  state.artistFavorites = await action(() => call(api.listArtistFavorites()));
+async function openArtistFavoritePicker(target) {
+  const favorites = await action(() => call(api.listArtistFavorites()));
+  if (!favorites) return;
+  state.artistFavorites = favorites;
+  state.artistFavoritePickerTarget = target;
   renderArtistFavoritePicker();
   $("#artistFavoritePickerDialog").showModal();
+}
+$("#openArtistFavoritePicker").addEventListener("click", () => openArtistFavoritePicker("mixing"));
+$("#artistMixingRounds").addEventListener("change", (event) => {
+  if (!event.target.matches('input[name="mixingRound"]') || !state.artistStudy) return;
+  state.artistStudy.mixingRoundId = event.target.value;
+  markDirty("artist-study");
+  renderArtistMixingRounds();
+});
+$("#loadArtistMixingRoundArtists").addEventListener("click", async (event) => {
+  syncArtistMixingFromDom();
+  const roundId = state.artistStudy?.mixingRoundId || "";
+  if (!roundId) return;
+  const topCount = Math.max(1, Math.trunc(Number(state.artistStudy.mixingTopCount) || 4));
+  const detail = await action(() => call(api.getArtistPoundingRound(roundId, topCount, artistFinalizeSettings())), null, event.currentTarget);
+  if (!detail) return;
+  state.artistStudy.mixingArtists = detail.artists.map((artist) => ({
+    id: id("artist"),
+    favoriteKey: artist.favoriteKey || "",
+    sourceRoundId: detail.round.id,
+    name: artist.name,
+    enabled: true,
+    weight: artist.weight,
+  }));
+  markDirty("artist-study");
+  renderArtistStudy();
+  invalidateCost("artistMixing");
+  scheduleCostEstimate("artistMixing");
+  notify(`${detail.round.fileName}에서 상위 ${detail.artists.length}명을 미세 조정 목록으로 불러왔다.`);
 });
 $("#artistFavoritePickerGrid").addEventListener("click", (event) => {
   const card = event.target.closest("[data-add-favorite-key]");
   if (!card || !state.artistStudy) return;
   const favorite = state.artistFavorites.find((artist) => artist.key === card.dataset.addFavoriteKey);
-  if (!favorite || state.artistStudy.mixingArtists.some((artist) => artist.favoriteKey === favorite.key)) return;
+  if (!favorite) return;
+  if (state.artistFavoritePickerTarget === "pounding") {
+    const manualArtists = state.artistPounding?.settings?.manualArtists || [];
+    if (manualArtists.some((artist) => artist.favoriteKey === favorite.key)) return;
+    manualArtists.push({ id: id("pounding_manual_artist"), favoriteKey: favorite.key, name: favorite.name, enabled: true, weight: 1 });
+    state.artistPounding.settings.manualArtists = manualArtists;
+    renderArtistStudy();
+    invalidateCost("artistPounding");
+    scheduleCostEstimate("artistPounding");
+    notify(`${favorite.name}을 파운딩 수동 작가 리스트에 추가했다.`);
+    return;
+  }
+  if (state.artistStudy.mixingArtists.some((artist) => artist.favoriteKey === favorite.key)) return;
   state.artistStudy.mixingArtists.push({ id: id("artist"), favoriteKey: favorite.key, name: favorite.name, enabled: true, weight: 1 });
   markDirty("artist-study");
   renderArtistStudy();
@@ -3081,18 +3224,42 @@ $("#sortArtistMixingArtists").addEventListener("click", () => {
   markDirty("artist-study");
   renderArtistStudy();
 });
+$("#reverseSortArtistMixingArtists").addEventListener("click", () => {
+  syncArtistMixingFromDom();
+  state.artistStudy.mixingArtists.sort((left, right) => Number(left.enabled !== false) - Number(right.enabled !== false) || Number(left.weight) - Number(right.weight));
+  markDirty("artist-study");
+  renderArtistStudy();
+});
 $("#artistPoundingForm").addEventListener("input", (event) => {
+  if (event.target.matches("[data-pounding-manual-field=weight]")) {
+    const row = event.target.closest("[data-pounding-manual-index]");
+    $("output", row).textContent = normalizedPoundingWeight(event.target.value, 1).toFixed(2);
+  }
   syncArtistPoundingFromDom();
-  if (!["poundingMinArtists", "poundingMaxArtists", "poundingMinWeight", "poundingMaxWeight"].includes(event.target.name)) markDirty("artist-study");
+  const poundingSettingField = ["poundingMinArtists", "poundingMaxArtists", "poundingMinWeight", "poundingMaxWeight"].includes(event.target.name) || event.target.matches("[data-pounding-manual-field]");
+  if (!poundingSettingField) markDirty("artist-study");
   invalidateCost("artistPounding");
   scheduleCostEstimate("artistPounding");
+});
+$("#addArtistPoundingManualArtist").addEventListener("click", () => openArtistFavoritePicker("pounding"));
+$("#artistPoundingManualArtists").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-pounding-manual-action=delete]");
+  if (!button) return;
+  syncArtistPoundingFromDom();
+  const row = button.closest("[data-pounding-manual-index]");
+  state.artistPounding.settings.manualArtists.splice(Number(row.dataset.poundingManualIndex), 1);
+  renderArtistPoundingManualArtists();
+  syncArtistPoundingCountInputs($("#artistPoundingForm"));
+  renderArtistPoundingScores();
+  updateArtistPoundingButton();
 });
 $("#artistPoundingForm").addEventListener("change", (event) => {
   syncArtistPoundingFromDom();
   if (["poundingMinWeight", "poundingMaxWeight"].includes(event.target.name)) {
     Object.assign(state.artistPounding.settings, syncArtistPoundingWeightInputs(event.currentTarget, true));
   }
-  if (!["poundingMinArtists", "poundingMaxArtists", "poundingMinWeight", "poundingMaxWeight"].includes(event.target.name)) markDirty("artist-study");
+  const poundingSettingField = ["poundingMinArtists", "poundingMaxArtists", "poundingMinWeight", "poundingMaxWeight"].includes(event.target.name) || event.target.matches("[data-pounding-manual-field]");
+  if (!poundingSettingField) markDirty("artist-study");
   invalidateCost("artistPounding");
   scheduleCostEstimate("artistPounding");
 });
@@ -3107,7 +3274,7 @@ $("#artistPoundingForm").addEventListener("submit", async (event) => {
   state.queue = result.queue;
   renderArtistPoundingScores();
   renderQueue();
-  notify(`${result.tasks}개의 독립 랜덤 작가 조합을 큐에 추가했다.`);
+  notify(`${result.tasks}개의 수동 고정 + 랜덤 작가 조합을 큐에 추가했다.`);
 });
 $("#estimateArtistPounding").addEventListener("click", (event) => estimateArtistPounding(event.currentTarget));
 $("#resetArtistPoundingRound").addEventListener("click", async (event) => {
@@ -3488,6 +3655,7 @@ $("#view-artist-study").addEventListener("keydown", (event) => {
 });
 $("#saveArtistStudy").addEventListener("click", (event) => saveCurrentArtistStudy(event.currentTarget));
 $("#registerArtistExample").addEventListener("click", openArtistExampleNameDialog);
+$("#registerArtistMixingExample").addEventListener("click", openArtistExampleNameDialog);
 $("#artistExampleNameForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const dialog = $("#artistExampleNameDialog");
@@ -3500,8 +3668,8 @@ $("#artistExampleNameForm").addEventListener("submit", async (event) => {
   $("#artistExampleNameCancel").disabled = true;
   error.hidden = true;
   try {
-    syncArtistStudyFromDom();
-    const saved = await action(() => call(api.saveArtistStudyExample(state.artistStudy, name)), null, event.submitter);
+    const registrationInput = artistExampleRegistrationInput(dialog.dataset.source || "dev");
+    const saved = await action(() => call(api.saveArtistStudyExample(registrationInput, name)), null, event.submitter);
     await refreshLibraries();
     dialog.close();
     notify(`작례 프리셋으로 등록했다: ${saved.name}`);
