@@ -587,10 +587,86 @@ def retain_instance_components(mask: Image.Image, box: tuple[float, float, float
     if not np.any(overlap):
         # An unreliable/moved anchor must not silently erase all censorship.
         return mask
-    keep = (overlap > 0) & (overlap * 2 >= areas)
-    keep[int(np.argmax(overlap))] = True
+    primary = int(np.argmax(overlap))
+    # Tiny low-opacity islands can become large opaque blobs after dilation.
+    # Measure effective coverage, so a faint halo is not treated as a solid part.
+    coverage = np.bincount(labels.ravel(), weights=values.ravel() / 255.0, minlength=label_count)
+    keep = (overlap > 0) & (overlap * 2 >= areas) & (coverage >= coverage[primary] * 0.001)
+    keep[primary] = True
     keep[0] = False
     return Image.fromarray(np.where(keep[labels], values, 0).astype(np.uint8))
+
+
+def remove_soft_bridged_components(mask: Image.Image, box: tuple[float, float, float, float]) -> Image.Image:
+    """Do not join a rejected background island to the body via a faint edge.
+
+    Classify solid cores first, then assign soft pixels by distance through the
+    existing foreground. This preserves soft contours without growing the mask
+    or cutting a valid narrow solid extension. Equidistant pixels favor coverage.
+    """
+    values = np.asarray(mask, dtype=np.uint8)
+    # Use an opaque core, not the 50% edge midpoint: small CPU/CUDA differences
+    # around that midpoint can otherwise join the same faint bridge again.
+    solid = np.where(values >= 192, values, 0).astype(np.uint8)
+    kept = np.asarray(retain_instance_components(Image.fromarray(solid), box)) > 0
+    rejected = (solid > 0) & ~kept
+    if not np.any(rejected) or not np.any(kept):
+        return mask
+    frontier = np.where(kept, 1, np.where(rejected, 2, 0)).astype(np.uint8)
+    pending = (values > 0) & (frontier == 0)
+    removed = rejected.copy()
+    height, width = values.shape
+    while np.any(pending):
+        padded = np.pad(frontier, 1)
+        neighbors = np.bitwise_or.reduce([
+            padded[y:y + height, x:x + width] for y in range(3) for x in range(3)
+        ])
+        reached = pending & (neighbors > 0)
+        if not np.any(reached):
+            break
+        frontier = np.where(reached, np.where(neighbors & 1, 1, 2), 0).astype(np.uint8)
+        removed |= frontier == 2
+        pending &= ~reached
+    return Image.fromarray(np.where(removed, 0, values).astype(np.uint8))
+
+
+def retain_aligned_shape_holes(core: np.ndarray, background: np.ndarray,
+                               holes: np.ndarray, margin: int) -> np.ndarray:
+    """Weak connected outlines alone are not enough evidence for a missing part.
+
+    Use the dominant retained core's orientation and width to reject lateral
+    background loops. An elongated core may have a missing end along its long
+    axis; a round core does not justify that extrapolation. Keep whole accepted
+    holes rather than cropping them into artificial straight-edged fragments.
+    """
+    core_labels = label_mask_components(core >= 128)
+    areas = np.bincount(core_labels.ravel())
+    areas[0] = 0
+    if not np.any(areas):
+        return np.zeros_like(holes)
+    ys, xs = np.nonzero(core_labels == int(np.argmax(areas)))
+    if len(xs) < 3:
+        return np.zeros_like(holes)
+    # Bound the covariance working set for large source images.
+    stride = max(1, len(xs) // 50000)
+    points = np.column_stack((xs[::stride], ys[::stride])).astype(np.float64)
+    center = points.mean(axis=0)
+    eigenvalues, axes = np.linalg.eigh(np.cov(points, rowvar=False))
+    centered = points - center
+    across = centered @ axes[:, 0]
+    along = centered @ axes[:, 1]
+    hole_y, hole_x = np.nonzero(holes)
+    offsets = np.column_stack((hole_x, hole_y)) - center
+    hole_across = offsets @ axes[:, 0]
+    aligned = (hole_across >= across.min() - margin) & (hole_across <= across.max() + margin)
+    if eigenvalues[1] < 2.0 * eigenvalues[0]:
+        hole_along = offsets @ axes[:, 1]
+        aligned &= (hole_along >= along.min() - margin) & (hole_along <= along.max() + margin)
+    ids = background[hole_y, hole_x]
+    total = np.bincount(ids, minlength=int(background.max()) + 1)
+    supported = np.bincount(ids[aligned], minlength=len(total))
+    keep = (total > 0) & (supported >= total * 0.9)
+    return holes & keep[background]
 
 
 def recover_shape_holes(raw_mask: Image.Image, core_mask: Image.Image, threshold: float) -> Image.Image:
@@ -599,8 +675,9 @@ def recover_shape_holes(raw_mask: Image.Image, core_mask: Image.Image, threshold
     Some model masks retain a faint outline but assign near-zero probability to
     its interior. Lowering the ordinary threshold alone cannot fill that hole.
     A low-confidence contour is evidence only when connected to the retained core
-    and closed (allowing the same small gaps as close_mask_notches). Recover only
-    the hole and its nearby contour, not the entire low-threshold component.
+    and closed (allowing the same small gaps as close_mask_notches), and aligned
+    with the retained body's width and direction. Recover only the hole and its
+    nearby contour, not the entire low-threshold component.
     """
     core = np.asarray(core_mask, dtype=np.uint8)
     if not np.any(core >= 128):
@@ -623,6 +700,10 @@ def recover_shape_holes(raw_mask: Image.Image, core_mask: Image.Image, threshold
     holes = enclosed[background]
     if not np.any(holes):
         return core_mask
+    margin = 2 * int(clamp(round(min(raw_mask.size) * 0.02), 1, 6))
+    holes = retain_aligned_shape_holes(core, background, holes, margin)
+    if not np.any(holes):
+        return core_mask
 
     height, width = core.shape
     ys, xs = np.nonzero(holes)
@@ -636,7 +717,6 @@ def recover_shape_holes(raw_mask: Image.Image, core_mask: Image.Image, threshold
     np.minimum.at(tops, ids, ys)
     np.maximum.at(bottoms, ids, ys)
     # Include the weak rim around each hole, bounded by the supported contour.
-    margin = 2 * int(clamp(round(min(raw_mask.size) * 0.02), 1, 6))
     filled = support | holes
     result = core.copy()
     for label in np.unique(ids):
@@ -682,12 +762,14 @@ def apply_shape_fill(
     )
     anchor = detection.get("sourceBox")
     if isinstance(anchor, dict):
-        source_mask = retain_instance_components(source_mask, (
+        anchor_box = (
             float(anchor["x"]) - base_left,
             float(anchor["y"]) - base_top,
             float(anchor["x"]) + float(anchor["width"]) - base_left,
             float(anchor["y"]) + float(anchor["height"]) - base_top,
-        ))
+        )
+        source_mask = retain_instance_components(source_mask, anchor_box)
+        source_mask = remove_soft_bridged_components(source_mask, anchor_box)
     source_mask = recover_shape_holes(raw_mask, source_mask, float(options.get("maskThreshold", 0.65)))
     source_mask = close_mask_notches(source_mask)
 

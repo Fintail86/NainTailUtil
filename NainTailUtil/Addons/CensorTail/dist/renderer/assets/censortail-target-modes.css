@@ -141,5 +141,23 @@
   white-space: nowrap;
 }
 .censor-common-popup-body { padding: 4px 14px 14px; overflow-y: auto; min-height: 0; }
+.censor-common-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-top: 1px solid #453653;
+}
+.censor-common-popup-actions button {
+  min-width: 70px;
+  padding: 7px 12px;
+  border: 1px solid #655175;
+  border-radius: 7px;
+  color: #e6dff2;
+  background: #30263e;
+  cursor: pointer;
+}
+.censor-common-popup-actions button.primary { background: #7845ca; border-color: #9860ed; }
 .censor-common-popup button:focus-visible,
 .censor-common-settings-button:focus-visible { outline: 2px solid #b98aff; outline-offset: 2px; }

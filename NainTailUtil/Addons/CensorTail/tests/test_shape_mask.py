@@ -12,7 +12,8 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
 from censor_worker import (apply_censor, decode_detection_mask, encode_instance_mask,
                            preview_image, retain_instance_components, save_image,
-                           recover_shape_holes, refine_shape_mask, label_mask_components)
+                           recover_shape_holes, refine_shape_mask, label_mask_components,
+                           remove_soft_bridged_components)
 
 
 class ShapeMaskTests(unittest.TestCase):
@@ -57,6 +58,88 @@ class ShapeMaskTests(unittest.TestCase):
         raw = Image.new('L', (100, 100))
         ImageDraw.Draw(raw).rectangle((45, 0, 55, 99), fill=255)
         self.assertEqual(recover_shape_holes(raw, raw, .65).tobytes(), raw.tobytes())
+
+    def test_rejects_weak_lateral_loop_attached_to_long_core(self):
+        raw = Image.new('L', (180, 180))
+        draw = ImageDraw.Draw(raw)
+        draw.rectangle((65, 10, 95, 170), fill=255)
+        # A nearby background outline touches the core, enclosing a false hole.
+        draw.ellipse((90, 35, 165, 135), outline=60, width=4)
+        core = refine_shape_mask(raw, .65, .05)
+        result = recover_shape_holes(raw, core, .65)
+        self.assertEqual(result.getpixel((135, 80)), 0)
+        self.assertEqual(result.tobytes(), core.tobytes())
+        # Rotating the same geometry must not turn that lateral loop into a tip.
+        for angle in (35, 90):
+            rotated = raw.rotate(angle, expand=True)
+            rotated_core = refine_shape_mask(rotated, .65, .05)
+            self.assertEqual(recover_shape_holes(rotated, rotated_core, .65).tobytes(),
+                             rotated_core.tobytes())
+
+    def test_round_core_does_not_justify_a_remote_missing_end(self):
+        raw = Image.new('L', (160, 180))
+        draw = ImageDraw.Draw(raw)
+        draw.ellipse((60, 110, 100, 150), fill=255)
+        draw.ellipse((60, 25, 100, 115), outline=60, width=3)
+        core = refine_shape_mask(raw, .65, .05)
+        self.assertEqual(recover_shape_holes(raw, core, .65).tobytes(), core.tobytes())
+
+    def test_rotated_missing_tip_is_still_recovered(self):
+        raw = self.weak_contour_fixture().rotate(35, expand=True)
+        core = refine_shape_mask(raw, .65, .05)
+        result = recover_shape_holes(raw, core, .65)
+        self.assertGreater(np.count_nonzero(np.asarray(result)) - np.count_nonzero(np.asarray(core)), 1800)
+        self.assertTrue(np.all(np.asarray(result) >= np.asarray(core)))
+
+    def test_faint_in_box_specks_do_not_expand_into_blobs(self):
+        values = np.zeros((150, 150), np.uint8)
+        values[30:130, 50:110] = 255
+        values[40:50, 20:30] = 10
+        values[85:95, 20:30] = 255  # a substantive detached part still survives
+        result = retain_instance_components(Image.fromarray(values), (10, 20, 130, 140))
+        self.assertEqual(result.getpixel((25, 45)), 0)
+        self.assertEqual(result.getpixel((25, 90)), 255)
+        self.assertEqual(result.getpixel((80, 60)), 255)
+
+    def test_soft_bridge_does_not_rescue_outside_background_core(self):
+        values = np.zeros((200, 200), np.uint8)
+        values[25:185, 75:135] = 60  # keep the original soft boundary
+        values[30:180, 80:130] = 255
+        values[80:120, 20:50] = 220
+        for bridge_alpha in (60, 175):
+            values[100, 49:81] = bridge_alpha
+            mask = Image.fromarray(values)
+            result = np.asarray(remove_soft_bridged_components(mask, (70, 20, 140, 190)))
+            self.assertEqual(int(result[100, 35]), 0)
+            self.assertEqual(int(result[100, 55]), 0)
+            self.assertEqual(int(result[100, 72]), bridge_alpha)
+            self.assertTrue(np.array_equal(result[25:185, 75:135], values[25:185, 75:135]))
+            self.assertTrue(np.all(result <= values))
+
+    def test_solid_narrow_extension_and_uncontested_soft_contour_survive(self):
+        values = np.zeros((200, 200), np.uint8)
+        values[30:180, 80:130] = 255
+        values[80:120, 20:50] = 220
+        values[100, 49:81] = 255
+        values[29, 80:130] = 60
+        mask = Image.fromarray(values)
+        self.assertEqual(remove_soft_bridged_components(mask, (70, 20, 140, 190)).tobytes(), mask.tobytes())
+
+    def test_soft_bridge_filter_runs_before_expansion(self):
+        values = np.zeros((200, 200), np.uint8)
+        values[30:180, 80:130] = 255
+        values[80:120, 20:50] = 255
+        values[100, 49:81] = 164  # becomes a faint alpha at the default threshold
+        buffer = io.BytesIO(); Image.fromarray(values).save(buffer, format='PNG')
+        detection = dict(x=0, y=0, width=200, height=200,
+                         sourceBox=dict(x=70, y=20, width=70, height=170),
+                         mask=dict(encoding='png-base64', box=dict(x=0, y=0, width=200, height=200),
+                                   data=base64.b64encode(buffer.getvalue()).decode()))
+        options = dict(mode='shape', color='#ffffff', expand=0, shapeExpand=5,
+                       feather=0, spread=0, opacity=1, maskThreshold=.65, maskEdgeSoftness=.05)
+        result = apply_censor(Image.new('RGB', (200, 200)), [detection], options)
+        self.assertEqual(result.getpixel((35, 100)), (0, 0, 0))
+        self.assertEqual(result.getpixel((100, 100)), (255, 255, 255))
 
     def test_component_connectivity_distinguishes_diagonal_exterior_escape(self):
         values = np.eye(3, dtype=np.uint8)
