@@ -1,0 +1,145 @@
+.censor-target-list .censor-target-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 66px;
+  gap: 7px 10px;
+  padding: 9px 10px;
+  border: 1px solid #292b38;
+  border-radius: 8px;
+  background: #171820;
+}
+.censor-target-list .censor-target-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.censor-target-list .censor-target-mode-field {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a5a6b7;
+  font-size: 11px;
+}
+.censor-target-mode-field select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  appearance: auto;
+  padding: 5px 7px;
+  border: 1px solid #363348;
+  border-radius: 5px;
+  background: #111218;
+  color: #e0d9f5;
+  font: inherit;
+}
+.censor-target-mode-field select:focus-visible {
+  outline: 2px solid #9566f2;
+  outline-offset: 1px;
+}
+.censor-target-modes-note {
+  margin: 8px 0 0;
+  color: #a5a6b7;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.censor-common-settings {
+  border: 1px solid #363348;
+  border-radius: 10px;
+  padding: 12px;
+  margin: 12px 0;
+  background: #171820;
+}
+.censor-common-settings-button {
+  padding: 4px 7px;
+  border: 1px solid #4b3a65;
+  border-radius: 5px;
+  background: #211d30;
+  font-size: 11px;
+  color: #c8b4f6;
+  cursor: pointer;
+}
+.censor-common-popup .censor-option-grid > label:first-child {
+  grid-column: 1 / -1;
+}
+.censor-settings-hint {
+  color: #a5a6b7;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.selected-box-settings {
+  border: 1px solid #665189;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.selected-box-size-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin: 10px 0;
+}
+.selected-box-size-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #a5a6b7;
+  font-size: 11px;
+}
+.selected-box-size-grid input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.censor-common-popup {
+  position: fixed;
+  z-index: 150;
+  width: min(320px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #755695;
+  border-radius: 12px;
+  background: #171820;
+  color: #e6dff2;
+  box-shadow: 0 14px 44px #0009;
+  overflow: hidden;
+}
+.censor-common-popup:focus { outline: none; }
+.censor-common-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 12px 14px;
+  background: #252032;
+  border-bottom: 1px solid #453653;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.censor-common-popup-header h2 { margin: 0; font-size: 13px; }
+.censor-common-popup-header button {
+  border: 1px solid #655175;
+  border-radius: 6px;
+  background: #30263e;
+  color: #e6dff2;
+  padding: 5px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.censor-common-popup-body { padding: 4px 14px 14px; overflow-y: auto; min-height: 0; }
+.censor-common-popup button:focus-visible,
+.censor-common-settings-button:focus-visible { outline: 2px solid #b98aff; outline-offset: 2px; }

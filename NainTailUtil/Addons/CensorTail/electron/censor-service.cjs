@@ -221,7 +221,7 @@ function sanitizeBox(box) {
     }
   }
   if (box?.effectOverride && typeof box.effectOverride === "object") {
-    const { overwrite: _overwrite, ...effectOverride } = sanitizeOptions(box.effectOverride);
+    const { overwrite: _overwrite, targetModes: _targetModes, ...effectOverride } = sanitizeOptions(box.effectOverride);
     result.effectOverride = effectOverride;
   }
   return result;
@@ -242,6 +242,10 @@ function sanitizeOptions(options) {
   }
   return {
     mode,
+    targetModes: Object.fromEntries(CENSOR_TARGET_CLASSES.flatMap((label) => {
+      const value = options?.targetModes?.[label];
+      return ["mosaic", "color", "shape", "gradient", "fog"].includes(value) ? [[label, value]] : [];
+    })),
     color,
     expand: Math.round(clamp(options?.expand, 0, 100, 8)),
     shapeExpand: Math.round(clamp(options?.shapeExpand, 0, 100, 15)),

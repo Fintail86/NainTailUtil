@@ -528,7 +528,7 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (button.closest(".selected-box-settings") && (text === "초기화" || text === "전역 설정으로 되돌리기")) {
+  if (button.closest(".selected-box-settings") && (text === "초기화" || text === "기본 설정으로 되돌리기" || text === "전역 설정으로 되돌리기")) {
     event.preventDefault();
     event.stopImmediatePropagation();
     enqueueOperation(() => clickButtonForSelection(text));

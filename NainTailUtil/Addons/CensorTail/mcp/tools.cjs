@@ -22,6 +22,12 @@ const optionsSchema = {
   type: "object",
   properties: {
     mode: { type: "string", enum: ["mosaic", "color", "shape", "gradient", "fog"] },
+    targetModes: {
+      type: "object",
+      properties: Object.fromEntries(CENSOR_TARGET_CLASSES.map((label) => [label,
+        { type: "string", enum: ["mosaic", "color", "shape", "gradient", "fog"] }])),
+      additionalProperties: false,
+    },
     color: { type: "string", pattern: "^#[0-9a-fA-F]{6}$" },
     expand: { type: "integer", minimum: 0, maximum: 100 },
     shapeExpand: { type: "integer", minimum: 0, maximum: 100 },

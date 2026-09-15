@@ -176,7 +176,7 @@ def encode_instance_mask(
         (left, top, right, bottom),
         (limit_left, limit_top, limit_right, limit_bottom),
     )
-    crop = np.uint8(np.clip(probability[top:bottom, left:right] * 255.0, 0, 255))
+    crop = logits.reshape(mask_height, mask_width)[top:bottom, left:right]
     if crop.size == 0:
         return None
     source_left = clamp((left / scale_x - pad_left) / letterbox_scale, 0, source_width)
@@ -188,9 +188,13 @@ def encode_instance_mask(
     output_scale = min(1.0, 1024.0 / max(region_width, region_height))
     output_width = max(crop.shape[1], round(region_width * output_scale))
     output_height = max(crop.shape[0], round(region_height * output_scale))
-    rendered = Image.fromarray(crop, mode="L").resize(
-        (output_width, output_height), Image.Resampling.BICUBIC
+    # Interpolate logits before sigmoid/8-bit quantization. Interpolating already
+    # saturated probabilities moves the contour and loses subpixel evidence.
+    sampled = Image.fromarray(crop).resize(
+        (output_width, output_height), Image.Resampling.BILINEAR
     )
+    probability = 1.0 / (1.0 + np.exp(-np.clip(np.asarray(sampled), -30.0, 30.0)))
+    rendered = Image.fromarray(np.uint8(np.clip(probability * 255.0, 0, 255)))
     buffer = io.BytesIO()
     rendered.save(buffer, format="PNG", optimize=True)
     return {
@@ -525,6 +529,124 @@ def refine_shape_mask(
     return Image.fromarray(np.uint8(np.clip(alpha * 255.0, 0, 255)), mode="L")
 
 
+def label_mask_components(values: np.ndarray, diagonal: bool = True) -> np.ndarray:
+    """Label nonzero runs with 8- or 4-connectivity without an extra dependency."""
+    height, width = values.shape
+    labels = np.zeros((height, width), dtype=np.int32)
+    parents = [0]
+
+    def root(label: int) -> int:
+        while parents[label] != label:
+            parents[label] = parents[parents[label]]
+            label = parents[label]
+        return label
+
+    # Run ends are exclusive; only 8-connectivity joins diagonal pixels.
+    reach = int(diagonal)
+    previous = []
+    for y in range(height):
+        changes = np.diff(np.pad((values[y] > 0).astype(np.int8), (1, 1)))
+        starts, ends = np.flatnonzero(changes == 1), np.flatnonzero(changes == -1)
+        current = []
+        previous_index = 0
+        for start, end in zip(starts, ends, strict=True):
+            label = len(parents)
+            parents.append(label)
+            labels[y, start:end] = label
+            while previous_index < len(previous) and previous[previous_index][1] + reach <= start:
+                previous_index += 1
+            for old_start, old_end, old_label in previous[previous_index:]:
+                if old_start >= end + reach:
+                    break
+                parents[root(label)] = root(old_label)
+            current.append((start, end, label))
+        previous = current
+
+    lookup = np.array([root(label) for label in range(len(parents))], dtype=np.int32)
+    return lookup[labels]
+
+
+def retain_instance_components(mask: Image.Image, box: tuple[float, float, float, float]) -> Image.Image:
+    """Reject detached background signals without clipping an instance to its box.
+
+    Keep the component with the most detection-box overlap, plus other components
+    mostly inside that box (e.g. visible pieces separated by an occluding hand).
+    All pixels of a kept component survive, including its out-of-box extensions.
+    """
+    values = np.asarray(mask, dtype=np.uint8)
+    height, width = values.shape
+    labels = label_mask_components(values)
+    label_count = int(labels.max()) + 1
+    left, top = max(0, math.floor(box[0])), max(0, math.floor(box[1]))
+    right, bottom = min(width, math.ceil(box[2])), min(height, math.ceil(box[3]))
+    if right <= left or bottom <= top:
+        return mask
+    areas = np.bincount(labels.ravel(), minlength=label_count)
+    overlap = np.bincount(labels[top:bottom, left:right].ravel(), minlength=label_count)
+    overlap[0] = 0
+    if not np.any(overlap):
+        # An unreliable/moved anchor must not silently erase all censorship.
+        return mask
+    keep = (overlap > 0) & (overlap * 2 >= areas)
+    keep[int(np.argmax(overlap))] = True
+    keep[0] = False
+    return Image.fromarray(np.where(keep[labels], values, 0).astype(np.uint8))
+
+
+def recover_shape_holes(raw_mask: Image.Image, core_mask: Image.Image, threshold: float) -> Image.Image:
+    """Repair enclosed weak interiors while keeping unrelated weak signals out.
+
+    Some model masks retain a faint outline but assign near-zero probability to
+    its interior. Lowering the ordinary threshold alone cannot fill that hole.
+    A low-confidence contour is evidence only when connected to the retained core
+    and closed (allowing the same small gaps as close_mask_notches). Recover only
+    the hole and its nearby contour, not the entire low-threshold component.
+    """
+    core = np.asarray(core_mask, dtype=np.uint8)
+    if not np.any(core >= 128):
+        return core_mask
+    support_threshold = min(0.15, clamp(float(threshold), 0.05, 0.95))
+    support = Image.fromarray(np.uint8(np.asarray(raw_mask) / 255.0 >= support_threshold) * 255)
+    support = np.asarray(close_mask_notches(support)) > 0
+    labels = label_mask_components(support)
+    anchored = np.bincount(labels[core >= 128], minlength=int(labels.max()) + 1) > 0
+    anchored[0] = False
+    support &= anchored[labels]
+
+    # Every background component touching any image edge is exterior, even if
+    # the retained foreground splits the edge into several disconnected areas.
+    background = label_mask_components(~support, diagonal=False)
+    enclosed = np.ones(int(background.max()) + 1, dtype=bool)
+    enclosed[0] = False
+    enclosed[np.unique(np.concatenate((background[0], background[-1],
+                                       background[:, 0], background[:, -1])))] = False
+    holes = enclosed[background]
+    if not np.any(holes):
+        return core_mask
+
+    height, width = core.shape
+    ys, xs = np.nonzero(holes)
+    ids = background[ys, xs]
+    lefts = np.full(len(enclosed), width)
+    rights = np.zeros(len(enclosed), dtype=int)
+    tops = np.full(len(enclosed), height)
+    bottoms = np.zeros(len(enclosed), dtype=int)
+    np.minimum.at(lefts, ids, xs)
+    np.maximum.at(rights, ids, xs)
+    np.minimum.at(tops, ids, ys)
+    np.maximum.at(bottoms, ids, ys)
+    # Include the weak rim around each hole, bounded by the supported contour.
+    margin = 2 * int(clamp(round(min(raw_mask.size) * 0.02), 1, 6))
+    filled = support | holes
+    result = core.copy()
+    for label in np.unique(ids):
+        left, right = max(0, lefts[label] - margin), min(width, rights[label] + margin + 1)
+        top, bottom = max(0, tops[label] - margin), min(height, bottoms[label] + margin + 1)
+        region = result[top:bottom, left:right]
+        np.maximum(region, filled[top:bottom, left:right].astype(np.uint8) * 255, out=region)
+    return Image.fromarray(result)
+
+
 def apply_shape_fill(
     working: Image.Image,
     detection: dict,
@@ -552,11 +674,21 @@ def apply_shape_fill(
     base_width = max(1, base_right - base_left)
     base_height = max(1, base_bottom - base_top)
     source_mask = source_mask.resize((base_width, base_height), Image.Resampling.BICUBIC)
+    raw_mask = source_mask
     source_mask = refine_shape_mask(
         source_mask,
         float(options.get("maskThreshold", 0.65)),
         float(options.get("maskEdgeSoftness", 0.05)),
     )
+    anchor = detection.get("sourceBox")
+    if isinstance(anchor, dict):
+        source_mask = retain_instance_components(source_mask, (
+            float(anchor["x"]) - base_left,
+            float(anchor["y"]) - base_top,
+            float(anchor["x"]) + float(anchor["width"]) - base_left,
+            float(anchor["y"]) + float(anchor["height"]) - base_top,
+        ))
+    source_mask = recover_shape_holes(raw_mask, source_mask, float(options.get("maskThreshold", 0.65)))
     source_mask = close_mask_notches(source_mask)
 
     spread = float(options["spread"]) / 100.0
@@ -594,8 +726,12 @@ def apply_censor(image: Image.Image, detections: list[dict], options: dict) -> I
         if not detection.get("enabled", True):
             continue
         effect_options = options
+        target_modes = options.get("targetModes", {})
+        target_mode = target_modes.get(detection.get("label")) if isinstance(target_modes, dict) else None
+        if not detection.get("manual", False) and target_mode in {"mosaic", "color", "shape", "gradient", "fog"}:
+            effect_options = {**options, "mode": target_mode}
         if isinstance(detection.get("effectOverride"), dict):
-            effect_options = {**options, **detection["effectOverride"]}
+            effect_options = {**effect_options, **detection["effectOverride"]}
         expand = int(effect_options["expand"])
         mode = effect_options["mode"]
         source_x = float(detection["x"])
