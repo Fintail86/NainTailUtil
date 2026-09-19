@@ -1,6 +1,6 @@
 {
   "schema": "naintail.official-addons/v1",
-  "catalogVersion": 10,
+  "catalogVersion": 12,
   "repository": "Fintail86/NainTailUtil",
   "addons": [
     {
@@ -8,11 +8,11 @@
       "name": "NaiTail",
       "description": "NovelAI 이미지 생성 애드온",
       "order": 1,
-      "version": "0.1.0",
-      "releaseTag": "v0.1.0",
-      "assetName": "NaiTail-v0.1.0-win-x64.zip",
-      "bytes": 2222061,
-      "sha256": "f1ee13dac596365d96cca9e4173413eceb0697720d495c3f6e8d909830c2b1bf",
+      "version": "0.1.1",
+      "releaseTag": "naitail-v0.1.1",
+      "assetName": "NaiTail-v0.1.1-win-x64.zip",
+      "bytes": 2272050,
+      "sha256": "2955000842a6c2a786a80465e49e68ccfe1b197e90c85f24d3d661f6e20e7e3c",
       "preservePaths": [
         "Presets",
         "Projects",
@@ -68,11 +68,11 @@
       "name": "CensorTail",
       "description": "로컬 이미지 검열 도구",
       "order": 4,
-      "version": "0.1.1",
-      "releaseTag": "censortail-v0.1.1",
-      "assetName": "CensorTail-v0.1.1-win-x64.zip",
-      "bytes": 2315624,
-      "sha256": "1f74ebc811fcc8582f075b59a8c9c2f221ffd00a01f05399302e0cb0cb73e82c",
+      "version": "0.1.2",
+      "releaseTag": "censortail-v0.1.2",
+      "assetName": "CensorTail-v0.1.2-win-x64.zip",
+      "bytes": 2325181,
+      "sha256": "a08bd69c7441f6186d85e480b94ab2b313514d0006272e3a4541f78a9e929f5f",
       "preservePaths": [
         "Models",
         "data",

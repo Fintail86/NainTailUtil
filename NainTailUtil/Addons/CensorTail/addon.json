@@ -2,7 +2,7 @@
   "schema": "naintail.addon/v1",
   "id": "censortail",
   "name": "CensorTail",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Built-in local automatic censor addon",
   "builtIn": true,
   "default": false,

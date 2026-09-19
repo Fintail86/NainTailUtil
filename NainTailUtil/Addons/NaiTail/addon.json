@@ -2,7 +2,7 @@
   "schema": "naintail.addon/v1",
   "id": "naitail",
   "name": "NaiTail",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Built-in NovelAI generation studio addon",
   "builtIn": true,
   "default": true,
