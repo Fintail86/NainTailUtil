@@ -1,5 +1,10 @@
 # 개발 검증 명령과 범위
 
+> 현재 NainTail 워크스페이스 실행 정책은 [공통 테스트 규칙](../../TESTING.md)을 따른다.
+> AnimaTail 테스트는 `Tests/AnimaTail/development/`, 배포 검증은 `Tests/AnimaTail/release/`에 있다.
+> 아래 AnimaUtil 명령은 이식 이전 기록이다. 현재 개발에서는 변경 영향 범위만 실행하고,
+> 릴리즈 준비가 아니면 전체 런타임·포터블 검증을 스킵한다.
+
 - 기준일: 2026-07-27
 - 원칙: 빠른 정적·단위 검증과 실제 Electron/GPU 검증을 구분한다.
 

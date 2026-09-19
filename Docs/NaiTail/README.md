@@ -21,7 +21,7 @@ NaiTail은 NainTail의 기본 내장 NovelAI 생성 애드온이다. NovelAI 요
 | 멀티 | 공통 프롬프트와 활성 슬롯을 조합한 연속 생성 |
 | 작례 연구기 | Searching·Favorites·Pounding·Finalize·Mixing·Dev로 작가를 수집하고, Pounding의 수동 고정 작가+랜덤 후보 탐색부터 최종 조합·수동 미세 조정까지 수행 |
 | 작품 | 작품별 공통 설정, 캐릭터 카드와 일반·캐릭터 슬롯 관리 |
-| 프리셋 | 서브슬롯과 작례 프리셋 저장·재사용 |
+| 프리셋 | 서브슬롯·작례·캐릭터 프리셋 저장·재사용 |
 | 설정 | NovelAI 자격증명과 애드온 상태 관리 |
 
 생성 요청은 Anlas 비용을 먼저 계산한 뒤 로컬 순차 큐에서 한 장씩 실행한다. Precise Reference와
@@ -86,6 +86,7 @@ Hosted와 Standalone 모두 다음 비출력 데이터는 NaiTail 애드온 폴�
 | `Projects/` | 작품과 캐릭터·슬롯 데이터 |
 | `Presets/sub-slots/` | 서브슬롯 프리셋 |
 | `Presets/examples/` | 작례 프리셋 |
+| `Presets/characters/` | 캐릭터 베이스·의상·UC 프리셋 |
 | `References/precise/` | Precise Reference 원본 |
 | `References/vibes/` | Vibe Transfer 원본 |
 | `Favorites/Searching/` | Searching에서 별표로 저장한 작가별 이미지와 DB. Favorites 탭에서 작가별 한 줄 뷰로 조회·삭제 |
@@ -137,6 +138,10 @@ Pounding의 `roundId`는 현재 평가 라운드 시작부터 종료 JSON까지 
 
 ## 관련 문서
 
+- [`features/MCP.md`](features/MCP.md): MCP 이름 참조 호출, 의상 선택, 멀티 서브슬롯과 작업 대기 가이드
+- [`features/PRESET_REFERENCES.md`](features/PRESET_REFERENCES.md): 이름 기반 파일·조회와 싱글/멀티 프리셋 참조 JSON
+- [`features/CHARACTER_PRESETS.md`](features/CHARACTER_PRESETS.md): 캐릭터 프리셋 관리와 카드별 불러오기
+- [`features/CHARACTER_OUTFITS.md`](features/CHARACTER_OUTFITS.md): 캐릭터 베이스·의상 목록·UC 합성과 저장 계약
 - [`features/ARTIST_POUNDING.md`](features/ARTIST_POUNDING.md): Favorites 기반 반복 선호도·가중치 탐색 계약
 - [`../ADDON_DEVELOPMENT_CONTRACT.md`](../ADDON_DEVELOPMENT_CONTRACT.md): Hosted·Standalone 공통 계약
 - [`../ADDON_OUTPUT_CONTRACT.md`](../ADDON_OUTPUT_CONTRACT.md): 실행 형태별 출력 위치 계약

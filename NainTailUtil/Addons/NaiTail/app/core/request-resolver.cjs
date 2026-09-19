@@ -14,7 +14,8 @@ function joinPrompt(...parts) {
 }
 
 function createTask(project, source, prompt, negativePrompt, settings, characters = []) {
-  const resolvedCharacters = activeCharacterPrompts(characters);
+  const normalizedSettings = normalizeGenerationSettings(settings);
+  const resolvedCharacters = activeCharacterPrompts(characters, normalizedSettings.model);
   if (!String(prompt || "").trim() && !resolvedCharacters.length) {
     throw new NainTailError("EMPTY_PROMPT", `${source.slotName || "슬롯"}의 최종 프롬프트가 비어 있습니다.`);
   }
@@ -29,21 +30,23 @@ function createTask(project, source, prompt, negativePrompt, settings, character
       prompt,
       negativePrompt,
       characters: resolvedCharacters,
-      settings: normalizeGenerationSettings(settings),
+      settings: normalizedSettings,
       nSamples: 1,
     },
   };
 }
 
 function resolveProjectCharacters(project, ownerCharacterId = null, slot = null) {
-  return activeCharacterPrompts(project.characters.map((character) => ({
+  return project.characters.map((character) => ({
     id: character.id,
     name: character.name,
     enabled: character.enabled,
     position: character.position,
+    outfits: character.outfits,
+    selectedOutfitId: character.selectedOutfitId,
     prompt: joinPrompt(character.prompt, character.id === ownerCharacterId ? slot?.prompt : ""),
     negativePrompt: joinPrompt(character.negativePrompt, character.id === ownerCharacterId ? slot?.negativePrompt : ""),
-  })));
+  }));
 }
 
 function materializeProject(input, options = {}) {
@@ -95,7 +98,8 @@ function materializeProject(input, options = {}) {
 
 function materializeSingle(input) {
   const prompt = joinPrompt(input?.examplePrompt, input?.prompt);
-  const characters = activeCharacterPrompts(input?.characters);
+  const settings = normalizeGenerationSettings(input?.settings || {});
+  const characters = activeCharacterPrompts(input?.characters, settings.model);
   if (!prompt && !characters.length) throw new NainTailError("EMPTY_PROMPT", "싱글 생성 프롬프트와 활성 캐릭터가 모두 비어 있습니다.");
   const repeat = normalizeLocalRepeat(input, 1);
   const preciseReferences = normalizePreciseReferences(input?.preciseReferences);
@@ -120,7 +124,7 @@ function materializeSingle(input) {
           preciseReferences,
           vibes,
           normalizeVibeStrengths: input?.normalizeVibeStrengths !== false,
-          settings: normalizeGenerationSettings(input?.settings || {}),
+          settings,
           nSamples: 1,
         },
       });

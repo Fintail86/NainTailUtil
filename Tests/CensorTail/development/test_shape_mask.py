@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "NainTailUtil" / "Addons" / "CensorTail" / "app"))
 from censor_worker import (apply_censor, decode_detection_mask, encode_instance_mask,
                            preview_image, retain_instance_components, save_image,
                            recover_shape_holes, refine_shape_mask, label_mask_components,

@@ -1989,7 +1989,7 @@ button.is-busy {
 
 .preset-type-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   margin-bottom: 12px;
@@ -3832,6 +3832,48 @@ details[open] summary {
 
 .character-prompts label {
   margin: 0;
+}
+
+.character-preset-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.character-preset-picker select {
+  flex: 1;
+  min-width: 0;
+}
+
+.character-outfits {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.character-outfit-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.character-outfit-list, .character-outfit-row {
+  display: grid;
+  gap: 8px;
+}
+
+.character-outfit-row {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+}
+
+.character-outfit-status {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .single-character-card .character-prompts input {

@@ -1,6 +1,14 @@
 Artifacts/
 AddonRelease/
-/Tests/
+/Tests/*
+!/Tests/CensorTail/
+/Tests/CensorTail/*
+!/Tests/CensorTail/development/
+/Tests/CensorTail/development/*
+!/Tests/CensorTail/development/settings-draft.test.cjs
+!/Tests/CensorTail/development/target-modes.test.cjs
+!/Tests/CensorTail/development/test_shape_mask.py
+!/Tests/CensorTail/development/test_target_modes.py
 /Tools/
 /package.json
 NainTailUtil/Addons/*/tools/

@@ -115,7 +115,7 @@ function materializeArtistStudy(input) {
   const study = normalizeArtistStudy(input);
   const artistPrompt = serializeArtistPrompt(study.artists);
   const prompt = joinPrompt(study.examplePrompt, artistPrompt, study.basePrompt);
-  const characters = activeCharacterPrompts(study.characters);
+  const characters = activeCharacterPrompts(study.characters, study.settings.model);
   if (!prompt && !characters.length) throw new NainTailError("EMPTY_ARTIST_STUDY_PROMPT", "활성 작가, 현재 프롬프트와 캐릭터가 모두 비어 있습니다.");
   const activeArtists = study.artists.filter((artist) => artist.enabled && artist.name).map((artist) => ({ name: artist.name, weight: artist.weight }));
   return repeatArtistTasks([{
@@ -133,7 +133,7 @@ function materializeArtistSearch(input) {
   if (artists.length > ARTIST_SEARCH_MAX_TASKS) {
     throw new NainTailError("ARTIST_SEARCH_LIMIT", `작가 서칭은 한 번에 최대 ${ARTIST_SEARCH_MAX_TASKS}명까지 생성할 수 있습니다.`);
   }
-  const characters = activeCharacterPrompts(study.characters);
+  const characters = activeCharacterPrompts(study.characters, study.settings.model);
   const baseTasks = artists.map((artist, index) => {
     const fixedArtist = { ...artist, enabled: true, weight: 1 };
     return {
@@ -166,7 +166,7 @@ function materializeArtistMixing(input) {
   const activeArtists = study.mixingArtists.filter((artist) => artist.enabled && artist.name);
   if (!activeArtists.length) throw new NainTailError("EMPTY_ARTIST_MIXING", "믹싱할 활성 작가가 없습니다.");
   const artistPrompt = serializeArtistPrompt(activeArtists);
-  const characters = activeCharacterPrompts(study.characters);
+  const characters = activeCharacterPrompts(study.characters, study.settings.model);
   const prompt = joinPrompt(artistPrompt, study.basePrompt);
   if (!prompt && !characters.length) throw new NainTailError("EMPTY_ARTIST_MIXING_PROMPT", "믹싱 프롬프트가 비어 있습니다.");
   return repeatArtistTasks([{
@@ -197,7 +197,7 @@ function materializeArtistPounding(input, trial) {
   const trialArtists = Array.isArray(trial?.artists) ? trial.artists.filter((artist) => artist.favoriteKey && artist.name) : [];
   if (!trial?.id || !trialArtists.length) throw new NainTailError("INVALID_ARTIST_POUNDING_TRIAL", "생성할 파운딩 작가 조합이 없습니다.");
   const activeArtists = trialArtists.map((artist) => ({ name: artist.name, enabled: true, weight: artist.weight }));
-  const characters = activeCharacterPrompts(study.characters);
+  const characters = activeCharacterPrompts(study.characters, study.settings.model);
   const prompt = joinPrompt(serializeArtistPrompt(activeArtists), study.basePrompt);
   if (!prompt && !characters.length) throw new NainTailError("EMPTY_ARTIST_POUNDING_PROMPT", "파운딩 프롬프트가 비어 있습니다.");
   return repeatArtistTasks([{
@@ -237,7 +237,7 @@ function materializeArtistFinalize(input, round) {
   const roundArtists = Array.isArray(round?.artists) ? round.artists.filter((artist) => artist.favoriteKey && artist.name) : [];
   if (!round?.roundId || !roundArtists.length) throw new NainTailError("INVALID_ARTIST_FINALIZE_ROUND", "파이널라이즈할 라운드 작가 조합이 없습니다.");
   const activeArtists = roundArtists.map((artist) => ({ name: artist.name, enabled: true, weight: artist.weight }));
-  const characters = activeCharacterPrompts(study.characters);
+  const characters = activeCharacterPrompts(study.characters, study.settings.model);
   const prompt = joinPrompt(serializeArtistPrompt(activeArtists), study.basePrompt);
   if (!prompt && !characters.length) throw new NainTailError("EMPTY_ARTIST_FINALIZE_PROMPT", "파이널라이즈 프롬프트가 비어 있습니다.");
   return repeatArtistTasks([{

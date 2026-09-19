@@ -19,6 +19,7 @@
 | 문서 | 범위 |
 |---|---|
 | [`ADDON_DEVELOPMENT_CONTRACT.md`](ADDON_DEVELOPMENT_CONTRACT.md) | Hosted·Standalone 애드온 개발 계약 |
+| [`TESTING.md`](TESTING.md) | 허브·애드온별 개발/릴리즈 테스트 분리와 변경 영향 범위 실행 |
 | [`ADDON_DIRECTORY_STANDARD.md`](ADDON_DIRECTORY_STANDARD.md) | 애드온 공통 배포 폴더와 마이그레이션 표준 |
 | [`ADDON_OUTPUT_CONTRACT.md`](ADDON_OUTPUT_CONTRACT.md) | 실행 형태별 애드온 출력 위치·주입·경계 계약 |
 | [`ADDON_MCP_PROFILE.md`](ADDON_MCP_PROFILE.md) | 애드온 MCP 공통 명령·상태·job·결과 계약 |

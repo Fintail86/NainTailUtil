@@ -3,11 +3,12 @@
 const { createId } = require("./ids.cjs");
 const { NainTailError } = require("./errors.cjs");
 const { normalizeGenerationSettings } = require("./generation-profile.cjs");
-const { normalizeCharacterPosition } = require("./character-prompt.cjs");
+const { normalizeCharacterPrompt } = require("./character-prompt.cjs");
 
 const PROJECT_SCHEMA = "naintail.project/v1";
 const PRESET_SCHEMA = "naintail.sub-slot-preset/v1";
 const EXAMPLE_PRESET_SCHEMA = "naintail.example-preset/v1";
+const CHARACTER_PRESET_SCHEMA = "naintail.character-preset/v1";
 
 function nowIso() {
   return new Date().toISOString();
@@ -32,12 +33,7 @@ function createSlot(input = {}) {
 
 function createCharacterCard(input = {}) {
   return {
-    id: asString(input.id) || createId("character"),
-    name: asString(input.name) || "새 캐릭터",
-    prompt: asString(input.prompt),
-    negativePrompt: asString(input.negativePrompt),
-    enabled: input.enabled !== false,
-    position: normalizeCharacterPosition(input.position),
+    ...normalizeCharacterPrompt(input),
     settings: input.settings && typeof input.settings === "object" && !Array.isArray(input.settings)
       ? { ...input.settings }
       : {},
@@ -96,6 +92,22 @@ function createExamplePreset(input = {}) {
   };
 }
 
+function createCharacterPreset(input = {}) {
+  const character = normalizeCharacterPrompt(input);
+  return {
+    schema: CHARACTER_PRESET_SCHEMA,
+    type: "character",
+    id: asString(input.id) || createId("character-preset"),
+    name: asString(input.name) || "새 캐릭터 프리셋",
+    createdAt: asString(input.createdAt) || nowIso(),
+    updatedAt: asString(input.updatedAt) || nowIso(),
+    prompt: character.prompt,
+    outfits: character.outfits,
+    selectedOutfitId: character.selectedOutfitId,
+    negativePrompt: character.negativePrompt,
+  };
+}
+
 function assertUniqueIds(items, label) {
   const ids = new Set();
   for (const item of items) {
@@ -132,11 +144,13 @@ function appendPresetItems(slots, preset) {
 }
 
 module.exports = {
+  CHARACTER_PRESET_SCHEMA,
   EXAMPLE_PRESET_SCHEMA,
   PRESET_SCHEMA,
   PROJECT_SCHEMA,
   appendPresetItems,
   createCharacterCard,
+  createCharacterPreset,
   createExamplePreset,
   createProject,
   createSlot,

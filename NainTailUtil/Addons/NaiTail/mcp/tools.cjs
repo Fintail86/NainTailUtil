@@ -9,6 +9,17 @@ const paidProperties = {
   maxAnlas: { type: "integer", minimum: 1, maximum: 100000, description: "승인할 최대 예상 Anlas. allowPaidAnlas=true일 때 필요합니다." },
 };
 const jobProperties = { jobId: { type: "string", minLength: 1 } };
+const presetSelectorSchema = {
+  type: "object",
+  properties: {
+    type: { type: "string", enum: ["example", "character", "sub-slot"] },
+    name: { type: "string", minLength: 1, description: "프리셋 이름 (파일명에서 .json 제외)" },
+    presetId: { type: "string", minLength: 1, description: "기존 클라이언트용 ID. 새 요청은 type과 name을 사용하세요." },
+  },
+  anyOf: [{ required: ["type", "name"] }, { required: ["presetId"] }],
+  additionalProperties: false,
+};
+const singleRequestDescription = '프리셋 본문 get 없이 이름만 전달: examplePreset:"SP-1", characters:[{preset:"테스트 캐릭터",outfit:"근무복"}]. 참조 필드 생략/null/빈 문자열=프리셋 미사용; prompt/negativePrompt/characters 직접 입력 가능. prompt 안의 참조 문법은 파싱하지 않음. outfit 생략=저장된 선택, null=의상 선택 해제(목록이 있으면 undressed, nude 추가; outfits:[]이면 자동 태그 없음). 프리셋 Prompt·UC 뒤에 직접 입력을 추가. settings에 모델·크기 등 설정.';
 
 function success(value) {
   return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], structuredContent: value };
@@ -50,23 +61,23 @@ function createTools(app, manager) {
         ],
         tokenConfigured: live.tokenConfigured,
         worker: live.worker,
-        counts: { projects: live.projects, subSlotPresets: live.subSlotPresets, examplePresets: live.examplePresets },
+        counts: { projects: live.projects, subSlotPresets: live.subSlotPresets, examplePresets: live.examplePresets, characterPresets: live.characterPresets },
         coreQueue: { state: live.queue.state, activeJobId: live.queue.activeJobId, pending: live.queue.jobs.filter((job) => job.state === "pending").length },
         mcpJobs: { active: manager.activeCount(), history: manager.records.size, capacity: manager.maxActive },
       };
     }, annotations(true)),
     define("naintail_projects_list", "작품 목록", "작품 선택에 필요한 ID·이름·카드/슬롯 수만 반환합니다. 상세 내용은 naintail_project_get을 사용하세요.", emptySchema, () => app.listProjects().map((item) => ({ id: item.id, name: item.name, characterCount: item.characterCount, generalSlotCount: item.generalSlotCount })), annotations(true)),
     define("naintail_project_get", "작품 상세", "작품 ID로 Prompt·UC·설정·캐릭터 카드·슬롯을 포함한 전체 작품 데이터를 읽습니다.", idSchema("projectId"), ({ projectId }) => app.getProject(projectId), annotations(true)),
-    define("naintail_presets_list", "프리셋 목록", "프리셋 선택에 필요한 ID·이름·타입·항목 수만 반환합니다. 본문은 naintail_preset_get을 사용하세요.", {
-      type: "object", properties: { type: { type: "string", enum: ["sub-slot", "example"] } }, additionalProperties: false,
-    }, ({ type } = {}) => app.listPresets().filter((item) => !type || item.type === type).map((item) => ({ id: item.id, name: item.name, type: item.type, itemCount: item.itemCount })), annotations(true)),
-    define("naintail_preset_get", "프리셋 상세", "프리셋 ID로 Prompt·UC 또는 서브슬롯 전체 내용을 읽습니다.", idSchema("presetId"), ({ presetId }) => app.getPreset(presetId), annotations(true)),
+    define("naintail_presets_list", "프리셋 목록", "타입·이름·항목 수와 캐릭터 의상 이름만 반환합니다. 생성에 이름 참조를 쓰면 본문 get이 필요 없습니다.", {
+      type: "object", properties: { type: { type: "string", enum: ["sub-slot", "example", "character"] } }, additionalProperties: false,
+    }, ({ type } = {}) => app.listPresets().filter((item) => !type || item.type === type).map((item) => ({ name: item.name, type: item.type, itemCount: item.itemCount, ...(item.type === "character" ? { outfits: item.outfits || [] } : {}), ...(item.error ? { error: item.error } : {}) })), annotations(true)),
+    define("naintail_preset_get", "프리셋 상세", "타입·이름으로 프리셋 본문을 읽습니다. 생성만 하려면 본문 조회 없이 이름 참조를 사용하세요.", presetSelectorSchema, ({ type, name, presetId }) => app.getPreset(type || name ? { type, name } : presetId), annotations(true)),
     define("naintail_artist_study_get", "작례 연구 설정", "저장된 작례 Prompt·UC·캐릭터·작가 슬라이더와 생성 설정 전체를 읽습니다.", emptySchema, () => app.getArtistStudy(), annotations(true)),
     define("naintail_generate_single", "싱글 생성 등록", "싱글 요청을 검증·비용 확인 후 로컬 순차 큐에 등록하고 즉시 jobId를 반환합니다.", {
-      type: "object", properties: { request: { type: "object", description: "naintail single 입력 객체" }, ...paidProperties }, required: ["request"], additionalProperties: false,
+      type: "object", properties: { request: { type: "object", description: singleRequestDescription }, ...paidProperties }, required: ["request"], additionalProperties: false,
     }, async ({ request, ...options }) => manager.submit("single", requireObject(request, "request"), options), annotations(false, false, false)),
     define("naintail_generate_multi", "멀티 생성 등록", "공통값과 활성 슬롯을 검증·비용 확인 후 큐에 등록하고 즉시 jobId를 반환합니다.", {
-      type: "object", properties: { request: { type: "object", description: "naintail multi 입력 객체" }, ...paidProperties }, required: ["request"], additionalProperties: false,
+      type: "object", properties: { request: { type: "object", description: singleRequestDescription + ' 멀티는 slotPreset:"감정" 또는 slotPresets:["감정","포즈"] 지원(둘 중 하나). 저장 슬롯을 먼저 펼친 뒤 직접 입력 slots를 추가, 합계 최대 20개. 슬롯마다 같은 characters/의상 적용; 의상별 비교는 outfit을 바꿔 각각 호출.' }, ...paidProperties }, required: ["request"], additionalProperties: false,
     }, async ({ request, ...options }) => manager.submit("multi", requireObject(request, "request"), options), annotations(false, false, false)),
     define("naintail_generate_artist_study", "작례 연구 생성 등록", "저장된 연구 설정 또는 전달한 설정으로 한 장을 비용 확인 후 등록합니다.", {
       type: "object", properties: { request: { type: "object", description: "생략하면 저장된 연구 설정 사용" }, ...paidProperties }, additionalProperties: false,

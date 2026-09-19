@@ -1,8 +1,9 @@
+const TEST_SOURCE_ROOT = require("node:path").resolve(__dirname, "../../../NainTailUtil/Addons/CensorTail/tests");
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
-const moduleUrl = pathToFileURL(path.resolve(__dirname, '../dist/renderer/assets/censortail-settings-popup.js'));
+const moduleUrl = pathToFileURL(path.resolve(TEST_SOURCE_ROOT, '../dist/renderer/assets/censortail-settings-popup.js'));
 
 test('draft edits across modes leave live values untouched until resolved', async () => {
   const { createSettingsDraft, editSettingsDraft, resolveSettingsDraft } = await import(moduleUrl);

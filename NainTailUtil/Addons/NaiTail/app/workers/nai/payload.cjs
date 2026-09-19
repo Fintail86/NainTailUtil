@@ -1,7 +1,7 @@
 "use strict";
 
 const { randomInt } = require("node:crypto");
-const { activeCharacterPrompts, positionToCenter } = require("../../core/character-prompt.cjs");
+const { activeCharacterPrompts, composeCharacterPrompt, positionToCenter } = require("../../core/character-prompt.cjs");
 const { requireModelDefinition } = require("../../core/nai-models.cjs");
 
 // Exact V4.5 suffixes observed in NovelAI's public web client build
@@ -81,9 +81,9 @@ function resolveUcPresetIndex(presets, presetName) {
 
 function createPayload(request) {
   if (!request || request.schema !== "naintail.generate/v1") throw new Error("지원하지 않는 생성 요청 schema입니다.");
-  const characters = activeCharacterPrompts(request.characters).map((character) => ({
+  const characters = activeCharacterPrompts(request.characters, request.settings.model).map((character) => ({
     ...character,
-    prompt: character.prompt.trim(),
+    prompt: composeCharacterPrompt(character),
     negativePrompt: character.negativePrompt.trim(),
     center: positionToCenter(character.position),
   }));

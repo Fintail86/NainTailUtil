@@ -1,11 +1,12 @@
+const TEST_SOURCE_ROOT = require("node:path").resolve(__dirname, "../../../NainTailUtil/Addons/CensorTail/tests");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { sanitizeOptions, sanitizeBox } = require("../electron/censor-service.cjs");
-const { optionsSchema } = require("../mcp/tools.cjs");
+const { sanitizeOptions, sanitizeBox } = require("../../../NainTailUtil/Addons/CensorTail/electron/censor-service.cjs");
+const { optionsSchema } = require("../../../NainTailUtil/Addons/CensorTail/mcp/tools.cjs");
 
-const source = fs.readFileSync(path.join(__dirname, "../dist/renderer/assets/censortail-target-modes.js"), "utf8");
+const source = fs.readFileSync(path.join(TEST_SOURCE_ROOT, "../dist/renderer/assets/censortail-target-modes.js"), "utf8");
 const renderer = import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 
 test("target defaults apply between common and individual settings, excluding manual regions", async () => {

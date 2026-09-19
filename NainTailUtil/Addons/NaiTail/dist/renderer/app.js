@@ -87,11 +87,14 @@ const titles = { single: ["GENERATION", "Single"], multi: ["VARIATION WORKSPACE"
 const DEFAULT_NAI_MODEL = "nai-diffusion-4-5-full";
 const MODEL_SELECTION_STORAGE_KEY = "naitail.selectedModel";
 const NAI_MODELS = Object.freeze({
-  "nai-diffusion-5-curated": { label: "V5 Curated", defaults: { steps: 23, guidance: 7, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: false, decrisper: false, references: false, transparency: true, lightQuality: true, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
-  "nai-diffusion-5-full": { label: "V5 Full", defaults: { steps: 23, guidance: 7, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: false, decrisper: false, references: false, transparency: true, lightQuality: true, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
-  "nai-diffusion-4-5-full": { label: "V4.5 Full", defaults: { steps: 28, guidance: 5, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: true, decrisper: true, references: true, transparency: false, lightQuality: false, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
-  "nai-diffusion-4-5-curated": { label: "V4.5 Curated", defaults: { steps: 28, guidance: 5, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: true, decrisper: true, references: true, transparency: false, lightQuality: false, ucPresets: ["Heavy", "Light", "Human Focus", "None"] },
+  "nai-diffusion-5-curated": { label: "V5 Curated", maxCharacterPrompts: 22, defaults: { steps: 23, guidance: 7, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: false, decrisper: false, references: false, transparency: true, lightQuality: true, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
+  "nai-diffusion-5-full": { label: "V5 Full", maxCharacterPrompts: 22, defaults: { steps: 23, guidance: 7, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: false, decrisper: false, references: false, transparency: true, lightQuality: true, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
+  "nai-diffusion-4-5-full": { label: "V4.5 Full", maxCharacterPrompts: 6, defaults: { steps: 28, guidance: 5, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: true, decrisper: true, references: true, transparency: false, lightQuality: false, ucPresets: ["Heavy", "Light", "Furry Focus", "Human Focus", "None"] },
+  "nai-diffusion-4-5-curated": { label: "V4.5 Curated", maxCharacterPrompts: 6, defaults: { steps: 28, guidance: 5, sampler: "k_euler_ancestral", scheduler: "karras" }, scheduler: true, decrisper: true, references: true, transparency: false, lightQuality: false, ucPresets: ["Heavy", "Light", "Human Focus", "None"] },
 });
+function characterLimit(model) {
+  return (NAI_MODELS[model] || NAI_MODELS[DEFAULT_NAI_MODEL]).maxCharacterPrompts;
+}
 function readPreferredNaiModel() {
   try {
     const model = window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY);
@@ -528,9 +531,162 @@ function positionGridHtml(position) {
   return `<details class="character-position"><summary>위치 <strong>${selected ? selected.toUpperCase() : "AI 선택"}</strong></summary><div class="position-picker"><button type="button" class="position-auto ${selected ? "" : "active"}" data-character-position="" aria-pressed="${String(!selected)}">AI 선택</button><div class="position-grid" role="grid" aria-label="캐릭터 5×5 위치">${cells.map((cell) => `<button type="button" class="${selected === cell ? "active" : ""}" data-character-position="${cell}" aria-label="${cell.toUpperCase()} 위치" aria-pressed="${String(selected === cell)}" title="${cell.toUpperCase()}">${cell.toUpperCase()}</button>`).join("")}</div><p>위치는 강제 좌표가 아니라 모델에 주는 대략적인 힌트다.</p></div></details>`;
 }
 
+function characterOutfitStatus(character) {
+  const outfits = character.outfits || [];
+  if (!outfits.length) return "의상 없음 · 베이스만 사용 (자동 태그 꺼짐)";
+  const selected = outfits.find((outfit) => outfit.id === character.selectedOutfitId);
+  return selected ? `선택 의상: ${selected.name || "새 의상"} · 베이스 + 의상` : "선택 없음 · 베이스 + undressed, nude";
+}
+
+function copyCharactersForEditing(characters) {
+  return (Array.isArray(characters) ? characters : []).map((character) => ({
+    ...character,
+    id: character.id || id("character"),
+    outfits: (character.outfits || []).map((outfit) => ({ ...outfit })),
+  }));
+}
+
+function characterOutfitRows(character) {
+  return `<div class="character-outfit-heading"><strong>의상</strong><button type="button" data-outfit-action="add">＋ 의상</button></div><p class="muted">하나만 체크할 수 있다. 체크를 해제하면 의상 미선택 상태가 된다.</p><div class="character-outfit-list">${(character.outfits || []).map((outfit, index) => `<div class="character-outfit-row" data-outfit-index="${index}"><div class="character-outfit-heading"><label class="checkbox"><input type="checkbox" data-outfit-action="select" ${outfit.id === character.selectedOutfitId ? "checked" : ""}> 사용</label><button type="button" data-outfit-action="delete" class="danger" aria-label="의상 삭제">×</button></div><label>의상 이름<input data-outfit-field="name" value="${esc(outfit.name)}" placeholder="교복, 외출복 등"></label><label>의상 프롬프트<textarea data-outfit-field="prompt" rows="2" placeholder="white shirt, blue skirt">${esc(outfit.prompt)}</textarea></label></div>`).join("")}</div><p class="character-outfit-status" data-outfit-status aria-live="polite">${esc(characterOutfitStatus(character))}</p>`;
+}
+
+function characterPromptFields(character, scope) {
+  const prefix = scope === "project" ? "character" : `${scope}-character`;
+  return `<div class="character-prompts">${scope === "preset" ? "" : characterPresetPickerHtml()}<label>베이스 (Base)<textarea data-${prefix}-field="prompt" rows="3" placeholder="girl, black hair, source#hug">${esc(character.prompt)}</textarea></label><section class="character-outfits" data-wardrobe-scope="${scope}">${characterOutfitRows(character)}</section><label>UC<textarea data-${prefix}-field="negativePrompt" rows="2" placeholder="원하지 않는 캐릭터 속성">${esc(character.negativePrompt)}</textarea></label></div>`;
+}
+
+function characterPresetOptionsHtml() {
+  const presets = presetsOfType("character");
+  return `<option value="">${presets.length ? "캐릭터 프리셋 선택" : "캐릭터 프리셋 없음"}</option>${presets.map((preset) => `<option value="${esc(preset.id)}">${esc(preset.name)}</option>`).join("")}`;
+}
+
+function characterPresetPickerHtml() {
+  return `<div class="character-preset-picker"><select data-character-preset-select aria-label="캐릭터 프리셋">${characterPresetOptionsHtml()}</select><button type="button" data-character-preset-apply class="secondary" disabled>불러오기</button></div>`;
+}
+
+function renderCharacterPresetOptions() {
+  $$('[data-character-preset-select]').forEach((select) => {
+    const selected = select.value;
+    select.innerHTML = characterPresetOptionsHtml();
+    if (presetsOfType("character").some((preset) => preset.id === selected)) select.value = selected;
+    $('[data-character-preset-apply]', select.parentElement).disabled = !select.value;
+  });
+}
+
+async function handleCharacterPresetClick(event) {
+  const button = event.target.closest('[data-character-preset-apply]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const fields = button.closest('.character-prompts');
+  const wardrobe = $('[data-wardrobe-scope]', fields);
+  const context = characterOutfitContext(wardrobe);
+  const presetId = $('[data-character-preset-select]', fields).value;
+  if (!presetId) return;
+  context.sync();
+  const preset = await action(() => call(api.getPreset(presetId)), null, button);
+  // A navigation or re-render while loading must not replace a different card.
+  if (!fields.isConnected || characterOutfitContext(wardrobe).character !== context.character) return;
+  if (preset.type !== "character") { notify("캐릭터 프리셋이 아닙니다.", true); return; }
+  context.sync();
+  const character = context.character;
+  const copy = copyCharactersForEditing([preset])[0];
+  Object.assign(character, { name: copy.name, prompt: copy.prompt, negativePrompt: copy.negativePrompt, outfits: copy.outfits, selectedOutfitId: copy.selectedOutfitId ?? null });
+  const scope = wardrobe.dataset.wardrobeScope;
+  const prefix = scope === "project" ? "character" : `${scope}-character`;
+  const card = wardrobe.closest(`[data-${prefix}-index]`);
+  $(`[data-${prefix}-field=name]`, card).value = character.name;
+  $(`[data-${prefix}-field=prompt]`, card).value = character.prompt;
+  $(`[data-${prefix}-field=negativePrompt]`, card).value = character.negativePrompt;
+  const title = scope === "project" ? $('h3', card) : $('summary strong', card);
+  if (title) title.textContent = character.name;
+  wardrobe.innerHTML = characterOutfitRows(character);
+  if (context.dirty) markDirty(context.dirty);
+  invalidateCost(context.costScope);
+  scheduleCostEstimate(context.costScope);
+  notify(`캐릭터 프리셋을 불러왔다: ${preset.name}`);
+}
+
+document.addEventListener("click", handleCharacterPresetClick, true);
+document.addEventListener("change", (event) => {
+  if (!event.target.matches('[data-character-preset-select]')) return;
+  $('[data-character-preset-apply]', event.target.parentElement).disabled = !event.target.value;
+});
+
+function syncCharacterOutfitsFromDom(character, card) {
+  // Selection is handled by the checkbox click, so toggling a second item cannot
+  // temporarily save two selected outfits while the surrounding form syncs.
+  $$('[data-outfit-index]', card).forEach((row) => {
+    const outfit = character.outfits?.[Number(row.dataset.outfitIndex)];
+    if (!outfit) return;
+    outfit.name = $('[data-outfit-field=name]', row).value;
+    outfit.prompt = $('[data-outfit-field=prompt]', row).value;
+  });
+}
+
+function characterOutfitContext(wardrobe) {
+  const scope = wardrobe.dataset.wardrobeScope;
+  if (scope === "preset") return { character: state.preset, sync: syncPresetFromDom, dirty: "preset" };
+  const prefix = scope === "project" ? "character" : `${scope}-character`;
+  const card = wardrobe.closest(`[data-${prefix}-index]`);
+  const index = Number(card.getAttribute(`data-${prefix}-index`));
+  if (scope === "single") return { character: state.singleCharacters[index], sync: syncSingleCharactersFromDom, costScope: "single" };
+  if (scope === "multi") return { character: state.multi.characters[index], sync: syncMultiCharactersFromDom, costScope: "multi" };
+  if (scope === "project") return { character: state.project.characters[index], sync: syncProjectFromDom, dirty: "project", costScope: "project" };
+  return { character: state.artistStudy.characters[index], sync: () => syncArtistCharactersFromDom(scope), dirty: "artist-study", costScope: { study: "artist", search: "artistSearch", mixing: "artistMixing", pounding: "artistPounding", finalize: "artistFinalize" }[scope] };
+}
+
+function handleCharacterOutfitClick(event) {
+  const control = event.target.closest('[data-outfit-action]');
+  if (!control) return;
+  const wardrobe = control.closest('[data-wardrobe-scope]');
+  if (!wardrobe) return;
+  const context = characterOutfitContext(wardrobe);
+  context.sync();
+  const character = context.character;
+  character.outfits ||= [];
+  const action = control.dataset.outfitAction;
+  const index = Number(control.closest('[data-outfit-index]')?.dataset.outfitIndex);
+  if (action === "add") {
+    const outfit = { id: id("outfit"), name: `의상 ${character.outfits.length + 1}`, prompt: "" };
+    character.outfits.push(outfit);
+    character.selectedOutfitId = outfit.id;
+  } else if (action === "delete") {
+    const [outfit] = character.outfits.splice(index, 1);
+    if (character.selectedOutfitId === outfit.id) character.selectedOutfitId = null;
+  } else if (action === "select") {
+    character.selectedOutfitId = control.checked ? character.outfits[index].id : null;
+  }
+  if (action === "select") {
+    $$('[data-outfit-index]', wardrobe).forEach((row) => {
+      $('[data-outfit-action=select]', row).checked = character.outfits[Number(row.dataset.outfitIndex)].id === character.selectedOutfitId;
+    });
+    $('[data-outfit-status]', wardrobe).textContent = characterOutfitStatus(character);
+  } else {
+    event.preventDefault();
+    wardrobe.innerHTML = characterOutfitRows(character);
+    if (action === "add") $$('[data-outfit-field=name]', wardrobe).at(-1)?.focus();
+  }
+  event.stopPropagation();
+  if (context.dirty) markDirty(context.dirty);
+  if (context.costScope) {
+    invalidateCost(context.costScope);
+    scheduleCostEstimate(context.costScope);
+  }
+}
+
+document.addEventListener("click", handleCharacterOutfitClick, true);
+document.addEventListener("input", (event) => {
+  if (!event.target.matches('[data-outfit-field]')) return;
+  const wardrobe = event.target.closest('[data-wardrobe-scope]');
+  const context = characterOutfitContext(wardrobe);
+  syncCharacterOutfitsFromDom(context.character, wardrobe);
+  $('[data-outfit-status]', wardrobe).textContent = characterOutfitStatus(context.character);
+});
+
 function singleCharacterRows() {
   if (!state.singleCharacters.length) return `<div class="single-character-empty"><span>캐릭터 없음</span><small>일반 싱글 생성</small></div>`;
-  return state.singleCharacters.map((character, index) => `<details class="single-character-card" data-single-character-index="${index}" data-single-character-id="${esc(character.id)}" ${state.singleCharacterOpenIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-single-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-single-character-action="up" aria-label="위로 이동">↑</button><button type="button" data-single-character-action="down" aria-label="아래로 이동">↓</button><button type="button" data-single-character-action="delete" class="danger" aria-label="삭제">×</button></div></header><label>이름<input data-single-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<input data-single-character-field="prompt" value="${esc(character.prompt)}" placeholder="girl, black hair, source#hug"></label><label>Character UC<input data-single-character-field="negativePrompt" value="${esc(character.negativePrompt)}" placeholder="원하지 않는 캐릭터 속성"></label></div>${positionGridHtml(character.position)}</div></details>`).join("");
+  return state.singleCharacters.map((character, index) => `<details class="single-character-card" data-single-character-index="${index}" data-single-character-id="${esc(character.id)}" ${state.singleCharacterOpenIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-single-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-single-character-action="up" aria-label="위로 이동">↑</button><button type="button" data-single-character-action="down" aria-label="아래로 이동">↓</button><button type="button" data-single-character-action="delete" class="danger" aria-label="삭제">×</button></div></header><label>이름<input data-single-character-field="name" value="${esc(character.name)}"></label>${characterPromptFields(character, "single")}${positionGridHtml(character.position)}</div></details>`).join("");
 }
 
 function renderSingleCharacters() {
@@ -776,19 +932,20 @@ function syncSingleCharactersFromDom() {
     character.name = $("[data-single-character-field=name]", card).value;
     character.prompt = $("[data-single-character-field=prompt]", card).value;
     character.negativePrompt = $("[data-single-character-field=negativePrompt]", card).value;
+    syncCharacterOutfitsFromDom(character, card);
   });
 }
 
 function multiCharacterRows() {
   const characters = state.multi.characters || [];
   if (!characters.length) return `<div class="single-character-empty"><span>캐릭터 없음</span><small>모든 슬롯에 공통 적용</small></div>`;
-  return characters.map((character, index) => `<details class="single-character-card" data-multi-character-index="${index}" ${state.multiCharacterOpenIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-multi-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-multi-character-action="up">↑</button><button type="button" data-multi-character-action="down">↓</button><button type="button" data-multi-character-action="delete" class="danger">×</button></div></header><label>이름<input data-multi-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<input data-multi-character-field="prompt" value="${esc(character.prompt)}" placeholder="girl, black hair"></label><label>Character UC<input data-multi-character-field="negativePrompt" value="${esc(character.negativePrompt)}"></label></div>${positionGridHtml(character.position)}</div></details>`).join("");
+  return characters.map((character, index) => `<details class="single-character-card" data-multi-character-index="${index}" ${state.multiCharacterOpenIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-multi-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-multi-character-action="up">↑</button><button type="button" data-multi-character-action="down">↓</button><button type="button" data-multi-character-action="delete" class="danger">×</button></div></header><label>이름<input data-multi-character-field="name" value="${esc(character.name)}"></label>${characterPromptFields(character, "multi")}${positionGridHtml(character.position)}</div></details>`).join("");
 }
 
 function renderMultiCharacters() {
   $("#multiCharacters").innerHTML = multiCharacterRows();
-  $("#multiCharacterCount").textContent = `${state.multi.characters.length} / 6`;
-  $("#addMultiCharacter").disabled = state.multi.characters.length >= 6;
+  $("#multiCharacterCount").textContent = `${state.multi.characters.length} / ${characterLimit(state.multi.settings.model)}`;
+  $("#addMultiCharacter").disabled = state.multi.characters.length >= characterLimit(state.multi.settings.model);
 }
 
 function syncMultiCharactersFromDom() {
@@ -801,6 +958,7 @@ function syncMultiCharactersFromDom() {
     character.name = $("[data-multi-character-field=name]", card).value;
     character.prompt = $("[data-multi-character-field=prompt]", card).value;
     character.negativePrompt = $("[data-multi-character-field=negativePrompt]", card).value;
+    syncCharacterOutfitsFromDom(character, card);
   });
 }
 
@@ -878,42 +1036,42 @@ function artistCharacterRows(scope) {
   const openIds = scope === "search" ? state.artistSearchCharacterOpenIds : scope === "mixing" ? state.artistMixingCharacterOpenIds : scope === "pounding" ? state.artistPoundingCharacterOpenIds : scope === "finalize" ? state.artistFinalizeCharacterOpenIds : state.artistStudyCharacterOpenIds;
   const emptyLabel = scope === "search" ? "일반 작가 비교" : scope === "mixing" ? "일반 작가 믹싱" : scope === "pounding" ? "일반 파운딩 탐색" : scope === "finalize" ? "일반 파이널라이즈" : "일반 작례 연구";
   if (!characters.length) return `<div class="single-character-empty"><span>캐릭터 없음</span><small>${emptyLabel}</small></div>`;
-  return characters.map((character, index) => `<details class="single-character-card" data-${scope}-character-index="${index}" data-${scope}-character-id="${esc(character.id)}" ${openIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-${scope}-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-${scope}-character-action="up" aria-label="위로 이동">↑</button><button type="button" data-${scope}-character-action="down" aria-label="아래로 이동">↓</button><button type="button" data-${scope}-character-action="delete" class="danger" aria-label="삭제">×</button></div></header><label>이름<input data-${scope}-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<input data-${scope}-character-field="prompt" value="${esc(character.prompt)}" placeholder="girl, black hair, source#hug"></label><label>Character UC<input data-${scope}-character-field="negativePrompt" value="${esc(character.negativePrompt)}" placeholder="원하지 않는 캐릭터 속성"></label></div>${positionGridHtml(character.position)}</div></details>`).join("");
+  return characters.map((character, index) => `<details class="single-character-card" data-${scope}-character-index="${index}" data-${scope}-character-id="${esc(character.id)}" ${openIds.has(character.id) ? "open" : ""}><summary><span><small class="character-use-state ${character.enabled !== false ? "" : "off"}">${character.enabled !== false ? "사용" : "미사용"}</small><strong>${esc(character.name || `캐릭터 ${index + 1}`)}</strong></span><span class="character-summary-meta"><small>${character.position ? character.position.toUpperCase() : "AI 위치"}</small><span class="character-card-chevron" aria-hidden="true">⌄</span></span></summary><div class="single-character-card-body"><header><label class="checkbox"><input data-${scope}-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><div class="character-order-tools"><button type="button" data-${scope}-character-action="up" aria-label="위로 이동">↑</button><button type="button" data-${scope}-character-action="down" aria-label="아래로 이동">↓</button><button type="button" data-${scope}-character-action="delete" class="danger" aria-label="삭제">×</button></div></header><label>이름<input data-${scope}-character-field="name" value="${esc(character.name)}"></label>${characterPromptFields(character, scope)}${positionGridHtml(character.position)}</div></details>`).join("");
 }
 
 function renderArtistStudyCharacters() {
   const characters = state.artistStudy?.characters || [];
   $("#artistStudyCharacters").innerHTML = artistCharacterRows("study");
-  $("#artistStudyCharacterCount").textContent = `${characters.length} / 6`;
-  $("#addArtistStudyCharacter").disabled = characters.length >= 6;
+  $("#artistStudyCharacterCount").textContent = `${characters.length} / ${characterLimit(state.artistStudy?.settings.model)}`;
+  $("#addArtistStudyCharacter").disabled = characters.length >= characterLimit(state.artistStudy?.settings.model);
 }
 
 function renderArtistSearchCharacters() {
   const characters = state.artistStudy?.characters || [];
   $("#artistSearchCharacters").innerHTML = artistCharacterRows("search");
-  $("#artistSearchCharacterCount").textContent = `${characters.length} / 6`;
-  $("#addArtistSearchCharacter").disabled = characters.length >= 6;
+  $("#artistSearchCharacterCount").textContent = `${characters.length} / ${characterLimit(state.artistStudy?.settings.model)}`;
+  $("#addArtistSearchCharacter").disabled = characters.length >= characterLimit(state.artistStudy?.settings.model);
 }
 
 function renderArtistMixingCharacters() {
   const characters = state.artistStudy?.characters || [];
   $("#artistMixingCharacters").innerHTML = artistCharacterRows("mixing");
-  $("#artistMixingCharacterCount").textContent = `${characters.length} / 6`;
-  $("#addArtistMixingCharacter").disabled = characters.length >= 6;
+  $("#artistMixingCharacterCount").textContent = `${characters.length} / ${characterLimit(state.artistStudy?.settings.model)}`;
+  $("#addArtistMixingCharacter").disabled = characters.length >= characterLimit(state.artistStudy?.settings.model);
 }
 
 function renderArtistPoundingCharacters() {
   const characters = state.artistStudy?.characters || [];
   $("#artistPoundingCharacters").innerHTML = artistCharacterRows("pounding");
-  $("#artistPoundingCharacterCount").textContent = `${characters.length} / 6`;
-  $("#addArtistPoundingCharacter").disabled = characters.length >= 6;
+  $("#artistPoundingCharacterCount").textContent = `${characters.length} / ${characterLimit(state.artistStudy?.settings.model)}`;
+  $("#addArtistPoundingCharacter").disabled = characters.length >= characterLimit(state.artistStudy?.settings.model);
 }
 
 function renderArtistFinalizeCharacters() {
   const characters = state.artistStudy?.characters || [];
   $("#artistFinalizeCharacters").innerHTML = artistCharacterRows("finalize");
-  $("#artistFinalizeCharacterCount").textContent = `${characters.length} / 6`;
-  $("#addArtistFinalizeCharacter").disabled = characters.length >= 6;
+  $("#artistFinalizeCharacterCount").textContent = `${characters.length} / ${characterLimit(state.artistStudy?.settings.model)}`;
+  $("#addArtistFinalizeCharacter").disabled = characters.length >= characterLimit(state.artistStudy?.settings.model);
 }
 
 function syncArtistCharactersFromDom(scope) {
@@ -929,6 +1087,7 @@ function syncArtistCharactersFromDom(scope) {
     character.name = $(`[data-${scope}-character-field=name]`, card).value;
     character.prompt = $(`[data-${scope}-character-field=prompt]`, card).value;
     character.negativePrompt = $(`[data-${scope}-character-field=negativePrompt]`, card).value;
+    syncCharacterOutfitsFromDom(character, card);
   });
 }
 
@@ -1491,7 +1650,7 @@ function renderProject() {
     <label>공통 Prompt<textarea name="commonPrompt" rows="4">${esc(p.commonPrompt)}</textarea></label><label>공통 Undesired Content<textarea name="commonNegativePrompt" rows="2">${esc(p.commonNegativePrompt)}</textarea></label>
     <details><summary>공통 생성 설정</summary><div class="settings-grid" data-project-settings>${settingsHtml(p.commonSettings, "common")}</div></details>
     <section class="section-card"><header><div><h3>일반 멀티 슬롯</h3><p class="muted">캐릭터 카드 없이도 독립적으로 사용한다. 프리셋 Append 후에는 원본과 연결되지 않는다.</p></div><div class="preset-append">${appendControls("general")}<button type="button" data-add-slot="general">＋ 슬롯</button></div></header><div class="slot-list">${slotRows(p.generalSlots, "general")}</div></section>
-    <section class="section-card"><header><div><h3>캐릭터 카드</h3><p class="muted">활성 카드 최대 6명이 한 이미지의 독립 Character Prompt가 된다. 카드 순서도 배치 힌트다.</p></div><button type="button" id="addCharacter">＋ 캐릭터</button></header><div id="characters">${p.characters.map(characterHtml).join("") || `<p class="muted">캐릭터 카드가 없다.</p>`}</div></section>
+    <section class="section-card"><header><div><h3>캐릭터 카드</h3><p class="muted">한 이미지의 활성 캐릭터는 V5 최대 22명, V4.5 최대 6명이다. 카드 순서도 배치 힌트다.</p></div><button type="button" id="addCharacter">＋ 캐릭터</button></header><div id="characters">${p.characters.map(characterHtml).join("") || `<p class="muted">캐릭터 카드가 없다.</p>`}</div></section>
     <section class="section-card"><header><div><h3>작품 결과</h3><p class="muted">재시작 후에도 작품·카드·슬롯 관계를 복원한다.</p></div></header><div class="gallery">${projectResultsHtml(p.results)}</div></section>
     <div class="actions"><button type="button" id="reloadProject" class="ghost">되돌리기</button><button class="primary">작품 저장</button></div></form>`;
   syncSelectValues(editor, p.commonSettings, "common");
@@ -1505,14 +1664,14 @@ function projectResultsHtml(results = []) {
   return [...results].reverse().slice(0, 24).map((r) => `<article class="result-card"><img src="${esc(outputFileUrl(r.relativePath))}" alt="${esc(r.source?.slotName || "작품 결과")}"><div><strong>${esc(r.source?.characterName || r.source?.slotName || "일반 슬롯")}</strong><small>${esc(r.source?.slotName || r.createdAt || "")}</small></div></article>`).join("");
 }
 
-function characterHtml(character, index) { return `<article class="character-card" data-character-index="${index}"><header><div class="character-card-title"><label class="checkbox"><input data-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><h3>${esc(character.name)}</h3><span class="pill">${character.position ? character.position.toUpperCase() : "AI 위치"}</span></div><div><button type="button" data-character-move="up" aria-label="${esc(character.name)} 카드 위로 이동">↑</button><button type="button" data-character-move="down" aria-label="${esc(character.name)} 카드 아래로 이동">↓</button><button type="button" data-character-delete class="danger">카드 삭제</button></div></header><label>캐릭터 이름<input data-character-field="name" value="${esc(character.name)}"></label><div class="character-prompts"><label>Character Prompt<textarea data-character-field="prompt" rows="3" title="${esc(character.prompt)}" placeholder="girl, black hair, source#hug">${esc(character.prompt)}</textarea></label><label>Character UC<textarea data-character-field="negativePrompt" rows="3" title="${esc(character.negativePrompt)}">${esc(character.negativePrompt)}</textarea></label></div>${positionGridHtml(character.position)}<p class="character-action-tip">상호작용은 Character Prompt에 <code>source#</code>, <code>target#</code>, <code>mutual#</code> 태그를 직접 사용할 수 있다.</p><div class="panel-head"><div><strong>카드 소유 슬롯</strong><p class="muted">이 카드의 슬롯 Prompt·UC만 해당 캐릭터 캡션에 합성된다.</p></div><div class="preset-append">${appendControls(`character:${character.id}`)}<button type="button" data-add-slot="character:${character.id}">＋ 슬롯</button></div></div><div class="slot-list">${slotRows(character.slots, `character:${character.id}`)}</div></article>`; }
+function characterHtml(character, index) { return `<article class="character-card" data-character-index="${index}"><header><div class="character-card-title"><label class="checkbox"><input data-character-field="enabled" type="checkbox" ${character.enabled !== false ? "checked" : ""}> 사용</label><h3>${esc(character.name)}</h3><span class="pill">${character.position ? character.position.toUpperCase() : "AI 위치"}</span></div><div><button type="button" data-character-move="up" aria-label="${esc(character.name)} 카드 위로 이동">↑</button><button type="button" data-character-move="down" aria-label="${esc(character.name)} 카드 아래로 이동">↓</button><button type="button" data-character-delete class="danger">카드 삭제</button></div></header><label>캐릭터 이름<input data-character-field="name" value="${esc(character.name)}"></label>${characterPromptFields(character, "project")}${positionGridHtml(character.position)}<p class="character-action-tip">상호작용은 베이스에 <code>source#</code>, <code>target#</code>, <code>mutual#</code> 태그를 직접 사용할 수 있다.</p><div class="panel-head"><div><strong>카드 소유 슬롯</strong><p class="muted">이 카드의 슬롯 Prompt·UC만 해당 캐릭터 캡션에 합성된다.</p></div><div class="preset-append">${appendControls(`character:${character.id}`)}<button type="button" data-add-slot="character:${character.id}">＋ 슬롯</button></div></div><div class="slot-list">${slotRows(character.slots, `character:${character.id}`)}</div></article>`; }
 
 function syncSelectValues(root, settings, prefix) { ["sampler", "scheduler"].forEach((key) => { const el = root.querySelector(`[name="${prefix}.${key}"]`); if (el && settings?.[key]) el.value = settings[key]; }); }
 function syncProjectFromDom() {
   const form = $("#projectForm"); if (!form || !state.project) return;
   state.project.name = form.elements.name.value; state.project.commonPrompt = form.elements.commonPrompt.value; state.project.commonNegativePrompt = form.elements.commonNegativePrompt.value; state.project.commonSettings = readSettings(form, "common");
   $$(".slot-row", form).forEach((row) => { const slots = slotsForOwner(row.dataset.owner); const slot = slots[Number(row.dataset.index)]; if (!slot) return; slot.name = $("[data-field=name]", row).value; slot.prompt = $("[data-field=prompt]", row).value; slot.negativePrompt = $("[data-field=negativePrompt]", row).value; slot.enabled = $("[data-field=enabled]", row).checked; });
-  $$("[data-character-index]", form).forEach((card) => { const c = state.project.characters[Number(card.dataset.characterIndex)]; c.name = $("[data-character-field=name]", card).value; c.prompt = $("[data-character-field=prompt]", card).value; c.negativePrompt = $("[data-character-field=negativePrompt]", card).value; c.enabled = $("[data-character-field=enabled]", card).checked; });
+  $$("[data-character-index]", form).forEach((card) => { const c = state.project.characters[Number(card.dataset.characterIndex)]; c.name = $("[data-character-field=name]", card).value; c.prompt = $("[data-character-field=prompt]", card).value; c.negativePrompt = $("[data-character-field=negativePrompt]", card).value; c.enabled = $("[data-character-field=enabled]", card).checked; syncCharacterOutfitsFromDom(c, card); });
 }
 function slotsForOwner(owner) { if (owner === "general") return state.project.generalSlots; const characterId = owner.split(":")[1]; return state.project.characters.find((c) => c.id === characterId)?.slots || []; }
 function move(list, index, delta) { const target = index + delta; if (target < 0 || target >= list.length) return; [list[index], list[target]] = [list[target], list[index]]; }
@@ -1538,22 +1697,32 @@ function examplePresetSetLabel(preset) {
   if (preset.hasPrompt) return "Prompt · UC 비어 있음";
   return "빈 Prompt + UC 세트";
 }
-function renderPresetList() { const presets = presetsOfType(state.presetType); $("#presetList").innerHTML = presets.length ? presets.map((p) => `<button class="list-item ${state.preset?.id === p.id ? "active" : ""}" data-preset-id="${esc(p.id)}" title="${esc(p.name)}"><strong>${esc(p.name)}</strong><small>${p.type === "example" ? examplePresetSetLabel(p) : `${p.itemCount ?? 0} items`}</small></button>`).join("") : `<p class="muted">${state.presetType === "example" ? "작례 프리셋이 없다." : "서브슬롯 프리셋이 없다."}</p>`; }
+function presetTypeLabel(type) { return { example: "작례", character: "캐릭터", "sub-slot": "서브슬롯" }[type] || "프리셋"; }
+function newPresetDraft(type) {
+  if (type === "character") return { schema: "naintail.character-preset/v1", type, id: id("character-preset"), name: "새 캐릭터 프리셋", prompt: "", outfits: [], selectedOutfitId: null, negativePrompt: "" };
+  if (type === "example") return { schema: "naintail.example-preset/v1", type, id: id("example"), name: "새 작례 프리셋", prompt: "", negativePrompt: "" };
+  return { schema: "naintail.sub-slot-preset/v1", type: "sub-slot", id: id("preset"), name: "새 서브슬롯 프리셋", items: [] };
+}
+function renderPresetList() { const presets = presetsOfType(state.presetType); $("#presetList").innerHTML = presets.length ? presets.map((p) => `<button class="list-item ${state.preset?.id === p.id ? "active" : ""}" data-preset-id="${esc(p.id)}" title="${esc(p.name)}"><strong>${esc(p.name)}</strong><small>${p.type === "example" ? examplePresetSetLabel(p) : p.type === "character" ? `베이스 · 의상 ${p.outfitCount ?? 0}종 · UC` : `${p.itemCount ?? 0} items`}</small></button>`).join("") : `<p class="muted">${`${presetTypeLabel(state.presetType)} 프리셋이 없다.`}</p>`; }
 function renderPreset() {
   renderPresetList();
   $$("[data-preset-type]").forEach((button) => { const active = button.dataset.presetType === state.presetType; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
   const empty = $("#presetEmpty"), editor = $("#presetEditor");
-  $("#presetEmptyTitle").textContent = state.presetType === "example" ? "재사용할 작례" : "재사용할 슬롯 묶음";
-  $("#presetEmptyDescription").textContent = state.presetType === "example" ? "싱글 생성의 작례 영역에 Prompt와 UC를 불러온다." : "작품이나 캐릭터 카드에 Append하면 독립 슬롯으로 복사된다.";
+  $("#presetEmptyTitle").textContent = state.presetType === "character" ? "재사용할 캐릭터" : state.presetType === "example" ? "재사용할 작례" : "재사용할 슬롯 묶음";
+  $("#presetEmptyDescription").textContent = state.presetType === "character" ? "이름·베이스·의상·UC를 저장하고 각 캐릭터 카드에서 불러온다." : state.presetType === "example" ? "싱글 생성의 작례 영역에 Prompt와 UC를 불러온다." : "작품이나 캐릭터 카드에 Append하면 독립 슬롯으로 복사된다.";
   if (!state.preset) { empty.hidden = false; editor.hidden = true; return; }
   empty.hidden = true; editor.hidden = false;
+  if (state.preset.type === "character") {
+    editor.innerHTML = `<form id="presetForm"><div class="project-title-row"><label>캐릭터 프리셋 이름<input name="name" value="${esc(state.preset.name)}"></label><button type="button" id="deletePreset" class="danger">삭제</button></div><section class="section-card"><header><div><h3>캐릭터 베이스 · 의상 · UC</h3><p class="muted">이름과 캐릭터 내용을 함께 저장한다. 불러온 카드의 위치·사용 상태·소유 슬롯은 유지된다.</p></div></header>${characterPromptFields(state.preset, "preset")}</section><div class="actions"><button class="primary">캐릭터 프리셋 저장</button></div></form>`;
+    return;
+  }
   if (state.preset.type === "example") {
     editor.innerHTML = `<form id="presetForm"><div class="project-title-row"><label>작례 프리셋 이름<input name="name" value="${esc(state.preset.name)}"></label><button type="button" id="deletePreset" class="danger">삭제</button></div><section class="section-card example-preset-editor"><header><div><h3>작례 Prompt + UC 세트</h3><p class="muted">두 값을 하나의 프리셋으로 함께 저장하고, 싱글·멀티에서 함께 불러온다.</p></div></header><label>Prompt<textarea name="prompt" rows="10">${esc(state.preset.prompt)}</textarea></label><label>UC (Undesired Content)<textarea name="negativePrompt" rows="5">${esc(state.preset.negativePrompt)}</textarea></label></section><div class="actions"><button class="primary">Prompt + UC 세트 저장</button></div></form>`;
     return;
   }
   editor.innerHTML = `<form id="presetForm"><div class="project-title-row"><label>프리셋 이름<input name="name" value="${esc(state.preset.name)}"></label><button type="button" id="deletePreset" class="danger">삭제</button></div><section class="section-card"><header><div><h3>슬롯 템플릿</h3><p class="muted">Append 시 fresh slot ID로 복사되며 이후 원본 프리셋과 연결되지 않는다.</p></div><button type="button" id="addPresetItem">＋ 항목</button></header><div class="slot-list">${state.preset.items.map((item, i) => `<div class="slot-row" data-preset-index="${i}"><span></span><input data-field="name" value="${esc(item.name)}" aria-label="프리셋 항목 이름"><textarea data-field="prompt" rows="2" aria-label="프리셋 항목 프롬프트" title="${esc(item.prompt)}">${esc(item.prompt)}</textarea><textarea data-field="negativePrompt" rows="2" aria-label="프리셋 항목 Undesired Content" title="${esc(item.negativePrompt)}">${esc(item.negativePrompt)}</textarea><div class="slot-tools"><button type="button" data-preset-move="up" aria-label="${esc(item.name)} 위로 이동">↑</button><button type="button" data-preset-move="down" aria-label="${esc(item.name)} 아래로 이동">↓</button><button type="button" data-preset-item-delete class="danger" aria-label="${esc(item.name)} 삭제">×</button></div></div>`).join("") || `<p class="muted">항목이 없다.</p>`}</div></section><div class="actions"><button class="primary">서브슬롯 프리셋 저장</button></div></form>`;
 }
-function syncPresetFromDom() { const form = $("#presetForm"); if (!form || !state.preset) return; state.preset.name = form.elements.name.value; if (state.preset.type === "example") { state.preset.prompt = form.elements.prompt.value; state.preset.negativePrompt = form.elements.negativePrompt.value; return; } $$("[data-preset-index]", form).forEach((row) => { const item = state.preset.items[Number(row.dataset.presetIndex)]; item.name = $("[data-field=name]", row).value; item.prompt = $("[data-field=prompt]", row).value; item.negativePrompt = $("[data-field=negativePrompt]", row).value; }); }
+function syncPresetFromDom() { const form = $("#presetForm"); if (!form || !state.preset) return; state.preset.name = form.elements.name.value; if (state.preset.type === "character") { state.preset.prompt = $("[data-preset-character-field=prompt]", form).value; state.preset.negativePrompt = $("[data-preset-character-field=negativePrompt]", form).value; syncCharacterOutfitsFromDom(state.preset, form); return; } if (state.preset.type === "example") { state.preset.prompt = form.elements.prompt.value; state.preset.negativePrompt = form.elements.negativePrompt.value; return; } $$("[data-preset-index]", form).forEach((row) => { const item = state.preset.items[Number(row.dataset.presetIndex)]; item.name = $("[data-field=name]", row).value; item.prompt = $("[data-field=prompt]", row).value; item.negativePrompt = $("[data-field=negativePrompt]", row).value; }); }
 
 async function saveCurrentPreset(trigger = null) {
   syncPresetFromDom();
@@ -1895,7 +2064,7 @@ function applyArtistResult(index) {
   notify("이 이미지에 사용된 작가 활성 상태와 가중치를 적용했다.");
 }
 
-async function refreshLibraries() { [state.projects, state.presets] = await Promise.all([call(api.listProjects()), call(api.listPresets())]); renderProjectList(); renderPresetList(); renderExamplePresetOptions(); renderMultiPresetOptions(); }
+async function refreshLibraries() { [state.projects, state.presets] = await Promise.all([call(api.listProjects()), call(api.listPresets())]); renderProjectList(); renderPresetList(); renderExamplePresetOptions(); renderMultiPresetOptions(); renderCharacterPresetOptions(); }
 function renderCredentialStatus(credential = state.credential, live = state.live) {
   if (!credential) return;
   state.credential = credential;
@@ -2552,7 +2721,10 @@ $("#modelSelector").addEventListener("change", async (event) => {
   context.container.innerHTML = settingsHtml(next, context.prefix);
   writeSettings(context.form, next, context.prefix);
   if (state.tab === "single" || state.tab === "multi") {
-    if (state.tab === "multi") state.multi.settings = next;
+    if (state.tab === "multi") {
+      state.multi.settings = next;
+      renderMultiCharacters();
+    }
     renderVibes(state.tab);
     renderPreciseReferences(state.tab);
     renderModelCapabilities(state.tab);
@@ -2561,6 +2733,11 @@ $("#modelSelector").addEventListener("change", async (event) => {
     if (definition.references) refreshVibeCacheStatus(state.tab).catch((error) => notify(error.message, true));
   } else if (state.tab === "artist-study") {
     state.artistStudy.settings = next;
+    renderArtistStudyCharacters();
+    renderArtistSearchCharacters();
+    renderArtistMixingCharacters();
+    renderArtistPoundingCharacters();
+    renderArtistFinalizeCharacters();
     markDirty("artist-study");
     const scope = state.artistStudyMode === "searching" ? "artistSearch" : state.artistStudyMode === "mixing" ? "artistMixing" : state.artistStudyMode === "pounding" ? "artistPounding" : state.artistStudyMode === "finalize" ? "artistFinalize" : "artist";
     invalidateCost(scope);
@@ -2880,7 +3057,7 @@ $("#reuseSingleResult").addEventListener("click", () => {
   form.elements.exampleNegativePrompt.value = "";
   form.elements.prompt.value = result.request.prompt || "";
   form.elements.negativePrompt.value = result.request.negativePrompt || "";
-  state.singleCharacters = Array.isArray(result.request.characters) ? result.request.characters.map((character) => ({ ...character, id: character.id || id("character") })) : [];
+  state.singleCharacters = copyCharactersForEditing(result.request.characters);
   state.singleVibes = Array.isArray(result.request.vibes) ? result.request.vibes.map((vibe) => ({ ...vibe })) : [];
   state.singleNormalizeVibeStrengths = result.request.normalizeVibeStrengths !== false;
   state.singlePreciseReferences = Array.isArray(result.request.preciseReferences) ? result.request.preciseReferences.map((reference) => ({ ...reference })) : [];
@@ -3753,12 +3930,12 @@ $("#projectEditor").addEventListener("click", async (event) => {
 function resultLabel(scope) { return scope === "all" ? "전체" : scope === "general" ? "일반 슬롯" : "캐릭터 슬롯"; }
 
 $("#presetTypeTabs").addEventListener("click", async (event) => { const type = event.target.closest("[data-preset-type]")?.dataset.presetType; if (!type || type === state.presetType) return; if (!(await guardUnsaved("preset"))) return; state.presetType = type; state.preset = null; markDirty("preset", false); renderPreset(); });
-$("#newPreset").addEventListener("click", async () => { if (!(await guardUnsaved("preset"))) return; state.preset = state.presetType === "example" ? { schema: "naintail.example-preset/v1", type: "example", id: id("example"), name: "새 작례 프리셋", prompt: "", negativePrompt: "" } : { schema: "naintail.sub-slot-preset/v1", type: "sub-slot", id: id("preset"), name: "새 서브슬롯 프리셋", items: [] }; markDirty("preset"); renderPreset(); });
+$("#newPreset").addEventListener("click", async () => { if (!(await guardUnsaved("preset"))) return; state.preset = newPresetDraft(state.presetType); markDirty("preset"); renderPreset(); });
 $("#presetList").addEventListener("click", async (event) => { const pid = event.target.closest("[data-preset-id]")?.dataset.presetId; if (!pid || pid === state.preset?.id) return; if (!(await guardUnsaved("preset"))) return; state.preset = await action(() => call(api.getPreset(pid)), null, event.target.closest("[data-preset-id]")); markDirty("preset", false); renderPreset(); });
 $("#presetEditor").addEventListener("input", () => markDirty("preset"));
 $("#presetEditor").addEventListener("change", () => markDirty("preset"));
 $("#presetEditor").addEventListener("submit", async (event) => { if (event.target.id !== "presetForm") return; event.preventDefault(); await saveCurrentPreset(event.submitter); });
-$("#presetEditor").addEventListener("click", async (event) => { const el = event.target; if (!state.preset) return; if (el.id === "addPresetItem" && state.preset.type === "sub-slot") { syncPresetFromDom(); state.preset.items.push({ name: "새 슬롯", prompt: "", negativePrompt: "", settings: {} }); markDirty("preset"); renderPreset(); return; } if (el.id === "deletePreset") { const saved = state.presets.some((item) => item.id === state.preset.id); if (!saved) { state.preset = null; markDirty("preset", false); renderPreset(); return; } const isExample = state.preset.type === "example"; const choice = await confirmChoice({ title: `${isExample ? "작례" : "서브슬롯"} 프리셋 삭제`, message: isExample ? `${state.preset.name} 작례 프리셋을 영구 삭제할까?` : `${state.preset.name} 프리셋을 영구 삭제할까? 이미 Append한 독립 슬롯은 영향을 받지 않아.`, confirmText: "프리셋 삭제" }); if (choice !== "confirm") return; await action(() => call(api.deletePreset(state.preset.id)), "프리셋을 삭제했다.", el); state.preset = null; markDirty("preset", false); await refreshLibraries(); renderPreset(); return; } if (state.preset.type !== "sub-slot") return; const row = el.closest("[data-preset-index]"); if (!row) return; syncPresetFromDom(); const index = Number(row.dataset.presetIndex); if (el.hasAttribute("data-preset-item-delete")) state.preset.items.splice(index, 1); else if (el.dataset.presetMove) move(state.preset.items, index, el.dataset.presetMove === "up" ? -1 : 1); markDirty("preset"); renderPreset(); });
+$("#presetEditor").addEventListener("click", async (event) => { const el = event.target; if (!state.preset) return; if (el.id === "addPresetItem" && state.preset.type === "sub-slot") { syncPresetFromDom(); state.preset.items.push({ name: "새 슬롯", prompt: "", negativePrompt: "", settings: {} }); markDirty("preset"); renderPreset(); return; } if (el.id === "deletePreset") { const saved = state.presets.some((item) => item.id === state.preset.id); if (!saved) { state.preset = null; markDirty("preset", false); renderPreset(); return; } const typeLabel = presetTypeLabel(state.preset.type); const choice = await confirmChoice({ title: `${typeLabel} 프리셋 삭제`, message: `${state.preset.name} ${typeLabel} 프리셋을 영구 삭제할까? 이미 불러온 내용은 영향을 받지 않아.`, confirmText: "프리셋 삭제" }); if (choice !== "confirm") return; await action(() => call(api.deletePreset(state.preset.id)), "프리셋을 삭제했다.", el); state.preset = null; markDirty("preset", false); await refreshLibraries(); renderPreset(); return; } if (state.preset.type !== "sub-slot") return; const control = el.closest("[data-preset-item-delete], [data-preset-move]"); if (!control) return; const row = control.closest("[data-preset-index]"); if (!row) return; syncPresetFromDom(); const index = Number(row.dataset.presetIndex); if (control.hasAttribute("data-preset-item-delete")) state.preset.items.splice(index, 1); else if (control.dataset.presetMove) move(state.preset.items, index, control.dataset.presetMove === "up" ? -1 : 1); markDirty("preset"); renderPreset(); });
 
 async function refreshAllCostEstimates() { await Promise.all([estimateSingle(), estimateMulti(), estimateArtistStudy(), estimateArtistSearch(), estimateArtistMixing(), estimateArtistPounding(), estimateArtistFinalize(), estimateAllProjectCosts()]); }
 $("#credentialForm").addEventListener("submit", async (event) => { event.preventDefault(); const token = event.currentTarget.elements.token.value; const credential = await action(() => call(api.saveCredential(token)), "토큰을 암호화 저장했다.", event.submitter); renderCredentialStatus(credential); event.currentTarget.reset(); await refreshStatus(); await refreshSubscription(); await refreshAllCostEstimates(); });

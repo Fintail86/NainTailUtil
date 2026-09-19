@@ -77,11 +77,11 @@ async function run(options = {}) {
     }
 
     if (group === "presets" && action === "list") {
-      print({ ok: true, result: app.listPresets() }, jsonl);
+      print({ ok: true, result: app.listPresets().filter((preset) => !flags.type || preset.type === flags.type).map(({ id, fileName, ...preset }) => preset) }, jsonl);
       return;
     }
     if (group === "presets" && action === "get") {
-      print({ ok: true, result: app.getPreset(flags.id) }, jsonl);
+      print({ ok: true, result: app.getPreset(flags.name ? { type: flags.type, name: flags.name } : flags.id) }, jsonl);
       return;
     }
     if (group === "presets" && action === "save") {
@@ -89,7 +89,7 @@ async function run(options = {}) {
       return;
     }
     if (group === "presets" && action === "delete") {
-      print({ ok: true, result: app.deletePreset(flags.id) }, jsonl);
+      print({ ok: true, result: app.deletePreset(flags.name ? { type: flags.type, name: flags.name } : flags.id) }, jsonl);
       return;
     }
 
@@ -147,6 +147,7 @@ async function run(options = {}) {
         "status [--jsonl]",
         "projects list|create|get|save",
         "presets list|get|save|delete",
+        "presets get|delete --type example|character|sub-slot --name <name> (legacy --id supported)",
         "artist-study get|save|randomize --config <file>",
         "plan project --id <projectId> [--scope all|general|character]",
         "generate single --config <file> [--jsonl]",

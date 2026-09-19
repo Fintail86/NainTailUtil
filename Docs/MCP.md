@@ -108,14 +108,18 @@ GUI 저장 토큰과 환경변수 토큰이 모두 없어도 discovery와 저장
 
 ## 토큰 절약 discovery 계약
 
+NaiTail의 요청 예시·의상·서브슬롯 규칙은 [NaiTail MCP 가이드](NaiTail/features/MCP.md)를 따른다.
+
 - `naintail_projects_list`: `id`, `name`, `characterCount`, `generalSlotCount`만 반환
 - `naintail_project_get`: 지정한 작품 하나의 전체 Prompt·UC·설정·카드·슬롯 반환
-- `naintail_presets_list`: `id`, `name`, `type`, `itemCount`만 반환
-- `naintail_preset_get`: 지정한 프리셋 하나의 전체 내용 반환
+- `naintail_presets_list`: `name`, `type`, `itemCount`, 캐릭터의 `outfits` 이름 배열 반환
+- `naintail_preset_get`: `type` + `name`으로 지정한 프리셋 하나의 전체 내용 반환 (`presetId`는 기존 호출 호환용)
 - `naintail_artist_study_get`: 저장된 연구 설정 전체 반환
 
-목록 응답에는 파일명·경로·Prompt 미리보기·본문·결과 metadata를 넣지 않는다. ID를 이미 알면 목록을
-건너뛰고 바로 `get` 또는 생성 도구를 호출한다.
+목록 응답에는 파일 경로·Prompt 미리보기·본문·결과 metadata를 넣지 않는다. 작품 ID 또는 프리셋
+이름을 이미 알면 목록을 건너뛴다. 싱글·멀티 생성에는 `examplePreset: "SP-1"`,
+`characters: [{"preset":"테스트 캐릭터","outfit":"근무복"}]`, 멀티에는 `slotPreset: "감정"`처럼
+이름만 넘긴다. 본문 확인이 필요한 경우에만 `preset_get`을 호출하며, 생성용 복사·붙여넣기는 필요 없다.
 
 ## 생성과 Anlas 승인
 
@@ -160,9 +164,9 @@ terminal 응답은 생성 이미지의 경로·Seed·크기·모델·슬롯 식�
 
 ```text
 필요할 때만 naintail_status
-  -> ID를 모를 때만 projects_list / presets_list
-  -> 내용이 필요한 한 항목만 project_get / preset_get
-  -> generate_* 호출
+  -> 작품 ID 또는 프리셋 이름·의상 목록을 모를 때만 projects_list / presets_list
+  -> 본문 확인이 필요한 한 항목만 project_get / preset_get (이름 참조 생성이면 생략)
+  -> generate_* 호출 (싱글·멀티 프리셋은 이름으로 전달)
   -> 유료 확인 오류면 사용자 승인 후 allowPaidAnlas + maxAnlas로 재호출
   -> jobId 보관
   -> 일반적으로 job_wait

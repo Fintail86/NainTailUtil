@@ -7,6 +7,7 @@ const PRODUCT_DIRECTORIES = Object.freeze([
   "runtime",
   "Presets/sub-slots",
   "Presets/examples",
+  "Presets/characters",
   "References/precise",
   "References/vibes",
   "Projects",

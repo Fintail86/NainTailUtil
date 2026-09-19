@@ -105,6 +105,8 @@ class McpJobManager {
 
   async submit(mode, request, options = {}) {
     if (this.activeCount() >= this.maxActive) throw new NainTailError("MCP_QUEUE_FULL", `MCP 활성 작업은 최대 ${this.maxActive}개입니다.`);
+    // Resolve once before authorization; both estimation and enqueue use this snapshot.
+    request = this.app.resolvePresetReferences?.(request, mode) ?? request;
     const estimate = await this.costGate.authorize(mode, request, options);
     let queued;
     if (mode === "single") queued = await this.app.enqueueSingle(request);

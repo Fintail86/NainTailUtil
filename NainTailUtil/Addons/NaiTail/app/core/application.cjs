@@ -5,6 +5,7 @@ const { NainTailError } = require("./errors.cjs");
 const { appendPresetItems, createProject, validateProject } = require("./project-model.cjs");
 const { ProjectStore } = require("./project-store.cjs");
 const { PresetStore } = require("./preset-store.cjs");
+const { resolvePresetReferences } = require("./preset-reference.cjs");
 const { OutputStore } = require("./output-store.cjs");
 const { materializeProject, materializeSingle } = require("./request-resolver.cjs");
 const { GenerationQueue } = require("./generation-queue.cjs");
@@ -68,6 +69,7 @@ class NainTailApplication extends EventEmitter {
       projects: this.projectStore.list().length,
       subSlotPresets: presets.filter((preset) => preset.type === "sub-slot").length,
       examplePresets: presets.filter((preset) => preset.type === "example").length,
+      characterPresets: presets.filter((preset) => preset.type === "character").length,
       queue: this.queue.snapshot(),
     };
   }
@@ -262,6 +264,7 @@ class NainTailApplication extends EventEmitter {
   }
 
   async enqueueSingle(input) {
+    input = this.resolvePresetReferences(input, "single");
     await this.requireToken();
     const tasks = materializeSingle(input);
     this.queue.enqueue(tasks);
@@ -332,10 +335,15 @@ class NainTailApplication extends EventEmitter {
   }
 
   async enqueueMulti(input) {
+    input = this.resolvePresetReferences(input, "multi");
     await this.requireToken();
     const tasks = materializeMulti(input);
     this.queue.enqueue(tasks);
     return { runId: tasks[0].runId, tasks: tasks.length, queue: this.queue.snapshot() };
+  }
+
+  resolvePresetReferences(input, mode) {
+    return resolvePresetReferences(input, this.presetStore, mode);
   }
 
   async enqueueProject(projectId, options = {}) {

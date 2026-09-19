@@ -45,7 +45,6 @@ function normalizeMulti(input = {}) {
 
 function materializeMulti(input) {
   const multi = normalizeMulti(input);
-  const characters = activeCharacterPrompts(multi.characters);
   const candidates = multi.slots.length
     ? multi.slots.map((slot, index) => ({ slot, slotIndex: index + 1 })).filter(({ slot }) => slot.enabled)
     : [{ slot: { id: "multi-base", name: "공통 프롬프트", prompt: "", negativePrompt: "", settings: {} }, slotIndex: 1 }];
@@ -59,6 +58,8 @@ function materializeMulti(input) {
   const tasks = [];
   for (let queueIndex = 1; queueIndex <= multi.queueCount; queueIndex += 1) {
     for (const { slot, slotIndex } of candidates) {
+      const settings = normalizeGenerationSettings({ ...multi.settings, ...slot.settings });
+      const characters = activeCharacterPrompts(multi.characters, settings.model);
       const prompt = joinPrompt(multi.examplePrompt, multi.prompt, slot.prompt);
       if (!prompt && !characters.length) throw new NainTailError("EMPTY_PROMPT", `${slot.name}의 최종 프롬프트와 활성 캐릭터가 모두 비어 있습니다.`);
       for (let batchIndex = 1; batchIndex <= multi.batchCount; batchIndex += 1) {
@@ -77,7 +78,7 @@ function materializeMulti(input) {
             preciseReferences: multi.preciseReferences,
             vibes: multi.vibes,
             normalizeVibeStrengths: multi.normalizeVibeStrengths,
-            settings: normalizeGenerationSettings({ ...multi.settings, ...slot.settings }),
+            settings,
             nSamples: 1,
           },
         });

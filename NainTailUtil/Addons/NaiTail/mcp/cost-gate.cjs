@@ -14,6 +14,7 @@ function isOpusSubscription(subscription) {
 }
 
 function materialize(app, mode, request, options = {}) {
+  request = app.resolvePresetReferences?.(request, mode) ?? request;
   if (mode === "single") return materializeSingle(request);
   if (mode === "multi") return materializeMulti(request);
   if (mode === "artist-study") return materializeArtistStudy(request || app.getArtistStudy());

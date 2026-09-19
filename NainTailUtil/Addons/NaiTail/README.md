@@ -11,6 +11,10 @@ SemVer를 함께 변경하고 포터블 entry를 검증한다.
 - `electron/`: 제한된 IPC와 자격증명 adapter
 - `cli/`, `mcp/`: headless adapter
 
+MCP 호출 가이드는 저장소의 [Docs/NaiTail/features/MCP.md](../../../Docs/NaiTail/features/MCP.md)를 따른다.
+싱글·멀티 생성에는 프리셋 본문 대신 `examplePreset`, `characters[].preset`, `slotPreset`에
+이름만 전달한다. 연결된 서버가 이전 도구 설명을 유지하면 MCP 연결을 재시작한다.
+
 NainTail 호스트 안에서 실행하거나 `NaiTail.bat`로 단독 실행하는 경우 모두 이 NaiTail 폴더
 자체가 application·data root다. `Projects/`, `Presets/`, `References/`, `Favorites/`, `outputs/`, `cache/`,
 `config/`, `logs/`는 실행 형태와 관계없이 이 애드온이 직접 소유한다. Hosted 실행에서 달라지는
